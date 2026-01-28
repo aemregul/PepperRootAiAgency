@@ -1,0 +1,117 @@
+"""
+API şemaları (Pydantic modelleri).
+"""
+from datetime import datetime
+from typing import Optional, Any
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr
+
+
+# ============== KULLANICI ==============
+
+class UserBase(BaseModel):
+    email: EmailStr
+    full_name: Optional[str] = None
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserResponse(UserBase):
+    id: UUID
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============== OTURUM ==============
+
+class SessionCreate(BaseModel):
+    title: Optional[str] = "Yeni Oturum"
+
+
+class SessionResponse(BaseModel):
+    id: UUID
+    title: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============== MESAJ ==============
+
+class MessageCreate(BaseModel):
+    content: str
+
+
+class MessageResponse(BaseModel):
+    id: UUID
+    session_id: UUID
+    role: str
+    content: str
+    metadata_: Optional[dict] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============== VARLIK ==============
+
+class EntityCreate(BaseModel):
+    entity_type: str
+    name: str
+    description: Optional[str] = None
+    attributes: Optional[dict] = None
+
+
+class EntityResponse(BaseModel):
+    id: UUID
+    session_id: UUID
+    entity_type: str
+    name: str
+    tag: str
+    description: Optional[str] = None
+    attributes: Optional[dict] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============== ASSET ==============
+
+class AssetResponse(BaseModel):
+    id: UUID
+    session_id: UUID
+    asset_type: str
+    url: str
+    thumbnail_url: Optional[str] = None
+    prompt: Optional[str] = None
+    model_name: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============== CHAT ==============
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[UUID] = None
+
+
+class ChatResponse(BaseModel):
+    session_id: UUID
+    message: MessageResponse
+    response: MessageResponse
+    assets: list[AssetResponse] = []
+    entities_created: list[EntityResponse] = []
