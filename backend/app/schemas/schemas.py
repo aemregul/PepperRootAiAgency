@@ -115,3 +115,27 @@ class ChatResponse(BaseModel):
     response: MessageResponse
     assets: list[AssetResponse] = []
     entities_created: list[EntityResponse] = []
+
+
+# ============== GÖRSEL ÜRETİM ==============
+
+class ImageGenerateRequest(BaseModel):
+    prompt: str
+    model: str = "fal-ai/flux/schnell"
+    image_size: str = "square_hd"
+    num_images: int = 1
+    seed: Optional[int] = None
+
+
+class ImageGenerateResponse(BaseModel):
+    images: list[dict]
+    seed: Optional[int] = None
+    prompt: str
+
+
+class ImageToImageRequest(BaseModel):
+    prompt: str
+    image_url: str
+    model: str = "fal-ai/flux/dev/image-to-image"
+    strength: float = 0.85
+    image_size: str = "square_hd"

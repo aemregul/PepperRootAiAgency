@@ -11,8 +11,8 @@
 |-----|-------|------------|
 | Gün 1-3: Altyapı | ✅ Tamamlandı | %100 |
 | Gün 4-5: API Endpoint'leri | ✅ Tamamlandı | %100 |
-| Gün 6-8: fal.ai Entegrasyonu | 🔄 Sırada | %0 |
-| Gün 9-14: Agent Çekirdeği | ⏳ Bekliyor | %0 |
+| Gün 6-8: fal.ai Entegrasyonu | ✅ Tamamlandı | %100 |
+| Gün 9-14: Agent Çekirdeği | 🔄 Sırada | %0 |
 | Gün 15-21: Frontend | ⏳ Bekliyor | %0 |
 | Gün 22-28: Entegrasyon | ⏳ Bekliyor | %0 |
 
@@ -50,15 +50,27 @@
 
 ---
 
+### Gün 6-8: fal.ai Entegrasyonu (28 Ocak 2026)
+- [x] fal.ai hesabı açıldı
+- [x] API key alındı
+- [x] .env dosyasına FAL_KEY eklendi
+- [x] fal_client paketi kuruldu (v0.12.0)
+- [x] fal_plugin.py oluşturuldu: `app/services/plugins/fal_plugin.py`
+- [x] Görsel üretme endpoint'leri eklendi: `app/api/routes/generate.py`
+  - POST /api/v1/generate/image (prompt'tan görsel)
+  - POST /api/v1/generate/image-to-image (referans ile)
+- [x] Swagger UI ile test edildi, çalışıyor
+
+---
+
 ## 🔄 Şu An Yapılacak
 
-### Gün 6-8: fal.ai Entegrasyonu
-- [ ] fal.ai hesabı aç
-- [ ] API key al
-- [ ] .env dosyasına FAL_API_KEY ekle
-- [ ] fal_plugin.py tamamla
-- [ ] Görsel üretme endpoint'i ekle
-- [ ] Test et
+### Gün 9-14: Agent Çekirdeği
+- [ ] LLM servisi (Anthropic Claude)
+- [ ] Agent temel yapısı
+- [ ] Entity çıkarımı
+- [ ] @tag sistemi
+- [ ] Görev orchestration
 
 ---
 

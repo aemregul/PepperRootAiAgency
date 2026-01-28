@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     
     # AI APIs
     ANTHROPIC_API_KEY: Optional[str] = None
-    FAL_API_KEY: Optional[str] = None
+    FAL_KEY: Optional[str] = None
     
     # Storage
     STORAGE_TYPE: str = "local"
