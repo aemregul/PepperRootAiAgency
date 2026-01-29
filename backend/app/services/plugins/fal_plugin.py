@@ -4,7 +4,6 @@ fal.ai Plugin - Görsel/Video üretim servisi.
 import os
 from typing import Optional
 import fal_client
-
 from app.core.config import settings
 
 
@@ -27,33 +26,45 @@ class FalPlugin:
         """
         Prompt'tan görsel üret.
         
-        Args:
-            prompt: Görsel açıklaması
-            model: Kullanılacak model (varsayılan: flux/schnell)
-            image_size: Boyut (square_hd, landscape_4_3, portrait_4_3, vb.)
-            num_images: Üretilecek görsel sayısı
-            seed: Rastgelelik tohumu (tekrarlanabilirlik için)
-        
         Returns:
-            fal.ai API yanıtı (images listesi içerir)
+            dict: {"success": bool, "image_url": str, "error": str}
         """
-        arguments = {
-            "prompt": prompt,
-            "image_size": image_size,
-            "num_images": num_images,
-        }
-        
-        if seed is not None:
-            arguments["seed"] = seed
-        
-        # fal_client.subscribe async generator döndürür
-        result = await fal_client.subscribe_async(
-            model,
-            arguments=arguments,
-            with_logs=True,
-        )
-        
-        return result
+        try:
+            arguments = {
+                "prompt": prompt,
+                "image_size": image_size,
+                "num_images": num_images,
+            }
+            
+            if seed is not None:
+                arguments["seed"] = seed
+            
+            # fal_client.subscribe_async ile çağır
+            result = await fal_client.subscribe_async(
+                model,
+                arguments=arguments,
+                with_logs=True,
+            )
+            
+            # Sonucu işle
+            if result and "images" in result and len(result["images"]) > 0:
+                image_url = result["images"][0]["url"]
+                return {
+                    "success": True,
+                    "image_url": image_url,
+                    "result": result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Görsel üretilemedi - boş sonuç"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
     
     async def generate_image_with_reference(
         self,
@@ -66,28 +77,38 @@ class FalPlugin:
         """
         Referans görsel ile yeni görsel üret.
         
-        Args:
-            prompt: Görsel açıklaması
-            image_url: Referans görsel URL'i
-            model: Kullanılacak model
-            strength: Değişiklik gücü (0-1, yüksek = daha çok değişir)
-            image_size: Boyut
-        
         Returns:
-            fal.ai API yanıtı
+            dict: {"success": bool, "image_url": str, "error": str}
         """
-        result = await fal_client.subscribe_async(
-            model,
-            arguments={
-                "prompt": prompt,
-                "image_url": image_url,
-                "strength": strength,
-                "image_size": image_size,
-            },
-            with_logs=True,
-        )
-        
-        return result
+        try:
+            result = await fal_client.subscribe_async(
+                model,
+                arguments={
+                    "prompt": prompt,
+                    "image_url": image_url,
+                    "strength": strength,
+                    "image_size": image_size,
+                },
+                with_logs=True,
+            )
+            
+            if result and "images" in result and len(result["images"]) > 0:
+                return {
+                    "success": True,
+                    "image_url": result["images"][0]["url"],
+                    "result": result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Görsel üretilemedi - boş sonuç"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 # Singleton instance

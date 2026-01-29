@@ -12,7 +12,7 @@
 | Gün 1-3: Altyapı | ✅ Tamamlandı | %100 |
 | Gün 4-5: API Endpoint'leri | ✅ Tamamlandı | %100 |
 | Gün 6-8: fal.ai Entegrasyonu | ✅ Tamamlandı | %100 |
-| Gün 9-14: Agent Çekirdeği | 🔄 Sırada | %0 |
+| Gün 9-14: Agent Çekirdeği | 🔄 Sırada | %40 |
 | Gün 15-21: Frontend | ⏳ Bekliyor | %0 |
 | Gün 22-28: Entegrasyon | ⏳ Bekliyor | %0 |
 
@@ -66,8 +66,9 @@
 ## 🔄 Şu An Yapılacak
 
 ### Gün 9-14: Agent Çekirdeği
-- [ ] LLM servisi (Anthropic Claude)
-- [ ] Agent temel yapısı
+- [x] LLM servisi (Anthropic Claude)
+- [x] Agent temel yapısı ve Tool calling altyapısı
+- [x] Agent Orchestrator (Tool kullanımı)
 - [ ] Entity çıkarımı
 - [ ] @tag sistemi
 - [ ] Görev orchestration

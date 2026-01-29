@@ -1,15 +1,15 @@
 """
 Chat API endpoint'leri.
 """
-from uuid import UUID, uuid4
-
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.models import Session, Message
-from app.schemas.schemas import ChatRequest, ChatResponse, MessageResponse
+from app.schemas.schemas import ChatRequest, ChatResponse, MessageResponse, AssetResponse
+from app.services.agent.orchestrator import agent
 
 router = APIRouter(prefix="/chat", tags=["Sohbet"])
 
@@ -30,9 +30,8 @@ async def chat(
         if not session:
             raise HTTPException(status_code=404, detail="Oturum bulunamadı")
     else:
-        # Yeni session oluştur
-        temp_user_id = uuid4()
-        session = Session(user_id=temp_user_id, title="Yeni Sohbet")
+        # Yeni anonim session oluştur
+        session = Session(title="Yeni Sohbet")
         db.add(session)
         await db.flush()
         await db.refresh(session)
@@ -47,19 +46,32 @@ async def chat(
     await db.flush()
     await db.refresh(user_message)
     
-    # TODO: Agent entegrasyonu burada olacak
-    # Şimdilik basit echo yanıtı
-    response_content = f"Mesajınız alındı: '{request.message}'. Agent entegrasyonu yakında..."
+    # Agent ile yanıt al
+    agent_result = await agent.process_message(request.message)
+    
+    response_content = agent_result.get("response", "")
+    images = agent_result.get("images", [])
     
     # Assistant yanıtını kaydet
     assistant_message = Message(
         session_id=session.id,
         role="assistant",
-        content=response_content
+        content=response_content,
+        metadata_={"images": images} if images else {}
     )
     db.add(assistant_message)
     await db.flush()
     await db.refresh(assistant_message)
+    
+    # Assets listesi oluştur
+    assets = []
+    for img in images:
+        assets.append(AssetResponse(
+            id=None,
+            asset_type="image",
+            url=img.get("url", ""),
+            prompt=img.get("prompt", "")
+        ))
     
     return ChatResponse(
         session_id=session.id,
@@ -79,6 +91,6 @@ async def chat(
             metadata_=assistant_message.metadata_,
             created_at=assistant_message.created_at
         ),
-        assets=[],
+        assets=assets,
         entities_created=[]
     )

@@ -36,7 +36,7 @@ class Session(Base):
     __tablename__ = "sessions"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), default="Yeni Oturum")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     metadata_: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, default=dict)

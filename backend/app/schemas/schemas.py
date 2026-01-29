@@ -89,14 +89,14 @@ class EntityResponse(BaseModel):
 # ============== ASSET ==============
 
 class AssetResponse(BaseModel):
-    id: UUID
-    session_id: UUID
+    id: Optional[UUID] = None
+    session_id: Optional[UUID] = None
     asset_type: str
     url: str
     thumbnail_url: Optional[str] = None
     prompt: Optional[str] = None
     model_name: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
