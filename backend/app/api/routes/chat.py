@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.models import Session, Message
-from app.schemas.schemas import ChatRequest, ChatResponse, MessageResponse, AssetResponse
+from app.schemas.schemas import ChatRequest, ChatResponse, MessageResponse, AssetResponse, EntityResponse
 from app.services.agent.orchestrator import agent
 
 router = APIRouter(prefix="/chat", tags=["Sohbet"])
@@ -46,21 +46,29 @@ async def chat(
     await db.flush()
     await db.refresh(user_message)
     
-    # Agent ile yanıt al
-    agent_result = await agent.process_message(request.message)
+    # Agent ile yanıt al (db ve session_id dahil)
+    agent_result = await agent.process_message(
+        user_message=request.message,
+        session_id=session.id,
+        db=db
+    )
     
     response_content = agent_result.get("response", "")
     images = agent_result.get("images", [])
+    entities_created = agent_result.get("entities_created", [])
     
     # Assistant yanıtını kaydet
     assistant_message = Message(
         session_id=session.id,
         role="assistant",
         content=response_content,
-        metadata_={"images": images} if images else {}
+        metadata_={
+            "images": images,
+            "entities_created": [e.get("tag") for e in entities_created if isinstance(e, dict)]
+        } if images or entities_created else {}
     )
     db.add(assistant_message)
-    await db.flush()
+    await db.commit()
     await db.refresh(assistant_message)
     
     # Assets listesi oluştur
@@ -72,6 +80,21 @@ async def chat(
             url=img.get("url", ""),
             prompt=img.get("prompt", "")
         ))
+    
+    # Entities response listesi oluştur
+    entity_responses = []
+    for entity_data in entities_created:
+        if isinstance(entity_data, dict):
+            entity_responses.append(EntityResponse(
+                id=entity_data.get("id"),
+                session_id=session.id,
+                entity_type=entity_data.get("entity_type", ""),
+                name=entity_data.get("name", ""),
+                tag=entity_data.get("tag", ""),
+                description=entity_data.get("description"),
+                attributes=entity_data.get("attributes"),
+                created_at=assistant_message.created_at
+            ))
     
     return ChatResponse(
         session_id=session.id,
@@ -92,5 +115,5 @@ async def chat(
             created_at=assistant_message.created_at
         ),
         assets=assets,
-        entities_created=[]
+        entities_created=entity_responses
     )

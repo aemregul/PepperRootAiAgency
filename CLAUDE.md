@@ -69,9 +69,16 @@
 - [x] LLM servisi (Anthropic Claude)
 - [x] Agent temel yapısı ve Tool calling altyapısı
 - [x] Agent Orchestrator (Tool kullanımı)
-- [ ] Entity çıkarımı
-- [ ] @tag sistemi
-- [ ] Görev orchestration
+- [x] Entity çıkarımı (@character_emre gibi tag'ler)
+- [x] @tag sistemi (context injection çalışıyor)
+- [ ] Görev orchestration (çoklu adım planlama)
+
+### Gün 9-14 Entity Sistemi Detayları (29 Ocak 2026)
+- [x] `entity_service.py` - CRUD ve tag parsing
+- [x] Agent'a 4 yeni araç: create_character, create_location, get_entity, list_entities
+- [x] Orchestrator'a context injection eklendi
+- [x] Entity API endpoint'leri: /api/v1/entities/
+- [x] @tag ile görsel üretimi test edildi, çalışıyor!
 
 ---
 
