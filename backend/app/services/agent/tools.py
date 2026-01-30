@@ -32,7 +32,7 @@ AGENT_TOOLS = [
     },
     {
         "name": "create_character",
-        "description": "Yeni bir karakter oluşturur ve hafızaya kaydeder. Karakter daha sonra @tag ile referans verilebilir. Örnek: 'Emre' karakteri oluşturulursa @character_emre tag'i ile çağrılabilir.",
+        "description": "Yeni bir karakter oluşturur ve hafızaya kaydeder. Kullanıcının verdiği fiziksel özellikleri (göz rengi, kaş rengi, saç stili vb.) dikkatlice yakala ve attributes'a kaydet. Karakter daha sonra @tag ile referans verilebilir.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -42,15 +42,68 @@ AGENT_TOOLS = [
                 },
                 "description": {
                     "type": "string",
-                    "description": "Karakterin detaylı görsel açıklaması (İngilizce). Örn: 'A tall man with brown hair, wearing a blue jacket, friendly smile'"
+                    "description": "Karakterin detaylı görsel açıklaması (İngilizce). Tüm fiziksel özellikleri dahil et."
                 },
                 "attributes": {
                     "type": "object",
-                    "description": "Ek özellikler (yaş, meslek, vb.)",
+                    "description": "Fiziksel ve kişilik özellikleri. Kullanıcının söylediği tüm detayları buraya kaydet.",
                     "properties": {
-                        "age": {"type": "string"},
-                        "occupation": {"type": "string"},
-                        "personality": {"type": "string"}
+                        "eye_color": {
+                            "type": "string",
+                            "description": "Göz rengi (örn: blue, green, brown, hazel)"
+                        },
+                        "eyebrow_color": {
+                            "type": "string",
+                            "description": "Kaş rengi (örn: black, brown, blonde)"
+                        },
+                        "eyebrow_shape": {
+                            "type": "string",
+                            "description": "Kaş şekli (örn: thick, thin, arched, straight)"
+                        },
+                        "hair_color": {
+                            "type": "string",
+                            "description": "Saç rengi (örn: black, brown, blonde, red)"
+                        },
+                        "hair_style": {
+                            "type": "string",
+                            "description": "Saç stili (örn: long wavy, short curly, bald, ponytail)"
+                        },
+                        "skin_tone": {
+                            "type": "string",
+                            "description": "Ten rengi (örn: fair, olive, tan, dark)"
+                        },
+                        "facial_features": {
+                            "type": "string",
+                            "description": "Yüz özellikleri (örn: sharp jawline, high cheekbones, full lips)"
+                        },
+                        "age": {
+                            "type": "string",
+                            "description": "Yaş veya yaş aralığı (örn: 25, mid-30s, elderly)"
+                        },
+                        "gender": {
+                            "type": "string",
+                            "description": "Cinsiyet (örn: male, female, non-binary)"
+                        },
+                        "body_type": {
+                            "type": "string",
+                            "description": "Vücut tipi (örn: slim, athletic, muscular, curvy)"
+                        },
+                        "height": {
+                            "type": "string",
+                            "description": "Boy (örn: tall, short, average height)"
+                        },
+                        "clothing_style": {
+                            "type": "string",
+                            "description": "Giyim stili (örn: casual, formal, bohemian)"
+                        },
+                        "occupation": {
+                            "type": "string",
+                            "description": "Meslek"
+                        },
+                        "personality": {
+                            "type": "string",
+                            "description": "Kişilik özellikleri"
+                        }
                     }
                 }
             },

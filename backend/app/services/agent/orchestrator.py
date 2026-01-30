@@ -13,6 +13,7 @@ from app.services.agent.tools import AGENT_TOOLS
 from app.services.plugins.fal_plugin import FalPlugin
 from app.services.entity_service import entity_service
 from app.services.asset_service import asset_service
+from app.services.prompt_translator import auto_translate_if_turkish, enhance_character_prompt
 
 
 class AgentOrchestrator:
@@ -286,13 +287,19 @@ Görsel üretirken:
         Agent kendi başına karar verir ve en iyi sonucu sunar.
         """
         try:
-            prompt = params.get("prompt", "")
+            original_prompt = params.get("prompt", "")
             aspect_ratio = params.get("aspect_ratio", "1:1")
             resolution = params.get("resolution", "1K")
+            
+            # 🔄 TÜRKÇE PROMPTLARI İNGİLİZCE'YE ÇEVİR (Daha iyi görsel sonuçları için)
+            prompt, was_translated = await auto_translate_if_turkish(original_prompt)
+            if was_translated:
+                print(f"📝 Prompt çevrildi: '{original_prompt[:50]}...' → '{prompt[:50]}...'")
             
             # Referans görseli olan karakter var mı kontrol et
             face_reference_url = None
             entity_description = ""
+            physical_attributes = {}
             
             if resolved_entities:
                 for entity in resolved_entities:
@@ -302,10 +309,21 @@ Görsel üretirken:
                     # Entity açıklamasını topla
                     if hasattr(entity, 'description') and entity.description:
                         entity_description += f"{entity.description}. "
+                    # Fiziksel özellikleri topla (attributes içinden)
+                    if hasattr(entity, 'attributes') and entity.attributes:
+                        attrs = entity.attributes
+                        for key in ['eye_color', 'hair_color', 'skin_tone', 'eyebrow_color', 
+                                   'eyebrow_shape', 'hair_style', 'facial_features']:
+                            if attrs.get(key):
+                                physical_attributes[key] = attrs[key]
             
-            # Entity açıklamasını prompt'a ekle
-            if entity_description:
-                prompt = f"{entity_description}{prompt}"
+            # Entity açıklamasını ve fiziksel özellikleri prompt'a ekle
+            if entity_description or physical_attributes:
+                prompt = await enhance_character_prompt(
+                    base_prompt=f"{entity_description} {prompt}",
+                    physical_attributes=physical_attributes
+                )
+                print(f"🎨 Karakter prompt zenginleştirildi: '{prompt[:80]}...'")
             
             # AKILLI SİSTEM: Referans görsel varsa
             if face_reference_url:
