@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
+import { SearchModal } from "./SearchModal";
+import { NewProjectModal } from "./NewProjectModal";
 
 interface SidebarItem {
     id: string;
@@ -101,6 +103,9 @@ export function Sidebar() {
     const { theme, toggleTheme } = useTheme();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [newProjectOpen, setNewProjectOpen] = useState(false);
+    const [projects, setProjects] = useState(mockProjects);
 
     return (
         <>
@@ -167,7 +172,7 @@ export function Sidebar() {
                         </button>
                     </div>
 
-                    {mockProjects.map((project) => (
+                    {projects.map((project) => (
                         <div
                             key={project.id}
                             className={`px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${project.active ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"
@@ -178,6 +183,7 @@ export function Sidebar() {
                     ))}
 
                     <button
+                        onClick={() => setNewProjectOpen(true)}
                         className="w-full px-3 py-2 text-sm text-left rounded-lg hover:bg-[var(--card)] transition-colors"
                         style={{ color: "var(--foreground-muted)" }}
                     >
@@ -243,7 +249,10 @@ export function Sidebar() {
                 {/* Bottom section */}
                 <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
                     {/* Search */}
-                    <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1">
+                    <button
+                        onClick={() => setSearchOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
+                    >
                         <Search size={16} style={{ color: "var(--foreground-muted)" }} />
                         <span style={{ color: "var(--foreground-muted)" }}>Search</span>
                     </button>
@@ -288,6 +297,21 @@ export function Sidebar() {
             <SettingsModal
                 isOpen={settingsOpen}
                 onClose={() => setSettingsOpen(false)}
+            />
+
+            {/* Search Modal */}
+            <SearchModal
+                isOpen={searchOpen}
+                onClose={() => setSearchOpen(false)}
+            />
+
+            {/* New Project Modal */}
+            <NewProjectModal
+                isOpen={newProjectOpen}
+                onClose={() => setNewProjectOpen(false)}
+                onSubmit={(name) => {
+                    setProjects([...projects, { id: Date.now().toString(), name, active: false }]);
+                }}
             />
         </>
     );
