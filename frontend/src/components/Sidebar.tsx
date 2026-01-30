@@ -212,23 +212,7 @@ export function Sidebar() {
                         <span style={{ color: "var(--foreground-muted)" }}>Search</span>
                     </button>
 
-                    {/* Theme toggle - Switch style */}
-                    <div className="flex items-center justify-between px-3 py-2 mb-1">
-                        <div className="flex items-center gap-2 text-sm">
-                            {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
-                            <span>{theme === "dark" ? "Dark" : "Light"}</span>
-                        </div>
-                        <button
-                            onClick={toggleTheme}
-                            className="relative w-10 h-5 rounded-full transition-colors"
-                            style={{ background: theme === "dark" ? "var(--accent)" : "var(--border)" }}
-                        >
-                            <div
-                                className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-                                style={{ left: theme === "dark" ? "22px" : "2px" }}
-                            />
-                        </button>
-                    </div>
+
 
                     {/* Settings */}
                     <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1">

@@ -249,12 +249,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
 
                     {isLoading && (
                         <div className="flex gap-3">
-                            <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
-                                style={{ background: "var(--accent)", color: "var(--background)" }}
-                            >
-                                P
-                            </div>
+                            <span className="text-xl shrink-0">🫑</span>
                             <div className="message-bubble message-ai flex items-center gap-2">
                                 <Loader2 className="w-4 h-4 animate-spin" />
                                 <span className="text-sm">Düşünüyor...</span>

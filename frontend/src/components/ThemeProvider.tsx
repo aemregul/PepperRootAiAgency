@@ -17,11 +17,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         setMounted(true);
-        // localStorage'dan tema al
+        // localStorage'dan tema al - yoksa dark kullan (varsayılan)
         const savedTheme = localStorage.getItem("theme") as Theme;
-        if (savedTheme) {
-            setTheme(savedTheme);
-        }
+        // Sadece kullanıcı açıkça light seçtiyse light mod kullan
+        setTheme(savedTheme === "light" ? "light" : "dark");
     }, []);
 
     useEffect(() => {
