@@ -215,6 +215,18 @@ export async function deleteEntity(entityId: string): Promise<boolean> {
     }
 }
 
+// Delete Asset
+export async function deleteAsset(assetId: string): Promise<boolean> {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/assets/${assetId}`, {
+            method: 'DELETE',
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
 // ============== ADMIN APIs ==============
 
 // AI Models

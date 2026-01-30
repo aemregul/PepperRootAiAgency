@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2 } from "lucide-react";
-import { getAssets, GeneratedAsset } from "@/lib/api";
+import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2, Trash2 } from "lucide-react";
+import { getAssets, GeneratedAsset, deleteAsset } from "@/lib/api";
 
 interface Asset {
     id: string;
@@ -101,6 +101,27 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         setAssets(prev => prev.map(asset =>
             asset.id === assetId ? { ...asset, isFavorite: !asset.isFavorite } : asset
         ));
+    };
+
+    // Delete asset
+    const handleDelete = async (assetId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('Bu görseli silmek istediğinize emin misiniz?')) return;
+
+        const success = await deleteAsset(assetId);
+        if (success) {
+            setAssets(prev => prev.filter(a => a.id !== assetId));
+        } else {
+            alert('Silme işlemi başarısız oldu');
+        }
+    };
+
+    // Drag start for chat drop
+    const handleDragStart = (e: React.DragEvent, asset: Asset) => {
+        e.dataTransfer.setData('text/plain', asset.url);
+        e.dataTransfer.setData('application/x-asset-url', asset.url);
+        e.dataTransfer.setData('application/x-asset-id', asset.id);
+        e.dataTransfer.effectAllowed = 'copy';
     };
 
     // Download all assets
@@ -230,27 +251,40 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                     <div className="space-y-3">
                         {/* Featured video/image */}
                         {displayAssets[0] && (
-                            <div className="asset-card">
+                            <div
+                                className="asset-card cursor-grab active:cursor-grabbing"
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, displayAssets[0])}
+                            >
                                 <div className="aspect-video relative group">
                                     <img
                                         src={displayAssets[0].url}
                                         alt="Featured asset"
                                         className="w-full h-full object-cover"
                                     />
-                                    {/* Favorite Star */}
-                                    <button
-                                        onClick={() => toggleFavorite(displayAssets[0].id)}
-                                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors z-10"
-                                    >
-                                        <Star
-                                            size={16}
-                                            fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
-                                            className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
-                                        />
-                                    </button>
+                                    {/* Action buttons */}
+                                    <div className="absolute top-2 right-2 flex gap-1 z-10">
+                                        <button
+                                            onClick={() => toggleFavorite(displayAssets[0].id)}
+                                            className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                                        >
+                                            <Star
+                                                size={16}
+                                                fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
+                                                className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
+                                            />
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleDelete(displayAssets[0].id, e)}
+                                            className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
+                                            title="Sil"
+                                        >
+                                            <Trash2 size={16} className="text-white/70" />
+                                        </button>
+                                    </div>
                                     {displayAssets[0].type === "video" && (
                                         <>
-                                            <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                                 <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
                                                     <Play size={24} fill="white" className="text-white ml-1" />
                                                 </div>
@@ -260,6 +294,10 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             </div>
                                         </>
                                     )}
+                                    {/* Drag hint */}
+                                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        Sürükle → Chat
+                                    </div>
                                 </div>
                                 {displayAssets[0].label && (
                                     <div className="p-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
@@ -272,7 +310,12 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                         {/* Grid of smaller assets */}
                         <div className="grid grid-cols-2 gap-2">
                             {displayAssets.slice(1).map((asset) => (
-                                <div key={asset.id} className="asset-card group">
+                                <div
+                                    key={asset.id}
+                                    className="asset-card group cursor-grab active:cursor-grabbing"
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, asset)}
+                                >
                                     <div className="aspect-square relative">
                                         <img
                                             src={asset.url}
@@ -286,23 +329,30 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             </div>
                                         )}
 
-                                        {/* Favorite Star */}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
-                                            className="absolute top-2 right-2 p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-                                        >
-                                            <Star
-                                                size={14}
-                                                fill={asset.isFavorite ? "#eab308" : "none"}
-                                                className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
-                                            />
-                                        </button>
-
-                                        {/* Hover overlay */}
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                            <button className="p-2 rounded-lg bg-white/20 hover:bg-white/30 pointer-events-auto">
-                                                <Download size={16} className="text-white" />
+                                        {/* Action buttons */}
+                                        <div className="absolute top-2 right-2 flex gap-1">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
+                                                className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                                            >
+                                                <Star
+                                                    size={14}
+                                                    fill={asset.isFavorite ? "#eab308" : "none"}
+                                                    className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
+                                                />
                                             </button>
+                                            <button
+                                                onClick={(e) => handleDelete(asset.id, e)}
+                                                className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Sil"
+                                            >
+                                                <Trash2 size={14} className="text-white/70" />
+                                            </button>
+                                        </div>
+
+                                        {/* Hover overlay with download */}
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                            <span className="text-xs text-white/70 px-2 py-1 bg-black/50 rounded">Sürükle → Chat</span>
                                         </div>
                                     </div>
                                 </div>

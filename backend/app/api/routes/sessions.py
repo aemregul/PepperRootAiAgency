@@ -127,3 +127,20 @@ async def delete_session(
     
     session.is_active = False
     await db.flush()
+
+
+@router.delete("/assets/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_asset(
+    asset_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Asset sil."""
+    result = await db.execute(
+        select(GeneratedAsset).where(GeneratedAsset.id == asset_id)
+    )
+    asset = result.scalar_one_or_none()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset bulunamadı")
+    
+    await db.delete(asset)
+    await db.flush()

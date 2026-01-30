@@ -54,10 +54,11 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Handle entity drag & drop
+    // Handle entity and asset drag & drop
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
-        if (e.dataTransfer.types.includes('application/x-entity-tag')) {
+        if (e.dataTransfer.types.includes('application/x-entity-tag') ||
+            e.dataTransfer.types.includes('application/x-asset-url')) {
             setIsDragOver(true);
             e.dataTransfer.dropEffect = 'copy';
         }
@@ -68,19 +69,41 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
         setIsDragOver(false);
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
 
+        // Entity tag drop (karakterler, mekanlar)
         const entityTag = e.dataTransfer.getData('application/x-entity-tag');
         if (entityTag) {
-            // Tag'ı input'a ekle
             setInput((prev) => {
                 const newValue = prev.trim() ? `${prev} ${entityTag}` : entityTag;
                 return newValue;
             });
-            // Input'a focus
             inputRef.current?.focus();
+            return;
+        }
+
+        // Asset image drop (referans görsel olarak)
+        const assetUrl = e.dataTransfer.getData('application/x-asset-url');
+        if (assetUrl) {
+            try {
+                // URL'den dosya oluştur
+                const response = await fetch(assetUrl);
+                const blob = await response.blob();
+                const file = new File([blob], 'reference_image.png', { type: blob.type });
+
+                // Dosyayı referans görsel olarak ekle
+                setAttachedFile(file);
+                const previewUrl = URL.createObjectURL(file);
+                setFilePreview(previewUrl);
+
+                // Focus input
+                inputRef.current?.focus();
+            } catch (error) {
+                console.error('Error loading dropped image:', error);
+            }
+            return;
         }
     };
 
