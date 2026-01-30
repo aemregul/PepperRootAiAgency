@@ -19,7 +19,8 @@ import {
     Shield,
     User,
     Puzzle,
-    Trash2
+    Trash2,
+    Store
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
@@ -29,6 +30,7 @@ import { AdminPanelModal } from "./AdminPanelModal";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
 import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePluginModal";
+import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
 
 interface SidebarItem {
     id: string;
@@ -176,6 +178,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
     const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>(mockCreativePlugins);
     const [selectedPlugin, setSelectedPlugin] = useState<CreativePlugin | null>(null);
     const [pluginDetailOpen, setPluginDetailOpen] = useState(false);
+    const [marketplaceOpen, setMarketplaceOpen] = useState(false);
 
     // Trash state
     const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -452,6 +455,15 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                                     )}
                                 </div>
                             ))}
+                            {/* Marketplace Button */}
+                            <button
+                                onClick={() => setMarketplaceOpen(true)}
+                                className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-xs rounded-lg transition-colors"
+                                style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6" }}
+                            >
+                                <Store size={14} />
+                                <span>Marketplace'i Keşfet</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -580,6 +592,14 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                     // TODO: Chat'e plugin config'i uygula
                     console.log("Plugin kullanılıyor:", plugin);
                 }}
+            />
+
+            {/* Plugin Marketplace Modal */}
+            <PluginMarketplaceModal
+                isOpen={marketplaceOpen}
+                onClose={() => setMarketplaceOpen(false)}
+                onInstall={(plugin) => setCreativePlugins([...creativePlugins, plugin])}
+                myPlugins={creativePlugins}
             />
         </>
     );
