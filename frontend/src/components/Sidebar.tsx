@@ -100,7 +100,12 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false }: Collaps
     );
 }
 
-export function Sidebar() {
+interface SidebarProps {
+    activeProjectId?: string;
+    onProjectChange?: (projectId: string) => void;
+}
+
+export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -108,6 +113,15 @@ export function Sidebar() {
     const [newProjectOpen, setNewProjectOpen] = useState(false);
     const [adminOpen, setAdminOpen] = useState(false);
     const [projects, setProjects] = useState(mockProjects);
+
+    // Update projects when activeProjectId changes from parent
+    const handleProjectClick = (projectId: string) => {
+        setProjects(projects.map(p => ({
+            ...p,
+            active: p.id === projectId
+        })));
+        onProjectChange?.(projectId);
+    };
 
     return (
         <>
@@ -177,13 +191,7 @@ export function Sidebar() {
                     {projects.map((project) => (
                         <div
                             key={project.id}
-                            onClick={() => {
-                                // Tüm projeleri pasif yap, tıklananı aktif yap
-                                setProjects(projects.map(p => ({
-                                    ...p,
-                                    active: p.id === project.id
-                                })));
-                            }}
+                            onClick={() => handleProjectClick(project.id)}
                             className={`px-3 py-2 text-sm rounded-lg cursor-pointer transition-all duration-200 ${project.active
                                     ? "bg-[var(--accent)] text-[var(--background)] font-medium"
                                     : "hover:bg-[var(--card)]"

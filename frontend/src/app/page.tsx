@@ -7,14 +7,21 @@ import { AssetsPanel } from "@/components/AssetsPanel";
 
 export default function Home() {
   const [assetsCollapsed, setAssetsCollapsed] = useState(false);
+  const [activeProjectId, setActiveProjectId] = useState<string>("samsung");
 
   return (
     <main className="flex h-screen overflow-hidden">
       {/* Sidebar */}
-      <Sidebar />
+      <Sidebar
+        activeProjectId={activeProjectId}
+        onProjectChange={(projectId) => setActiveProjectId(projectId)}
+      />
 
       {/* Chat Panel */}
-      <ChatPanel />
+      <ChatPanel
+        key={activeProjectId}  // Force re-mount on project change
+        projectId={activeProjectId}
+      />
 
       {/* Assets Panel (Desktop only) */}
       <AssetsPanel

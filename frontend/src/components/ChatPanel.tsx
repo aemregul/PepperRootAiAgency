@@ -14,6 +14,7 @@ interface Message {
 
 interface ChatPanelProps {
     sessionId?: string;
+    projectId?: string;
     onSessionChange?: (sessionId: string) => void;
     onNewAsset?: (asset: { url: string; type: string }) => void;
 }
