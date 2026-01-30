@@ -225,12 +225,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                                 </div>
                             ) : (
                                 <div className="flex gap-3">
-                                    <svg className="w-7 h-7 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: "var(--accent)" }}>
-                                        <path d="M12 3c-1.2 0-2.5.4-3.5 1.2-.3-.5-.8-.9-1.5-1-.7-.1-1.4.1-2 .5M12 3c1.2 0 2.5.4 3.5 1.2.3-.5.8-.9 1.5-1 .7-.1 1.4.1 2 .5" strokeLinecap="round" />
-                                        <path d="M12 3v2.5" strokeLinecap="round" />
-                                        <path d="M8.5 21c-1.8-1-3.2-2.8-3.8-5-.6-2.2-.2-4.5.8-6.5 1-2 2.3-3.5 3.8-4.5.7.5 1.5 1.2 2.2 2.2.7 1 1.2 2.2 1.5 3.3.3-1.1.8-2.3 1.5-3.3.7-1 1.5-1.7 2.2-2.2 1.5 1 2.8 2.5 3.8 4.5s1.4 4.3.8 6.5c-.6 2.2-2 4-3.8 5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.15" />
-                                        <path d="M12 11v6" strokeLinecap="round" strokeWidth="1" />
-                                    </svg>
+                                    <span className="text-xl shrink-0">🫑</span>
                                     <div className="flex-1">
                                         <div className="font-medium mb-2 text-sm">Pepper AI Assistant</div>
                                         <div className="message-bubble message-ai">
