@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.services.agent.tools import AGENT_TOOLS
 from app.services.plugins.fal_plugin import FalPlugin
 from app.services.entity_service import entity_service
+from app.services.asset_service import asset_service
 
 
 class AgentOrchestrator:
@@ -207,7 +208,9 @@ Görsel üretirken:
         """Araç çağrısını işle."""
         
         if tool_name == "generate_image":
-            return await self._generate_image(tool_input, resolved_entities or [])
+            return await self._generate_image(
+                db, session_id, tool_input, resolved_entities or []
+            )
         
         elif tool_name == "create_character":
             return await self._create_entity(
@@ -238,9 +241,25 @@ Görsel üretirken:
         elif tool_name == "remove_background":
             return await self._remove_background(tool_input)
         
+        # AKILLI AGENT ARAÇLARI
+        elif tool_name == "get_past_assets":
+            return await self._get_past_assets(db, session_id, tool_input)
+        
+        elif tool_name == "mark_favorite":
+            return await self._mark_favorite(db, session_id, tool_input)
+        
+        elif tool_name == "undo_last":
+            return await self._undo_last(db, session_id)
+        
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
-    async def _generate_image(self, params: dict, resolved_entities: list = None) -> dict:
+    async def _generate_image(
+        self, 
+        db: AsyncSession, 
+        session_id: uuid.UUID, 
+        params: dict, 
+        resolved_entities: list = None
+    ) -> dict:
         """
         Akıllı görsel üretim sistemi.
         
@@ -248,6 +267,7 @@ Görsel üretirken:
         1. Entity'de referans görsel var mı kontrol et
         2. VARSA → Akıllı sistem: Nano Banana + Face Swap fallback
         3. YOKSA → Sadece Nano Banana Pro
+        4. Her üretimde asset'i veritabanına kaydet
         
         Agent kendi başına karar verir ve en iyi sonucu sunar.
         """
@@ -286,10 +306,28 @@ Görsel üretirken:
                 if result.get("success"):
                     method = result.get("method_used", "unknown")
                     quality_note = result.get("quality_check", "")
+                    image_url = result.get("image_url")
+                    
+                    # 📦 Asset'i veritabanına kaydet
+                    entity_ids = [e.get("id") for e in resolved_entities if e.get("id")] if resolved_entities else None
+                    await asset_service.save_asset(
+                        db=db,
+                        session_id=session_id,
+                        url=image_url,
+                        asset_type="image",
+                        prompt=prompt,
+                        model_name=method,
+                        model_params={
+                            "aspect_ratio": aspect_ratio,
+                            "resolution": resolution,
+                            "face_reference_used": True
+                        },
+                        entity_ids=entity_ids
+                    )
                     
                     return {
                         "success": True,
-                        "image_url": result.get("image_url"),
+                        "image_url": image_url,
                         "base_image_url": result.get("base_image_url"),  # Alternatif (Nano Banana)
                         "model": method,
                         "message": f"Görsel üretildi. {quality_note}",
@@ -310,9 +348,28 @@ Görsel üretirken:
                 )
                 
                 if result.get("success"):
+                    image_url = result.get("image_url")
+                    
+                    # 📦 Asset'i veritabanına kaydet
+                    entity_ids = [e.get("id") for e in resolved_entities if e.get("id")] if resolved_entities else None
+                    await asset_service.save_asset(
+                        db=db,
+                        session_id=session_id,
+                        url=image_url,
+                        asset_type="image",
+                        prompt=prompt,
+                        model_name="nano-banana-pro",
+                        model_params={
+                            "aspect_ratio": aspect_ratio,
+                            "resolution": resolution,
+                            "face_reference_used": False
+                        },
+                        entity_ids=entity_ids
+                    )
+                    
                     return {
                         "success": True,
-                        "image_url": result.get("image_url"),
+                        "image_url": image_url,
                         "model": "nano-banana-pro",
                         "message": "Görsel başarıyla üretildi (Nano Banana Pro).",
                         "agent_decision": "Referans görsel yok, Nano Banana Pro kullanıldı"
@@ -594,6 +651,183 @@ Görsel üretirken:
                 return {
                     "success": False,
                     "error": result.get("error", "Arka plan kaldırılamadı")
+                }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    # ===============================
+    # AKILLI AGENT METODLARI
+    # ===============================
+    
+    async def _get_past_assets(
+        self, 
+        db: AsyncSession, 
+        session_id: uuid.UUID, 
+        params: dict
+    ) -> dict:
+        """Geçmiş üretimleri getir."""
+        try:
+            entity_tag = params.get("entity_tag")
+            asset_type = params.get("asset_type")
+            favorites_only = params.get("favorites_only", False)
+            limit = params.get("limit", 5)
+            
+            assets = await asset_service.get_session_assets(
+                db=db,
+                session_id=session_id,
+                entity_tag=entity_tag,
+                asset_type=asset_type,
+                favorites_only=favorites_only,
+                limit=limit
+            )
+            
+            if not assets:
+                return {
+                    "success": True,
+                    "assets": [],
+                    "message": "Bu oturumda henüz üretilmiş içerik yok."
+                }
+            
+            # Asset'leri serializable formata dönüştür
+            asset_list = []
+            for asset in assets:
+                asset_list.append({
+                    "id": str(asset.id),
+                    "url": asset.url,
+                    "type": asset.asset_type,
+                    "prompt": asset.prompt[:100] + "..." if asset.prompt and len(asset.prompt) > 100 else asset.prompt,
+                    "model": asset.model_name,
+                    "is_favorite": asset.is_favorite,
+                    "created_at": asset.created_at.isoformat() if asset.created_at else None
+                })
+            
+            return {
+                "success": True,
+                "assets": asset_list,
+                "count": len(asset_list),
+                "message": f"{len(asset_list)} adet içerik bulundu."
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _mark_favorite(
+        self, 
+        db: AsyncSession, 
+        session_id: uuid.UUID, 
+        params: dict
+    ) -> dict:
+        """Asset'i favori olarak işaretle."""
+        try:
+            asset_url = params.get("asset_url")
+            
+            # URL verilmediyse son asset'i bul
+            if not asset_url:
+                last_asset = await asset_service.get_last_asset(db, session_id)
+                if not last_asset:
+                    return {
+                        "success": False,
+                        "error": "Favori yapılacak içerik bulunamadı."
+                    }
+                asset_id = last_asset.id
+            else:
+                # URL'den asset bul
+                from sqlalchemy import select
+                from app.models.models import GeneratedAsset
+                
+                result = await db.execute(
+                    select(GeneratedAsset).where(
+                        GeneratedAsset.url == asset_url,
+                        GeneratedAsset.session_id == session_id
+                    )
+                )
+                asset = result.scalar_one_or_none()
+                if not asset:
+                    return {
+                        "success": False,
+                        "error": "Asset bulunamadı."
+                    }
+                asset_id = asset.id
+            
+            # Favori olarak işaretle
+            updated_asset = await asset_service.mark_favorite(db, asset_id, True)
+            
+            if updated_asset:
+                return {
+                    "success": True,
+                    "asset_id": str(updated_asset.id),
+                    "url": updated_asset.url,
+                    "message": "İçerik favorilere eklendi! ⭐"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Favori işaretlenemedi."
+                }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _undo_last(
+        self, 
+        db: AsyncSession, 
+        session_id: uuid.UUID
+    ) -> dict:
+        """Son işlemi geri al, önceki versiyona dön."""
+        try:
+            # Son asset'i bul
+            last_asset = await asset_service.get_last_asset(db, session_id)
+            
+            if not last_asset:
+                return {
+                    "success": False,
+                    "error": "Geri alınacak içerik bulunamadı."
+                }
+            
+            # Parent'ı var mı kontrol et
+            if last_asset.parent_asset_id:
+                # Parent'ı getir
+                parent_asset = await asset_service.get_asset_by_id(
+                    db, last_asset.parent_asset_id
+                )
+                
+                if parent_asset:
+                    return {
+                        "success": True,
+                        "previous_url": parent_asset.url,
+                        "previous_type": parent_asset.asset_type,
+                        "current_url": last_asset.url,
+                        "message": "Önceki versiyona dönüldü. İşte önceki içerik:"
+                    }
+            
+            # Parent yoksa, son 2 asset'i getir
+            recent_assets = await asset_service.get_session_assets(
+                db, session_id, limit=2
+            )
+            
+            if len(recent_assets) >= 2:
+                previous_asset = recent_assets[1]
+                return {
+                    "success": True,
+                    "previous_url": previous_asset.url,
+                    "previous_type": previous_asset.asset_type,
+                    "current_url": last_asset.url,
+                    "message": "Bir önceki üretim gösteriliyor:"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Geri dönülecek önceki içerik bulunamadı."
                 }
         
         except Exception as e:

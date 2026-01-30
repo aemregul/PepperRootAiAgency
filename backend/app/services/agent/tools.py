@@ -199,5 +199,59 @@ AGENT_TOOLS = [
             },
             "required": ["image_url"]
         }
+    },
+    
+    # ===============================
+    # AKILLI AGENT ARAÇLARI
+    # ===============================
+    
+    {
+        "name": "get_past_assets",
+        "description": "Bu oturumdaki geçmiş üretimleri (görseller/videolar) getirir. Kullanıcı 'dünkü görseli göster', 'önceki üretimleri listele' gibi isteklerde bulunduğunda kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_tag": {
+                    "type": "string",
+                    "description": "Belirli bir entity'ye ait olanları getir (örn: @character_johny). Opsiyonel."
+                },
+                "asset_type": {
+                    "type": "string",
+                    "enum": ["image", "video"],
+                    "description": "Sadece görsel veya sadece video getir. Opsiyonel."
+                },
+                "favorites_only": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Sadece favori işaretli olanları getir."
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 5,
+                    "description": "Maksimum kaç adet getirileceği."
+                }
+            }
+        }
+    },
+    {
+        "name": "mark_favorite",
+        "description": "Bir görseli/videoyu favori olarak işaretle. Kullanıcı 'bu çok güzel', 'bunu beğendim', 'favorilere ekle' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "asset_url": {
+                    "type": "string",
+                    "description": "Favori yapılacak asset'in URL'si. Son üretilen asset için boş bırakılabilir."
+                }
+            }
+        }
+    },
+    {
+        "name": "undo_last",
+        "description": "Son yapılan işlemi geri al ve önceki versiyona dön. Kullanıcı 'geri al', 'önceki daha iyiydi', 'bir öncekine dön' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]

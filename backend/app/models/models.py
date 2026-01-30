@@ -109,11 +109,26 @@ class GeneratedAsset(Base):
     model_params: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
+    # Akıllı Agent özellikleri
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
+    parent_asset_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), 
+        ForeignKey("generated_assets.id", ondelete="SET NULL"), 
+        nullable=True
+    )
+    
     # Faz 2 hazırlık
     embedding_vector: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     
     entity_links: Mapped[list["EntityAsset"]] = relationship(back_populates="asset")
     task: Mapped[Optional["Task"]] = relationship(back_populates="assets")
+    
+    # Parent-child ilişkisi
+    parent_asset: Mapped[Optional["GeneratedAsset"]] = relationship(
+        "GeneratedAsset", 
+        remote_side="GeneratedAsset.id",
+        backref="child_assets"
+    )
 
 
 # ============== VARLIK-ASSET BAĞLANTISI ==============
