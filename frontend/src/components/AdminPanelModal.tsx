@@ -112,8 +112,8 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-lg transition-all duration-200 ${activeTab === tab.id
-                                    ? "font-medium shadow-lg"
-                                    : "opacity-60 hover:opacity-100"
+                                ? "font-medium shadow-lg"
+                                : "opacity-60 hover:opacity-100"
                                 }`}
                             style={{
                                 background: activeTab === tab.id ? "var(--accent)" : "transparent",
@@ -206,66 +206,38 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
 
                     {/* Models Tab */}
                     {activeTab === "models" && (
-                        <div className="space-y-3">
-                            <p className="text-sm mb-4" style={{ color: "var(--foreground-muted)" }}>
-                                AI modellerini açıp kapatarak sistemin hangi servisleri kullanacağını kontrol edin.
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <div
+                                className="p-4 rounded-2xl mb-4"
+                                style={{ background: "rgba(34, 197, 94, 0.1)" }}
+                            >
+                                <Puzzle size={48} style={{ color: "var(--accent)" }} />
+                            </div>
+                            <h3 className="text-lg font-medium mb-2">AI Model Yönetimi</h3>
+                            <p className="text-sm text-center max-w-md" style={{ color: "var(--foreground-muted)" }}>
+                                Yeni AI modelleri entegre edildiğinde burada yönetebilirsiniz.
+                                Şu an sistem otomatik olarak en uygun modeli seçmektedir.
                             </p>
-
-                            {models.map((model) => (
-                                <div
-                                    key={model.id}
-                                    className="flex items-center justify-between p-4 rounded-xl transition-all duration-200"
-                                    style={{
-                                        background: "var(--background)",
-                                        opacity: model.enabled ? 1 : 0.6
-                                    }}
+                            <div className="mt-6 flex gap-2">
+                                <span
+                                    className="px-3 py-1.5 rounded-full text-sm flex items-center gap-2"
+                                    style={{ background: "rgba(34, 197, 94, 0.2)", color: "#22c55e" }}
                                 >
-                                    <div className="flex items-center gap-4">
-                                        <div
-                                            className="text-2xl p-2 rounded-lg"
-                                            style={{ background: model.enabled ? "rgba(34, 197, 94, 0.2)" : "rgba(107, 114, 128, 0.2)" }}
-                                        >
-                                            {model.icon}
-                                        </div>
-                                        <div>
-                                            <div className="font-medium flex items-center gap-2">
-                                                {model.name}
-                                                <span
-                                                    className="px-2 py-0.5 text-xs rounded-full"
-                                                    style={{
-                                                        background: "var(--card)",
-                                                        color: "var(--foreground-muted)"
-                                                    }}
-                                                >
-                                                    {model.type}
-                                                </span>
-                                            </div>
-                                            <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                                                {model.description}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Toggle Switch */}
-                                    <button
-                                        onClick={() => toggleModel(model.id)}
-                                        className="relative w-14 h-7 rounded-full transition-all duration-300 ease-in-out"
-                                        style={{
-                                            background: model.enabled ? "var(--accent)" : "rgba(107, 114, 128, 0.4)",
-                                            boxShadow: model.enabled ? "0 0 20px rgba(34, 197, 94, 0.3)" : "none"
-                                        }}
-                                    >
-                                        <div
-                                            className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-lg transition-all duration-300 ease-in-out flex items-center justify-center"
-                                            style={{
-                                                left: model.enabled ? "30px" : "2px",
-                                            }}
-                                        >
-                                            <Power size={12} style={{ color: model.enabled ? "#22c55e" : "#6b7280" }} />
-                                        </div>
-                                    </button>
-                                </div>
-                            ))}
+                                    🧠 Claude Sonnet 4
+                                </span>
+                                <span
+                                    className="px-3 py-1.5 rounded-full text-sm flex items-center gap-2"
+                                    style={{ background: "rgba(34, 197, 94, 0.2)", color: "#22c55e" }}
+                                >
+                                    🖼️ fal.ai
+                                </span>
+                                <span
+                                    className="px-3 py-1.5 rounded-full text-sm flex items-center gap-2"
+                                    style={{ background: "rgba(34, 197, 94, 0.2)", color: "#22c55e" }}
+                                >
+                                    🎬 Kling 2.5
+                                </span>
+                            </div>
                         </div>
                     )}
 
