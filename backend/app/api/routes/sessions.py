@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.models import Session, Message, Entity, GeneratedAsset
+from app.models.models import Session, Message, Entity, GeneratedAsset, TrashItem
 from app.schemas.schemas import SessionCreate, SessionResponse, MessageResponse, EntityResponse, AssetResponse
 
 router = APIRouter(prefix="/sessions", tags=["Oturumlar"])
@@ -134,7 +134,9 @@ async def delete_asset(
     asset_id: UUID,
     db: AsyncSession = Depends(get_db)
 ):
-    """Asset sil."""
+    """Asset sil (soft delete - çöp kutusuna taşı)."""
+    from datetime import timedelta
+    
     result = await db.execute(
         select(GeneratedAsset).where(GeneratedAsset.id == asset_id)
     )
@@ -142,5 +144,24 @@ async def delete_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset bulunamadı")
     
+    # TrashItem oluştur
+    from datetime import datetime
+    trash_item = TrashItem(
+        item_type="asset",
+        item_id=str(asset.id),
+        item_name=asset.prompt[:50] if asset.prompt else "Generated Asset",
+        original_data={
+            "url": asset.url,
+            "type": asset.asset_type,
+            "prompt": asset.prompt,
+            "session_id": str(asset.session_id) if asset.session_id else None,
+            "model_name": asset.model_name
+        },
+        session_id=asset.session_id,
+        expires_at=datetime.now() + timedelta(days=3)
+    )
+    db.add(trash_item)
+    
+    # Asset'i sil
     await db.delete(asset)
     await db.flush()
