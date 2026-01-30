@@ -24,6 +24,7 @@ import { useTheme } from "./ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
 import { SearchModal } from "./SearchModal";
 import { NewProjectModal } from "./NewProjectModal";
+import { AdminPanelModal } from "./AdminPanelModal";
 
 interface SidebarItem {
     id: string;
@@ -105,6 +106,7 @@ export function Sidebar() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [newProjectOpen, setNewProjectOpen] = useState(false);
+    const [adminOpen, setAdminOpen] = useState(false);
     const [projects, setProjects] = useState(mockProjects);
 
     return (
@@ -269,7 +271,10 @@ export function Sidebar() {
                     </button>
 
                     {/* Admin Panel */}
-                    <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-2">
+                    <button
+                        onClick={() => setAdminOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-2"
+                    >
                         <Shield size={16} style={{ color: "var(--foreground-muted)" }} />
                         <span style={{ color: "var(--foreground-muted)" }}>Admin Panel</span>
                     </button>
@@ -312,6 +317,12 @@ export function Sidebar() {
                 onSubmit={(name) => {
                     setProjects([...projects, { id: Date.now().toString(), name, active: false }]);
                 }}
+            />
+
+            {/* Admin Panel Modal */}
+            <AdminPanelModal
+                isOpen={adminOpen}
+                onClose={() => setAdminOpen(false)}
             />
         </>
     );
