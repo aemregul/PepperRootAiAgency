@@ -70,7 +70,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                     setMessages([{
                         id: "welcome",
                         role: "assistant",
-                        content: "Merhaba! Ben Pepper Root AI asistanınız. Size nasıl yardımcı olabilirim? Görsel, video veya karakter oluşturabilirim. 🫑",
+                        content: "Merhaba! Ben Pepper Root AI asistanınız. Size nasıl yardımcı olabilirim? Görsel, video veya karakter oluşturabilirim.",
                         timestamp: new Date(),
                     }]);
                 } catch (err) {
