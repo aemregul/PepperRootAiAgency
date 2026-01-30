@@ -7,12 +7,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import sessions, chat, generate, entities, upload
+from app.api.routes import sessions, chat, generate, entities, upload, plugins
+from app.services.plugins.plugin_loader import initialize_plugins
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f"🚀 {settings.APP_NAME} başlatılıyor...")
+    
+    # Pluginleri yükle
+    initialize_plugins()
+    
     yield
     print(f"👋 {settings.APP_NAME} kapatılıyor...")
 
@@ -36,6 +41,7 @@ app.include_router(sessions.router, prefix=settings.API_PREFIX)
 app.include_router(chat.router, prefix=settings.API_PREFIX)
 app.include_router(entities.router, prefix=settings.API_PREFIX)
 app.include_router(upload.router, prefix=settings.API_PREFIX)
+app.include_router(plugins.router, prefix=settings.API_PREFIX)
 app.include_router(generate.router, prefix=f"{settings.API_PREFIX}/generate")
 
 
@@ -54,4 +60,6 @@ async def root():
         "message": f"Hoş geldiniz! {settings.APP_NAME}",
         "docs": "/docs",
         "health": "/health",
+        "plugins": "/api/v1/plugins",
     }
+
