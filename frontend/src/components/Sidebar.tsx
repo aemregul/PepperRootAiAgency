@@ -26,6 +26,8 @@ import { SettingsModal } from "./SettingsModal";
 import { SearchModal } from "./SearchModal";
 import { NewProjectModal } from "./NewProjectModal";
 import { AdminPanelModal } from "./AdminPanelModal";
+import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
+import { TrashModal, TrashItem } from "./TrashModal";
 
 interface SidebarItem {
     id: string;
@@ -131,6 +133,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [newProjectOpen, setNewProjectOpen] = useState(false);
     const [adminOpen, setAdminOpen] = useState(false);
+    const [trashOpen, setTrashOpen] = useState(false);
     const [projects, setProjects] = useState(mockProjects);
 
     // Entity states
@@ -138,6 +141,18 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
     const [locations, setLocations] = useState(mockLocations);
     const [wardrobe, setWardrobe] = useState(mockWardrobe);
     const [plugins, setPlugins] = useState(mockPlugins);
+
+    // Trash state
+    const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+
+    // Delete confirmation state
+    const [deleteConfirm, setDeleteConfirm] = useState<{
+        isOpen: boolean;
+        itemId: string;
+        itemName: string;
+        itemType: TrashItem["type"];
+        onConfirm: () => void;
+    } | null>(null);
 
     // Update projects when activeProjectId changes from parent
     const handleProjectClick = (projectId: string) => {
@@ -148,11 +163,104 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
         onProjectChange?.(projectId);
     };
 
-    // Delete handlers
-    const handleDeleteCharacter = (id: string) => setCharacters(characters.filter(c => c.id !== id));
-    const handleDeleteLocation = (id: string) => setLocations(locations.filter(l => l.id !== id));
-    const handleDeleteWardrobe = (id: string) => setWardrobe(wardrobe.filter(w => w.id !== id));
-    const handleDeletePlugin = (id: string) => setPlugins(plugins.filter(p => p.id !== id));
+    // Move to trash instead of deleting
+    const moveToTrash = (id: string, name: string, type: TrashItem["type"], originalData: any) => {
+        setTrashItems([...trashItems, {
+            id,
+            name,
+            type,
+            deletedAt: new Date(),
+            originalData
+        }]);
+    };
+
+    // Confirm delete handlers
+    const confirmDeleteCharacter = (id: string) => {
+        const char = characters.find(c => c.id === id);
+        if (!char) return;
+        setDeleteConfirm({
+            isOpen: true,
+            itemId: id,
+            itemName: char.name,
+            itemType: "karakter",
+            onConfirm: () => {
+                moveToTrash(id, char.name, "karakter", char);
+                setCharacters(characters.filter(c => c.id !== id));
+            }
+        });
+    };
+
+    const confirmDeleteLocation = (id: string) => {
+        const loc = locations.find(l => l.id === id);
+        if (!loc) return;
+        setDeleteConfirm({
+            isOpen: true,
+            itemId: id,
+            itemName: loc.name,
+            itemType: "lokasyon",
+            onConfirm: () => {
+                moveToTrash(id, loc.name, "lokasyon", loc);
+                setLocations(locations.filter(l => l.id !== id));
+            }
+        });
+    };
+
+    const confirmDeleteWardrobe = (id: string) => {
+        const item = wardrobe.find(w => w.id === id);
+        if (!item) return;
+        setDeleteConfirm({
+            isOpen: true,
+            itemId: id,
+            itemName: item.name,
+            itemType: "wardrobe",
+            onConfirm: () => {
+                moveToTrash(id, item.name, "wardrobe", item);
+                setWardrobe(wardrobe.filter(w => w.id !== id));
+            }
+        });
+    };
+
+    const confirmDeleteProject = (id: string) => {
+        const proj = projects.find(p => p.id === id);
+        if (!proj) return;
+        setDeleteConfirm({
+            isOpen: true,
+            itemId: id,
+            itemName: proj.name,
+            itemType: "proje",
+            onConfirm: () => {
+                moveToTrash(id, proj.name, "proje", proj);
+                setProjects(projects.filter(p => p.id !== id));
+            }
+        });
+    };
+
+    // Restore from trash
+    const handleRestore = (item: TrashItem) => {
+        switch (item.type) {
+            case "karakter":
+                setCharacters([...characters, item.originalData]);
+                break;
+            case "lokasyon":
+                setLocations([...locations, item.originalData]);
+                break;
+            case "wardrobe":
+                setWardrobe([...wardrobe, item.originalData]);
+                break;
+            case "proje":
+                setProjects([...projects, item.originalData]);
+                break;
+            case "plugin":
+                setPlugins([...plugins, item.originalData]);
+                break;
+        }
+        setTrashItems(trashItems.filter(t => t.id !== item.id));
+    };
+
+    // Permanent delete
+    const handlePermanentDelete = (id: string) => {
+        setTrashItems(trashItems.filter(t => t.id !== id));
+    };
 
     return (
         <>
@@ -233,7 +341,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setProjects(projects.filter(p => p.id !== project.id));
+                                        confirmDeleteProject(project.id);
                                     }}
                                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all"
                                     title="Sil"
@@ -261,7 +369,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                         icon={<Users size={16} />}
                         items={characters}
                         defaultOpen={true}
-                        onDelete={handleDeleteCharacter}
+                        onDelete={confirmDeleteCharacter}
                     />
 
                     {/* Locations */}
@@ -270,7 +378,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                         icon={<MapPin size={16} />}
                         items={locations}
                         defaultOpen={true}
-                        onDelete={handleDeleteLocation}
+                        onDelete={confirmDeleteLocation}
                     />
 
                     {/* Wardrobe */}
@@ -279,7 +387,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                         icon={<Shirt size={16} />}
                         items={wardrobe}
                         defaultOpen={false}
-                        onDelete={handleDeleteWardrobe}
+                        onDelete={confirmDeleteWardrobe}
                     />
 
                     {/* Plugins Section */}
@@ -331,6 +439,25 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                     >
                         <Settings size={16} style={{ color: "var(--foreground-muted)" }} />
                         <span style={{ color: "var(--foreground-muted)" }}>Settings</span>
+                    </button>
+
+                    {/* Trash Bin */}
+                    <button
+                        onClick={() => setTrashOpen(true)}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
+                    >
+                        <div className="flex items-center gap-2">
+                            <Trash2 size={16} style={{ color: "var(--foreground-muted)" }} />
+                            <span style={{ color: "var(--foreground-muted)" }}>Çöp Kutusu</span>
+                        </div>
+                        {trashItems.length > 0 && (
+                            <span
+                                className="px-1.5 py-0.5 text-xs rounded-full"
+                                style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444" }}
+                            >
+                                {trashItems.length}
+                            </span>
+                        )}
                     </button>
 
                     {/* Admin Panel */}
@@ -386,6 +513,24 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
             <AdminPanelModal
                 isOpen={adminOpen}
                 onClose={() => setAdminOpen(false)}
+            />
+
+            {/* Confirm Delete Modal */}
+            <ConfirmDeleteModal
+                isOpen={deleteConfirm?.isOpen ?? false}
+                onClose={() => setDeleteConfirm(null)}
+                onConfirm={() => deleteConfirm?.onConfirm()}
+                itemName={deleteConfirm?.itemName ?? ""}
+                itemType={deleteConfirm?.itemType ?? "öğe"}
+            />
+
+            {/* Trash Modal */}
+            <TrashModal
+                isOpen={trashOpen}
+                onClose={() => setTrashOpen(false)}
+                items={trashItems}
+                onRestore={handleRestore}
+                onPermanentDelete={handlePermanentDelete}
             />
         </>
     );
