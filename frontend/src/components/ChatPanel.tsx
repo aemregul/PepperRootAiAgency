@@ -144,29 +144,30 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
         checkConnection();
     }, []);
 
-    // initialSessionId değiştiğinde güncelle ve mesaj geçmişini yükle
+    // initialSessionId değiştiğinde veya ilk yüklemede mesaj geçmişini yükle
     useEffect(() => {
         const loadHistory = async () => {
-            if (initialSessionId && initialSessionId !== sessionId) {
-                setSessionId(initialSessionId);
-                setIsLoading(true);
+            if (!initialSessionId) return;
 
-                try {
-                    // Backend'den mesaj geçmişini yükle
-                    const history = await getSessionHistory(initialSessionId);
-                    const formattedMessages: Message[] = history.map((msg) => ({
-                        id: msg.id,
-                        role: msg.role as 'user' | 'assistant',
-                        content: msg.content,
-                        timestamp: new Date(msg.created_at),
-                    }));
-                    setMessages(formattedMessages);
-                } catch (err) {
-                    console.error('Mesaj geçmişi yüklenemedi:', err);
-                    setMessages([]);
-                } finally {
-                    setIsLoading(false);
-                }
+            // SessionId'yi güncelle
+            setSessionId(initialSessionId);
+            setIsLoading(true);
+
+            try {
+                // Backend'den mesaj geçmişini yükle
+                const history = await getSessionHistory(initialSessionId);
+                const formattedMessages: Message[] = history.map((msg) => ({
+                    id: msg.id,
+                    role: msg.role as 'user' | 'assistant',
+                    content: msg.content,
+                    timestamp: new Date(msg.created_at),
+                }));
+                setMessages(formattedMessages);
+            } catch (err) {
+                console.error('Mesaj geçmişi yüklenemedi:', err);
+                setMessages([]);
+            } finally {
+                setIsLoading(false);
             }
         };
         loadHistory();
