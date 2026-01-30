@@ -88,13 +88,24 @@ DAVRANIŞ KURALLARI:
         
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         if reference_image:
+            # Detect media type from base64 data
+            media_type = "image/jpeg"  # default
+            if reference_image.startswith("iVBORw"):
+                media_type = "image/png"
+            elif reference_image.startswith("/9j/"):
+                media_type = "image/jpeg"
+            elif reference_image.startswith("R0lGOD"):
+                media_type = "image/gif"
+            elif reference_image.startswith("UklGR"):
+                media_type = "image/webp"
+            
             # Claude vision API format
             user_content = [
                 {
                     "type": "image",
                     "source": {
                         "type": "base64",
-                        "media_type": "image/jpeg",
+                        "media_type": media_type,
                         "data": reference_image
                     }
                 },

@@ -56,12 +56,18 @@ async def _process_chat(
     await db.refresh(user_message)
     
     # Agent ile yanıt al
-    agent_result = await agent.process_message(
-        user_message=actual_message,
-        session_id=session.id,
-        db=db,
-        reference_image=reference_image_base64
-    )
+    try:
+        agent_result = await agent.process_message(
+            user_message=actual_message,
+            session_id=session.id,
+            db=db,
+            reference_image=reference_image_base64
+        )
+    except Exception as e:
+        import traceback
+        print(f"AGENT ERROR: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Agent hatası: {str(e)}")
     
     response_content = agent_result.get("response", "")
     images = agent_result.get("images", [])
