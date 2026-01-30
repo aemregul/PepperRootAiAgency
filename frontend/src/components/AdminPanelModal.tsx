@@ -160,7 +160,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                     {[
                         { id: "overview", label: "Genel Bakış", icon: Activity },
                         { id: "models", label: "AI Modeller", icon: Puzzle },
-                        { id: "plugins", label: "Plugins", icon: Store },
+                        { id: "plugins", label: "AI Servisleri", icon: Store },
                         { id: "analytics", label: "Analitik", icon: TrendingUp },
                     ].map((tab) => (
                         <button

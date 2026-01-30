@@ -28,6 +28,7 @@ import { NewProjectModal } from "./NewProjectModal";
 import { AdminPanelModal } from "./AdminPanelModal";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
+import { CreativePluginModal, CreativePlugin } from "./CreativePluginModal";
 
 interface SidebarItem {
     id: string;
@@ -59,9 +60,41 @@ const mockWardrobe = [
     { id: "w4", name: "@object_smartphone" },
 ];
 
-const mockPlugins = [
-    { id: "p1", name: "fal.ai (Görsel)" },
-    { id: "p2", name: "Minimax (Video)" },
+const mockCreativePlugins: CreativePlugin[] = [
+    {
+        id: "p1",
+        name: "Mutfak Reklamı Seti",
+        description: "Modern mutfak arka planı ile profesyonel görsel üretimi",
+        author: "Ben",
+        isPublic: false,
+        config: {
+            character: { id: "variable", name: "Değişken", isVariable: true },
+            location: { id: "mutfak", name: "Modern Mutfak", settings: "" },
+            timeOfDay: "Gün Batımı",
+            cameraAngles: ["Orta Plan (Medium Shot)", "Yakın Çekim (Close-up)"],
+            style: "Sıcak Tonlar"
+        },
+        createdAt: new Date(),
+        downloads: 0,
+        rating: 0
+    },
+    {
+        id: "p2",
+        name: "Outdoor Fashion",
+        description: "Dış mekan moda çekimi için hazır şablon",
+        author: "Ben",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Değişken", isVariable: true },
+            location: { id: "outdoor", name: "Outdoor - Park", settings: "" },
+            timeOfDay: "Sabah",
+            cameraAngles: ["Geniş Açı (Wide Shot)", "Orta Plan (Medium Shot)"],
+            style: "Editorial"
+        },
+        createdAt: new Date(),
+        downloads: 45,
+        rating: 4.5
+    },
 ];
 
 interface CollapsibleSectionProps {
@@ -140,7 +173,8 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
     const [characters, setCharacters] = useState(mockCharacters);
     const [locations, setLocations] = useState(mockLocations);
     const [wardrobe, setWardrobe] = useState(mockWardrobe);
-    const [plugins, setPlugins] = useState(mockPlugins);
+    const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>(mockCreativePlugins);
+    const [pluginModalOpen, setPluginModalOpen] = useState(false);
 
     // Trash state
     const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -251,7 +285,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                 setProjects([...projects, item.originalData]);
                 break;
             case "plugin":
-                setPlugins([...plugins, item.originalData]);
+                setCreativePlugins([...creativePlugins, item.originalData]);
                 break;
         }
         setTrashItems(trashItems.filter(t => t.id !== item.id));
@@ -390,29 +424,37 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                         onDelete={confirmDeleteWardrobe}
                     />
 
-                    {/* Plugins Section */}
+                    {/* Creative Plugins Section */}
                     <div className="mt-2">
                         <div className="flex items-center justify-between px-2 py-1.5">
                             <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
                                 <Puzzle size={14} />
-                                <span>Plugins</span>
+                                <span>Creative Plugins</span>
                             </div>
                             <button
+                                onClick={() => setPluginModalOpen(true)}
                                 className="p-1 rounded hover:bg-[var(--card)] transition-colors"
-                                title="Yeni Plugin Ekle"
+                                title="Yeni Plugin Oluştur"
                             >
                                 <Plus size={12} style={{ color: "var(--accent)" }} />
                             </button>
                         </div>
                         <div className="space-y-0.5">
-                            {mockPlugins.map((plugin) => (
+                            {creativePlugins.map((plugin) => (
                                 <div
                                     key={plugin.id}
-                                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
+                                    className="flex items-center justify-between px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors group"
                                     style={{ color: "var(--foreground-muted)" }}
                                 >
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)" }} />
-                                    <span className="truncate">{plugin.name}</span>
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: plugin.isPublic ? "#8b5cf6" : "var(--accent)" }} />
+                                        <span className="truncate">{plugin.name}</span>
+                                    </div>
+                                    {plugin.isPublic && (
+                                        <span className="text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
+                                            Paylaşıldı
+                                        </span>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -531,6 +573,13 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                 items={trashItems}
                 onRestore={handleRestore}
                 onPermanentDelete={handlePermanentDelete}
+            />
+
+            {/* Creative Plugin Modal */}
+            <CreativePluginModal
+                isOpen={pluginModalOpen}
+                onClose={() => setPluginModalOpen(false)}
+                onSave={(plugin) => setCreativePlugins([...creativePlugins, plugin])}
             />
         </>
     );
