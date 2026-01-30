@@ -293,6 +293,60 @@ AGENT_TOOLS = [
             },
             "required": ["image_url_1", "image_url_2"]
         }
+    },
+    # ===============================
+    # ROADMAP / GÖREV PLANLAMA
+    # ===============================
+    {
+        "name": "create_roadmap",
+        "description": "Karmaşık istekler için çoklu adım görev planı (roadmap) oluştur. Örnek: '3 dakikalık video yap' isteği için: 1) Senaryo oluştur 2) Sahneleri üret 3) Videoları birleştir. Agent büyük işleri parçalara ayırıp sırayla yürütmek için kullanır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "type": "string",
+                    "description": "Ana hedef - kullanıcının ne istediğinin özeti."
+                },
+                "steps": {
+                    "type": "array",
+                    "description": "Adım adım görev listesi.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["generate_image", "generate_video", "edit_image", "upscale", "analyze", "web_scrape", "custom"],
+                                "description": "Görev tipi."
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Görevin açıklaması."
+                            },
+                            "params": {
+                                "type": "object",
+                                "description": "Göreve özel parametreler (opsiyonel)."
+                            }
+                        },
+                        "required": ["type", "description"]
+                    }
+                }
+            },
+            "required": ["goal", "steps"]
+        }
+    },
+    {
+        "name": "get_roadmap_progress",
+        "description": "Mevcut roadmap'in ilerleme durumunu getir. Kullanıcı 'ne durumda?', 'ilerleme nasıl?' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "roadmap_id": {
+                    "type": "string",
+                    "description": "Roadmap ID'si. Belirtilmezse son aktif roadmap kullanılır."
+                }
+            }
+        }
     }
 ]
+
 

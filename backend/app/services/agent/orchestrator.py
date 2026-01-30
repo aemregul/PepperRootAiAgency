@@ -258,6 +258,13 @@ Görsel üretirken:
         elif tool_name == "compare_images":
             return await self._compare_images(tool_input)
         
+        # ROADMAP / GÖREV PLANLAMA
+        elif tool_name == "create_roadmap":
+            return await self._create_roadmap(db, session_id, tool_input)
+        
+        elif tool_name == "get_roadmap_progress":
+            return await self._get_roadmap_progress(db, session_id, tool_input)
+        
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
     async def _generate_image(
@@ -938,8 +945,121 @@ Görsel üretirken:
                 "success": False,
                 "error": str(e)
             }
+    
+    # ===============================
+    # ROADMAP METODLARI
+    # ===============================
+    
+    async def _create_roadmap(
+        self, 
+        db: AsyncSession, 
+        session_id: uuid.UUID, 
+        params: dict
+    ) -> dict:
+        """
+        Çoklu adım görev planı (roadmap) oluştur.
+        
+        Agent karmaşık istekleri parçalara ayırarak yönetir.
+        """
+        try:
+            from app.services.task_service import task_service
+            
+            goal = params.get("goal", "")
+            steps = params.get("steps", [])
+            
+            if not goal or not steps:
+                return {
+                    "success": False,
+                    "error": "Hedef ve adımlar gerekli."
+                }
+            
+            # Roadmap oluştur
+            roadmap = await task_service.create_roadmap(
+                db=db,
+                session_id=session_id,
+                goal=goal,
+                steps=steps
+            )
+            
+            # İlk görevi otomatik başlat
+            first_task = await task_service.get_next_task(db, roadmap.id)
+            if first_task:
+                await task_service.start_task(db, first_task.id)
+            
+            return {
+                "success": True,
+                "roadmap_id": str(roadmap.id),
+                "goal": goal,
+                "total_steps": len(steps),
+                "steps": [
+                    {
+                        "step": i + 1,
+                        "type": s.get("type"),
+                        "description": s.get("description")
+                    }
+                    for i, s in enumerate(steps)
+                ],
+                "message": f"Roadmap oluşturuldu: {len(steps)} adımlık plan. İlk adım başlatıldı."
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _get_roadmap_progress(
+        self, 
+        db: AsyncSession, 
+        session_id: uuid.UUID, 
+        params: dict
+    ) -> dict:
+        """Roadmap ilerleme durumunu getir."""
+        try:
+            from app.services.task_service import task_service, TaskType
+            
+            roadmap_id = params.get("roadmap_id")
+            
+            if not roadmap_id:
+                # Son aktif roadmap'i bul
+                roadmaps = await task_service.get_session_roadmaps(db, session_id)
+                if not roadmaps:
+                    return {
+                        "success": False,
+                        "error": "Aktif roadmap bulunamadı."
+                    }
+                roadmap = roadmaps[0]
+                roadmap_id = roadmap.id
+            else:
+                roadmap_id = uuid.UUID(roadmap_id)
+                roadmap = await task_service.get_roadmap(db, roadmap_id)
+            
+            if not roadmap:
+                return {
+                    "success": False,
+                    "error": "Roadmap bulunamadı."
+                }
+            
+            # İlerleme durumunu getir
+            progress = await task_service.get_roadmap_progress(db, roadmap_id)
+            
+            return {
+                "success": True,
+                "roadmap_id": str(roadmap_id),
+                "goal": roadmap.input_data.get("goal", ""),
+                "status": roadmap.status,
+                "progress": progress,
+                "message": f"İlerleme: {progress['completed']}/{progress['total']} adım tamamlandı ({progress['progress_percent']}%)"
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 # Singleton instance
 agent = AgentOrchestrator()
+
 
