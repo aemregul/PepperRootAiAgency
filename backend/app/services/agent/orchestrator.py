@@ -251,6 +251,13 @@ Görsel üretirken:
         elif tool_name == "undo_last":
             return await self._undo_last(db, session_id)
         
+        # GÖRSEL MUHAKEME ARAÇLARI
+        elif tool_name == "analyze_image":
+            return await self._analyze_image(tool_input)
+        
+        elif tool_name == "compare_images":
+            return await self._compare_images(tool_input)
+        
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
     async def _generate_image(
@@ -835,7 +842,104 @@ Görsel üretirken:
                 "success": False,
                 "error": str(e)
             }
+    
+    # ===============================
+    # GÖRSEL MUHAKEME METODLARI
+    # ===============================
+    
+    async def _analyze_image(self, params: dict) -> dict:
+        """
+        Görsel analiz - Claude Vision ile kalite kontrolü.
+        
+        Agent bu metodu şu durumlarda OTOMATIK kullanır:
+        - Görsel üretimi sonrası kalite kontrolü
+        - Kullanıcı "bu ne?", "bu nasıl?" dediğinde
+        - Yüz tutarlılığı kontrolü gerektiğinde
+        """
+        try:
+            from app.services.llm.claude_service import claude_service
+            
+            image_url = params.get("image_url", "")
+            check_quality = params.get("check_quality", True)
+            
+            if not image_url:
+                return {
+                    "success": False,
+                    "error": "Görsel URL'si gerekli."
+                }
+            
+            result = await claude_service.analyze_image(
+                image_url=image_url,
+                check_quality=check_quality
+            )
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "analysis": result.get("analysis"),
+                    "quality_score": result.get("quality_score", 7),
+                    "face_detected": result.get("face_detected", False),
+                    "face_quality": result.get("face_quality", "bilinmiyor"),
+                    "issues": result.get("issues", []),
+                    "recommendation": result.get("recommendation", "kabul edilebilir"),
+                    "message": f"Görsel analizi tamamlandı. Kalite skoru: {result.get('quality_score', 7)}/10"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Görsel analiz başarısız")
+                }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _compare_images(self, params: dict) -> dict:
+        """
+        İki görseli karşılaştır.
+        
+        Agent bu metodu şu durumlarda kullanır:
+        - Kullanıcı "hangisi daha iyi?" dediğinde
+        - Önceki/şimdiki versiyonları kıyaslarken
+        """
+        try:
+            from app.services.llm.claude_service import claude_service
+            
+            image_url_1 = params.get("image_url_1", "")
+            image_url_2 = params.get("image_url_2", "")
+            
+            if not image_url_1 or not image_url_2:
+                return {
+                    "success": False,
+                    "error": "Her iki görsel URL'si de gerekli."
+                }
+            
+            result = await claude_service.compare_images(
+                image_url_1=image_url_1,
+                image_url_2=image_url_2
+            )
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "comparison": result.get("comparison"),
+                    "message": "Görsel karşılaştırması tamamlandı."
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Karşılaştırma başarısız")
+                }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 # Singleton instance
 agent = AgentOrchestrator()
+

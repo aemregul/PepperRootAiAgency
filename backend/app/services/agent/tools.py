@@ -253,5 +253,46 @@ AGENT_TOOLS = [
             "type": "object",
             "properties": {}
         }
+    },
+    # ===============================
+    # GÖRSEL MUHAKEME ARAÇLARI
+    # ===============================
+    {
+        "name": "analyze_image",
+        "description": "Bir görseli analiz et ve kalite kontrolü yap. Görseldeki yüz, kompozisyon, bozukluk gibi sorunları tespit eder. Agent üretim sonrası otomatik kalite kontrolü için veya kullanıcı 'bu görsel nasıl?' diye sorduğunda kullanır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string",
+                    "description": "Analiz edilecek görselin URL'si."
+                },
+                "check_quality": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Kalite kontrolü modu - yüz, kompozisyon ve sorunları analiz eder."
+                }
+            },
+            "required": ["image_url"]
+        }
+    },
+    {
+        "name": "compare_images",
+        "description": "İki görseli karşılaştır ve hangisinin daha iyi olduğunu belirle. Kullanıcı 'hangisi daha iyi?', 'bunları karşılaştır' dediğinde veya önceki/şimdiki versiyonları kıyaslamak için kullanılır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url_1": {
+                    "type": "string",
+                    "description": "Birinci görselin URL'si."
+                },
+                "image_url_2": {
+                    "type": "string",
+                    "description": "İkinci görselin URL'si."
+                }
+            },
+            "required": ["image_url_1", "image_url_2"]
+        }
     }
 ]
+
