@@ -6,7 +6,7 @@ Agent tarafından kullanılabilen araçların tanımları.
 AGENT_TOOLS = [
     {
         "name": "generate_image",
-        "description": "Kullanıcının isteğine göre AI görseli üretir. Karakter, mekan veya herhangi bir sahne çizmek için kullanılır. Eğer @tag ile referans verilen bir entity varsa, onun özelliklerini prompt'a ekle.",
+        "description": "Kullanıcının isteğine göre AI görseli üretir (Nano Banana Pro). Karakter, mekan veya herhangi bir sahne çizmek için kullanılır. Eğer @tag ile referans verilen bir entity varsa, onun özelliklerini prompt'a ekle.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -14,11 +14,17 @@ AGENT_TOOLS = [
                     "type": "string",
                     "description": "Görselin detaylı açıklaması (İngilizce olması daha iyi sonuç verir)."
                 },
-                "image_size": {
+                "aspect_ratio": {
                     "type": "string",
-                    "enum": ["square_hd", "landscape_4_3", "portrait_4_3", "landscape_16_9", "portrait_16_9"],
-                    "default": "square_hd",
-                    "description": "Görselin boyutu."
+                    "enum": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9", "4:5", "5:4"],
+                    "default": "1:1",
+                    "description": "Görselin en-boy oranı."
+                },
+                "resolution": {
+                    "type": "string",
+                    "enum": ["1K", "2K", "4K"],
+                    "default": "1K",
+                    "description": "Görselin çözünürlüğü."
                 }
             },
             "required": ["prompt"]
@@ -105,6 +111,93 @@ AGENT_TOOLS = [
                     "description": "Listelenecek entity tipi"
                 }
             }
+        }
+    },
+    
+    # ===============================
+    # YENİ ARAÇLAR - Video, Edit, Upscale
+    # ===============================
+    
+    {
+        "name": "generate_video",
+        "description": "Video üretir. Görsel veya metinden video oluşturur. Kling 2.5 Turbo Pro kullanılır. Örnek: '@character_emre ormanda yürüyor videosu yap'",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Video açıklaması (İngilizce önerilir). Hareket ve aksiyon detayları ekle."
+                },
+                "image_url": {
+                    "type": "string",
+                    "description": "Başlangıç görseli URL (opsiyonel). Varsa image-to-video üretilir."
+                },
+                "duration": {
+                    "type": "string",
+                    "enum": ["3", "5", "10"],
+                    "default": "5",
+                    "description": "Video süresi (saniye)"
+                },
+                "aspect_ratio": {
+                    "type": "string",
+                    "enum": ["16:9", "9:16", "1:1"],
+                    "default": "16:9",
+                    "description": "Video oranı"
+                }
+            },
+            "required": ["prompt"]
+        }
+    },
+    {
+        "name": "edit_image",
+        "description": "Mevcut bir görseli düzenler. Arka plan değiştirme, stil dönüşümü, nesne ekleme/çıkarma. Nano Banana Edit kullanılır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string",
+                    "description": "Düzenlenecek görselin URL'si"
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "Düzenleme talimatı. Örn: 'Change the background to a beach sunset'"
+                }
+            },
+            "required": ["image_url", "prompt"]
+        }
+    },
+    {
+        "name": "upscale_image",
+        "description": "Görsel kalitesini ve çözünürlüğünü artırır. Topaz kullanılır. Düşük kaliteli görselleri iyileştirir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string",
+                    "description": "Upscale edilecek görselin URL'si"
+                },
+                "scale": {
+                    "type": "integer",
+                    "enum": [2, 4],
+                    "default": 2,
+                    "description": "Büyütme faktörü (2x veya 4x)"
+                }
+            },
+            "required": ["image_url"]
+        }
+    },
+    {
+        "name": "remove_background",
+        "description": "Görselin arka planını kaldırır ve şeffaf PNG oluşturur. Ürün fotoğrafları veya karakter görselleri için kullanışlı.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string",
+                    "description": "Arka planı kaldırılacak görselin URL'si"
+                }
+            },
+            "required": ["image_url"]
         }
     }
 ]

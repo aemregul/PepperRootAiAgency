@@ -37,7 +37,8 @@ class EntityService:
         entity_type: str,
         name: str,
         description: Optional[str] = None,
-        attributes: Optional[dict] = None
+        attributes: Optional[dict] = None,
+        reference_image_url: Optional[str] = None
     ) -> Entity:
         """
         Yeni entity oluştur.
@@ -49,6 +50,7 @@ class EntityService:
             name: Entity adı
             description: Detaylı açıklama
             attributes: Ek özellikler (JSON)
+            reference_image_url: Yüz/vücut referans görseli URL
         
         Returns:
             Oluşturulan Entity
@@ -63,7 +65,8 @@ class EntityService:
             name=name,
             tag=tag,
             description=description,
-            attributes=attributes or {}
+            attributes=attributes or {},
+            reference_image_url=reference_image_url
         )
         
         db.add(entity)

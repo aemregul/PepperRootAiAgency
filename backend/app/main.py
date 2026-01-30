@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import sessions, chat, generate, entities
+from app.api.routes import sessions, chat, generate, entities, upload
 
 
 @asynccontextmanager
@@ -35,6 +35,7 @@ app.add_middleware(
 app.include_router(sessions.router, prefix=settings.API_PREFIX)
 app.include_router(chat.router, prefix=settings.API_PREFIX)
 app.include_router(entities.router, prefix=settings.API_PREFIX)
+app.include_router(upload.router, prefix=settings.API_PREFIX)
 app.include_router(generate.router, prefix=f"{settings.API_PREFIX}/generate")
 
 

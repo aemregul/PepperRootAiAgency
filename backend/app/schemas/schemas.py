@@ -70,6 +70,7 @@ class EntityCreate(BaseModel):
     name: str
     description: Optional[str] = None
     attributes: Optional[dict] = None
+    reference_image_url: Optional[str] = None  # Yüz/vücut referans görseli
 
 
 class EntityResponse(BaseModel):
@@ -80,6 +81,7 @@ class EntityResponse(BaseModel):
     tag: str
     description: Optional[str] = None
     attributes: Optional[dict] = None
+    reference_image_url: Optional[str] = None
     created_at: datetime
 
     class Config:

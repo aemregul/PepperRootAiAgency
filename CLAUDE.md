@@ -5,14 +5,41 @@
 
 ---
 
-## 📊 Genel Durum
+## � KRİTİK: Proje Vizyonunu Anla!
+
+**Mimari Doküman:** `/Users/emre/Desktop/Pepper_Root_AI_Agency_Mimari_Dokumani.md`
+
+Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
+
+### Agent Ne Yapmalı:
+- Hedef alır → Kendi planlar → Uygular → Adapte olur
+- Aksiyon alır (pasif değil, aktif)
+- Geçmiş assetleri BULUR ve KULLANIR
+- "Dünkü video daha iyiydi" demek yerine → Dünkü videoyu GETİRİR ve sunar
+- Hata durumunda alternatif yol dener, internetten veri çeker, editler
+
+### @tag Sistemi (ÇOK ÖNEMLİ):
+```
+@emre = GERÇEK KİŞİ
+  ├── Yüz → Referans FOTOĞRAF'tan (yüklenmiş)
+  ├── Vücut şekli → Referans fotoğraftan
+  ├── Karakter özellikleri → Kayıtlı bilgiler
+  └── Tutarlılık → Her üretimde AYNI kişi
+```
+
+**Yanlış:** Sadece metin açıklaması ("uzun boylu, kahverengi saçlı")
+**Doğru:** Referans fotoğraf + IP-Adapter/PuLID ile yüz tutarlılığı
+
+---
+
+## �📊 Genel Durum (29 Ocak 2026)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
 | Gün 1-3: Altyapı | ✅ Tamamlandı | %100 |
 | Gün 4-5: API Endpoint'leri | ✅ Tamamlandı | %100 |
 | Gün 6-8: fal.ai Entegrasyonu | ✅ Tamamlandı | %100 |
-| Gün 9-14: Agent Çekirdeği | 🔄 Sırada | %40 |
+| Gün 9-14: Agent Çekirdeği | 🔄 Devam Ediyor | %60 |
 | Gün 15-21: Frontend | ⏳ Bekliyor | %0 |
 | Gün 22-28: Entegrasyon | ⏳ Bekliyor | %0 |
 
@@ -20,65 +47,61 @@
 
 ## ✅ Tamamlanan Adımlar
 
-### Gün 1: Proje İskeleti (28 Ocak 2026)
-- [x] Klasör yapısı oluşturuldu
-- [x] Git repo başlatıldı
-- [x] GitHub'a bağlandı: `aemregul/PepperRootAiAgency`
-- [x] .gitignore ve README.md oluşturuldu
-
-### Gün 2-3: Veritabanı (28 Ocak 2026)
-- [x] Docker Desktop kuruldu
-- [x] PostgreSQL container çalışıyor: `pepperroot-db`
-- [x] Python sanal ortam kuruldu (venv)
-- [x] requirements.txt paketleri yüklendi
-- [x] FastAPI temel uygulama çalışıyor
-- [x] SQLAlchemy modelleri oluşturuldu:
-  - User, Session, Message, Entity, GeneratedAsset, EntityAsset, Task, AgentState, Plugin
-- [x] Alembic migration yapıldı
-- [x] Tablolar veritabanında oluşturuldu
+### Gün 1-3: Altyapı (28 Ocak 2026)
+- [x] Klasör yapısı, Git repo, GitHub bağlantısı
+- [x] Docker + PostgreSQL container (pepperroot-db)
+- [x] FastAPI + SQLAlchemy + Alembic
+- [x] Tüm tablolar: User, Session, Message, Entity, GeneratedAsset, EntityAsset, Task, AgentState, Plugin
 
 ### Gün 4-5: API Endpoint'leri (28 Ocak 2026)
-- [x] Pydantic şemaları: `app/schemas/schemas.py`
-- [x] Session API: `app/api/routes/sessions.py`
-  - POST /api/v1/sessions/ (oluştur)
-  - GET /api/v1/sessions/ (listele)
-  - GET /api/v1/sessions/{id} (detay)
-  - DELETE /api/v1/sessions/{id} (sil)
-- [x] Chat API: `app/api/routes/chat.py`
-  - POST /api/v1/chat/ (mesaj gönder)
-- [x] Swagger UI test edildi, çalışıyor
-
----
+- [x] Session API: /api/v1/sessions/
+- [x] Chat API: /api/v1/chat/
+- [x] Swagger UI çalışıyor
 
 ### Gün 6-8: fal.ai Entegrasyonu (28 Ocak 2026)
-- [x] fal.ai hesabı açıldı
-- [x] API key alındı
-- [x] .env dosyasına FAL_KEY eklendi
-- [x] fal_client paketi kuruldu (v0.12.0)
-- [x] fal_plugin.py oluşturuldu: `app/services/plugins/fal_plugin.py`
-- [x] Görsel üretme endpoint'leri eklendi: `app/api/routes/generate.py`
-  - POST /api/v1/generate/image (prompt'tan görsel)
-  - POST /api/v1/generate/image-to-image (referans ile)
-- [x] Swagger UI ile test edildi, çalışıyor
+- [x] fal_plugin.py oluşturuldu
+- [x] /api/v1/generate/image (prompt'tan görsel)
+- [x] /api/v1/generate/image-to-image (referans ile)
+
+### Gün 9-12: Entity Sistemi (29 Ocak 2026)
+- [x] entity_service.py - CRUD ve tag parsing
+- [x] Agent araçları: create_character, create_location, get_entity, list_entities
+- [x] Context injection (orchestrator.py)
+- [x] Entity API: /api/v1/entities/
+- [x] @tag ile görsel üretimi TEST EDİLDİ, ÇALIŞIYOR
 
 ---
 
-## 🔄 Şu An Yapılacak
+## � ŞİMDİ YAPILACAK (Eksik Özellikler)
 
-### Gün 9-14: Agent Çekirdeği
-- [x] LLM servisi (Anthropic Claude)
-- [x] Agent temel yapısı ve Tool calling altyapısı
-- [x] Agent Orchestrator (Tool kullanımı)
-- [x] Entity çıkarımı (@character_emre gibi tag'ler)
-- [x] @tag sistemi (context injection çalışıyor)
-- [ ] Görev orchestration (çoklu adım planlama)
+### Öncelik 1: Referans Görsel Sistemi
+```
+Kullanıcı: [FOTOĞRAF YÜKLER] "Bu Emre"
+    ↓
+Entity'ye referans görsel bağlanır
+    ↓
+@emre → Fotoğraftaki YÜZ kullanılarak üretim
+```
 
-### Gün 9-14 Entity Sistemi Detayları (29 Ocak 2026)
-- [x] `entity_service.py` - CRUD ve tag parsing
-- [x] Agent'a 4 yeni araç: create_character, create_location, get_entity, list_entities
-- [x] Orchestrator'a context injection eklendi
-- [x] Entity API endpoint'leri: /api/v1/entities/
-- [x] @tag ile görsel üretimi test edildi, çalışıyor!
+Gerekli işler:
+- [ ] Entity modeline `reference_images` alanı ekle (DB migration)
+- [ ] Görsel yükleme endpoint'i
+- [ ] fal.ai PuLID/IP-Adapter entegrasyonu (yüz tutarlılığı)
+- [ ] Agent'ın referans görseli kullanması
+
+### Öncelik 2: Video Üretimi
+- [ ] fal.ai video modelleri entegrasyonu
+- [ ] Video API endpoint'i
+
+### Öncelik 3: Akıllı Agent Davranışı
+- [ ] Geçmiş assetleri bulma ve getirme
+- [ ] Karşılaştırma ve tercih sistemi
+- [ ] State/Rollback
+
+### Öncelik 4: Ek Yetenekler
+- [ ] İnternetten veri çekme (web scraping)
+- [ ] Görsel/video edit
+- [ ] Çoklu adım görev planlama
 
 ---
 
@@ -88,30 +111,31 @@
 PepperRootAiAgency/
 ├── backend/
 │   ├── app/
-│   │   ├── api/routes/       # API endpoint'leri
-│   │   ├── core/             # Config, database
+│   │   ├── api/routes/       # sessions, chat, entities, generate
+│   │   ├── core/             # config, database
 │   │   ├── models/           # SQLAlchemy modelleri
 │   │   ├── schemas/          # Pydantic şemaları
-│   │   ├── services/         # İş mantığı
-│   │   └── main.py           # FastAPI uygulaması
-│   ├── alembic/              # Migration dosyaları
-│   ├── venv/                 # Python sanal ortam
+│   │   ├── services/
+│   │   │   ├── agent/        # orchestrator.py, tools.py
+│   │   │   ├── llm/          # claude_service.py
+│   │   │   ├── plugins/      # fal_plugin.py
+│   │   │   └── entity_service.py
+│   │   └── main.py
+│   ├── alembic/
 │   └── requirements.txt
 ├── frontend/                 # Next.js (henüz yapılmadı)
-├── docs/
 └── README.md
 ```
 
 ---
 
-## 🔑 Önemli Bilgiler
+## 🔑 Komutlar
 
-### Komutlar
 ```bash
 # Backend çalıştır
-cd backend
+cd /Users/emre/PepperRootAiAgency/backend
 source venv/bin/activate
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # PostgreSQL container başlat
 docker start pepperroot-db
@@ -119,35 +143,60 @@ docker start pepperroot-db
 # Migration yap
 alembic revision --autogenerate -m "açıklama"
 alembic upgrade head
+
+# Git push
+git add . && git commit -m "mesaj" && git push
 ```
 
 ### URL'ler
 - API: http://localhost:8000
 - Swagger UI: http://localhost:8000/docs
-- Health Check: http://localhost:8000/health
 
 ### Veritabanı
 - Container: pepperroot-db
-- User: postgres
-- Password: postgres
+- User/Password: postgres/postgres
 - Database: pepperroot
 - Port: 5432
 
 ---
 
-## 📝 Notlar
+## 📝 Teknik Notlar
 
-- Python 3.14 kullanılıyor (çok yeni, bazı paketler uyumsuz olabilir)
-- `email-validator` paketi ayrıca kuruldu
-- `greenlet` paketi ayrıca kuruldu
+- Python 3.14 kullanılıyor
+- Claude Sonnet 4 modeli (claude-sonnet-4-20250514)
+- fal-client v0.12.0
+- Flux Schnell model görsel üretim için
 
 ---
 
-## 🎯 Proje Hedefi
+## 🎯 SON DURUM (Bu Chat'te)
 
-Web tabanlı, ajantik AI yaratıcı platform:
-- Kullanıcı doğal dilde komut verir
-- Agent planlar ve görevleri yürütür
-- fal.ai ile görsel/video üretir
-- Entity sistemi ile karakterleri/mekanları hatırlar
-- @tag ile referans verebilirsin
+**Tamamlanan:**
+- Entity sistemi ve @tag çalışıyor (metin bazlı)
+- Agent tool calling çalışıyor
+- Context injection çalışıyor
+
+**Eksik (Kritik):**
+- Referans görsel sistemi (fotoğraf yükleme + yüz tutarlılığı)
+- Video üretimi
+- Akıllı agent davranışı (geçmiş assetleri getirme)
+
+**Sıradaki Adım:**
+Entity'ye referans görsel ekleme ve fal.ai PuLID/IP-Adapter entegrasyonu
+
+---
+
+## ⚠️ PUSH BEKLİYOR
+
+Uncommitted değişiklikler var:
+- entity_service.py (yeni)
+- entities.py (yeni)
+- orchestrator.py (güncellendi)
+- tools.py (güncellendi)
+- chat.py (güncellendi)
+- main.py (güncellendi)
+- CLAUDE.md (güncellendi)
+
+```bash
+git add . && git commit -m "feat: Entity sistemi ve @tag referans özelliği" && git push
+```

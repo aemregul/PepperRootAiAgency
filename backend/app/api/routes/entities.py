@@ -25,6 +25,7 @@ async def create_entity(
     Yeni bir entity (karakter/mekan/nesne) oluşturur.
     
     Tag otomatik oluşturulur: @{entity_type}_{name}
+    reference_image_url ile yüz/vücut referansı bağlanabilir.
     """
     entity = await entity_service.create_entity(
         db=db,
@@ -32,7 +33,8 @@ async def create_entity(
         entity_type=data.entity_type,
         name=data.name,
         description=data.description,
-        attributes=data.attributes
+        attributes=data.attributes,
+        reference_image_url=data.reference_image_url
     )
     return entity
 

@@ -92,11 +92,19 @@ Görsel üretirken:
         result = {
             "response": "",
             "images": [],
-            "entities_created": []
+            "entities_created": [],
+            "_resolved_entities": []  # İç kullanım için, @tag ile çözümlenen entity'ler
         }
+        
+        # @tag'leri çözümle ve result'a ekle
+        resolved = await entity_service.resolve_tags(db, session_id, user_message)
+        result["_resolved_entities"] = resolved
         
         # Response'u işle - tool call loop
         await self._process_response(response, messages, result, session_id, db)
+        
+        # İç kullanım alanını kaldır
+        del result["_resolved_entities"]
         
         return result
     
@@ -142,7 +150,8 @@ Görsel üretirken:
                     block.name, 
                     block.input, 
                     session_id, 
-                    db
+                    db,
+                    resolved_entities=result.get("_resolved_entities", [])
                 )
                 
                 # Görsel üretildiyse ekle
@@ -192,12 +201,13 @@ Görsel üretirken:
         tool_name: str, 
         tool_input: dict,
         session_id: uuid.UUID,
-        db: AsyncSession
+        db: AsyncSession,
+        resolved_entities: list = None
     ) -> dict:
         """Araç çağrısını işle."""
         
         if tool_name == "generate_image":
-            return await self._generate_image(tool_input)
+            return await self._generate_image(tool_input, resolved_entities or [])
         
         elif tool_name == "create_character":
             return await self._create_entity(
@@ -215,30 +225,103 @@ Görsel üretirken:
         elif tool_name == "list_entities":
             return await self._list_entities(db, session_id, tool_input)
         
+        # YENİ ARAÇLAR
+        elif tool_name == "generate_video":
+            return await self._generate_video(tool_input, resolved_entities or [])
+        
+        elif tool_name == "edit_image":
+            return await self._edit_image(tool_input)
+        
+        elif tool_name == "upscale_image":
+            return await self._upscale_image(tool_input)
+        
+        elif tool_name == "remove_background":
+            return await self._remove_background(tool_input)
+        
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
-    async def _generate_image(self, params: dict) -> dict:
-        """Görsel üret."""
+    async def _generate_image(self, params: dict, resolved_entities: list = None) -> dict:
+        """
+        Akıllı görsel üretim sistemi.
+        
+        İş Akışı:
+        1. Entity'de referans görsel var mı kontrol et
+        2. VARSA → Akıllı sistem: Nano Banana + Face Swap fallback
+        3. YOKSA → Sadece Nano Banana Pro
+        
+        Agent kendi başına karar verir ve en iyi sonucu sunar.
+        """
         try:
             prompt = params.get("prompt", "")
-            image_size = params.get("image_size", "square_hd")
+            aspect_ratio = params.get("aspect_ratio", "1:1")
+            resolution = params.get("resolution", "1K")
             
-            result = await self.fal_plugin.generate_image(
-                prompt=prompt,
-                image_size=image_size
-            )
+            # Referans görseli olan karakter var mı kontrol et
+            face_reference_url = None
+            entity_description = ""
             
-            if result.get("success"):
-                return {
-                    "success": True,
-                    "image_url": result.get("image_url"),
-                    "message": "Görsel başarıyla üretildi."
-                }
+            if resolved_entities:
+                for entity in resolved_entities:
+                    # Referans görsel kontrolü
+                    if hasattr(entity, 'reference_image_url') and entity.reference_image_url:
+                        face_reference_url = entity.reference_image_url
+                    # Entity açıklamasını topla
+                    if hasattr(entity, 'description') and entity.description:
+                        entity_description += f"{entity.description}. "
+            
+            # Entity açıklamasını prompt'a ekle
+            if entity_description:
+                prompt = f"{entity_description}{prompt}"
+            
+            # AKILLI SİSTEM: Referans görsel varsa
+            if face_reference_url:
+                # Akıllı üretim: Nano Banana → kontrol → Face Swap fallback
+                result = await self.fal_plugin.smart_generate_with_face(
+                    prompt=prompt,
+                    face_image_url=face_reference_url,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution
+                )
+                
+                if result.get("success"):
+                    method = result.get("method_used", "unknown")
+                    quality_note = result.get("quality_check", "")
+                    
+                    return {
+                        "success": True,
+                        "image_url": result.get("image_url"),
+                        "base_image_url": result.get("base_image_url"),  # Alternatif (Nano Banana)
+                        "model": method,
+                        "message": f"Görsel üretildi. {quality_note}",
+                        "agent_decision": f"Referans görsel algılandı. Yöntem: {method}"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": result.get("error", "Görsel üretilemedi")
+                    }
+            
             else:
-                return {
-                    "success": False,
-                    "error": result.get("error", "Görsel üretilemedi")
-                }
+                # Referans yok - sadece Nano Banana Pro
+                result = await self.fal_plugin.generate_with_nano_banana(
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution
+                )
+                
+                if result.get("success"):
+                    return {
+                        "success": True,
+                        "image_url": result.get("image_url"),
+                        "model": "nano-banana-pro",
+                        "message": "Görsel başarıyla üretildi (Nano Banana Pro).",
+                        "agent_decision": "Referans görsel yok, Nano Banana Pro kullanıldı"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": result.get("error", "Görsel üretilemedi")
+                    }
         
         except Exception as e:
             return {
@@ -345,6 +428,173 @@ Görsel üretirken:
                 ],
                 "count": len(entities)
             }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    # ===============================
+    # YENİ ARAÇ METODLARI
+    # ===============================
+    
+    async def _generate_video(self, params: dict, resolved_entities: list = None) -> dict:
+        """
+        Video üret (text-to-video veya image-to-video).
+        
+        Entity referansı varsa, önce görsel üretilip image-to-video yapılır.
+        """
+        try:
+            prompt = params.get("prompt", "")
+            image_url = params.get("image_url")
+            duration = params.get("duration", "5")
+            aspect_ratio = params.get("aspect_ratio", "16:9")
+            
+            # Entity açıklamalarını prompt'a ekle
+            if resolved_entities:
+                for entity in resolved_entities:
+                    if hasattr(entity, 'description') and entity.description:
+                        prompt = f"{entity.description}. {prompt}"
+            
+            # Image-to-video için görsel lazım
+            # Eğer görsel yoksa ama entity varsa, önce görsel üret
+            if not image_url and resolved_entities:
+                # Önce görsel üret
+                image_result = await self._generate_image(
+                    {"prompt": prompt, "aspect_ratio": aspect_ratio.replace(":", ":")},
+                    resolved_entities
+                )
+                if image_result.get("success"):
+                    image_url = image_result.get("image_url")
+            
+            # Video üret
+            result = await self.fal_plugin.generate_video(
+                prompt=prompt,
+                image_url=image_url,
+                duration=duration,
+                aspect_ratio=aspect_ratio
+            )
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "video_url": result.get("video_url"),
+                    "model": result.get("model"),
+                    "message": f"Video başarıyla üretildi ({duration}s).",
+                    "agent_decision": "Image-to-video" if image_url else "Text-to-video"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Video üretilemedi")
+                }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _edit_image(self, params: dict) -> dict:
+        """Mevcut bir görseli düzenle."""
+        try:
+            image_url = params.get("image_url")
+            prompt = params.get("prompt", "")
+            
+            if not image_url:
+                return {
+                    "success": False,
+                    "error": "image_url gerekli"
+                }
+            
+            result = await self.fal_plugin.edit_image(
+                image_url=image_url,
+                prompt=prompt
+            )
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "image_url": result.get("image_url"),
+                    "model": result.get("model"),
+                    "message": "Görsel başarıyla düzenlendi."
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Görsel düzenlenemedi")
+                }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _upscale_image(self, params: dict) -> dict:
+        """Görsel kalitesini artır."""
+        try:
+            image_url = params.get("image_url")
+            scale = params.get("scale", 2)
+            
+            if not image_url:
+                return {
+                    "success": False,
+                    "error": "image_url gerekli"
+                }
+            
+            result = await self.fal_plugin.upscale_image(
+                image_url=image_url,
+                scale=scale
+            )
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "image_url": result.get("image_url"),
+                    "model": result.get("model"),
+                    "message": f"Görsel {scale}x büyütüldü ve kalitesi artırıldı."
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Upscale yapılamadı")
+                }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _remove_background(self, params: dict) -> dict:
+        """Görsel arka planını kaldır."""
+        try:
+            image_url = params.get("image_url")
+            
+            if not image_url:
+                return {
+                    "success": False,
+                    "error": "image_url gerekli"
+                }
+            
+            result = await self.fal_plugin.remove_background(
+                image_url=image_url
+            )
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "image_url": result.get("image_url"),
+                    "model": result.get("model"),
+                    "message": "Arka plan kaldırıldı, şeffaf PNG oluşturuldu."
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Arka plan kaldırılamadı")
+                }
         
         except Exception as e:
             return {
