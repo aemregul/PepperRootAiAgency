@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* ====================================
+   PEPPER ROOT AI AGENCY - Tasarım Sistemi
+   ==================================== */
+
+/* Dark Mode (Varsayılan) */
+:root {
+  --background: #1a1a2e;
+  --background-secondary: #2d2d44;
+  --background-tertiary: #363654;
+  --foreground: #ffffff;
+  --foreground-muted: #a1a1aa;
+  --accent: #4ade80;
+  --accent-hover: #22c55e;
+  --border: #3d3d5c;
+  --card: #2d2d44;
+  --card-hover: #363654;
+  --sidebar: #16162a;
+  --user-bubble: #4ade80;
+  --ai-bubble: #2d2d44;
+}
+
+/* Light Mode */
+[data-theme="light"] {
+  --background: #fafafa;
+  --background-secondary: #ffffff;
+  --background-tertiary: #f5f5f7;
+  --foreground: #1f1f1f;
+  --foreground-muted: #6b7280;
+  --accent: #22c55e;
+  --accent-hover: #16a34a;
+  --border: #e5e5e5;
+  --card: #ffffff;
+  --card-hover: #f5f5f5;
+  --sidebar: #f0f0f5;
+  --user-bubble: #e8f4fd;
+  --ai-bubble: #f5f5f7;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-secondary: var(--background-secondary);
+  --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-sidebar: var(--sidebar);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-muted);
+}
+
+/* Selection styling */
+::selection {
+  background: var(--accent);
+  color: var(--background);
+}
+
+/* Glassmorphism effect */
+.glass {
+  background: rgba(45, 45, 68, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Utility classes */
+.text-accent {
+  color: var(--accent);
+}
+
+.bg-accent {
+  background-color: var(--accent);
+}
+
+.hover\:bg-accent-hover:hover {
+  background-color: var(--accent-hover);
+}
+
+/* Responsive breakpoints */
+/* Mobile: < 640px */
+/* Tablet: 640px - 1024px */
+/* Desktop: > 1024px */
