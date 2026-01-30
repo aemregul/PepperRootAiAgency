@@ -17,6 +17,8 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - Geçmiş assetleri BULUR ve KULLANIR ✅
 - "Dünkü video daha iyiydi" demek yerine → Dünkü videoyu GETİRİR ve sunar ✅
 - Hata durumunda alternatif yol dener, internetten veri çeker, editler
+- **YENİ:** Ürettiği görseli ANALIZ eder, kalite kontrolü yapar ✅
+- **YENİ:** Büyük işleri parçalara ayırır (roadmap) ✅
 
 ### @tag Sistemi (ÇOK ÖNEMLİ):
 ```
@@ -35,8 +37,8 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 |-----|-------|------------|
 | Hafta 1: Altyapı | ✅ Tamamlandı | %100 |
 | Hafta 2: Agent + Entity + Referans + Video | ✅ Tamamlandı | %100 |
-| Hafta 3: Akıllı Agent + Frontend | 🔄 Devam Ediyor | %30 |
-| Hafta 4: Entegrasyon + Deploy | ⏳ Bekliyor | %0 |
+| Hafta 3: Akıllı Agent + Plugin + Vision | ✅ Tamamlandı | %100 |
+| Hafta 4: Frontend + Entegrasyon | 🔄 Başlamak Üzere | %0 |
 
 ---
 
@@ -73,6 +75,24 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - [x] undo_last → Önceki versiyona dön
 - [x] is_favorite, parent_asset_id DB alanları
 
+### Hafta 3: Plugin Sistemi (30 Ocak) ⭐ YENİ
+- [x] PluginBase abstract class (plugin_base.py)
+- [x] Plugin Loader dinamik yükleme (plugin_loader.py)
+- [x] FalPluginV2 (fal_plugin_v2.py)
+- [x] Admin API endpoints (/api/v1/plugins/)
+- [x] Enable/disable, configure, health check
+
+### Hafta 3: Görsel Muhakeme - Claude Vision (30 Ocak) ⭐ YENİ
+- [x] analyze_image tool - Kalite kontrolü, yüz tespiti
+- [x] compare_images tool - İki görseli karşılaştır
+- [x] Agent artık ürettiği görseli analiz edebilir
+
+### Hafta 3: Roadmap/Task Sistemi (30 Ocak) ⭐ YENİ
+- [x] task_service.py - Çoklu adım görev yönetimi
+- [x] create_roadmap tool - Büyük işleri parçalara ayır
+- [x] get_roadmap_progress tool - İlerleme takibi
+- [x] Alt görev sistemi, otomatik tamamlama
+
 ---
 
 ## 🎯 ŞİMDİ YAPILACAK
@@ -81,17 +101,12 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - [ ] Next.js kurulumu
 - [ ] Chat UI (sol panel)
 - [ ] Asset Panel (sağ panel grid)
-- [ ] Görsel yükleme UI (drag & drop)
+- [ ] Plugin yönetim paneli (Admin)
 
-### Öncelik 2: İnternetten Veri Çekme
-- [ ] Web scraping plugin
-- [ ] Referans arama ("Samsung TV" → İnternetten bul)
-- [ ] Edit entegrasyonu
-
-### Öncelik 3: Auth + Login
-- [ ] Google OAuth
-- [ ] JWT token
-- [ ] Session yönetimi
+### Öncelik 2: Faz 2 Özellikler (Frontend Sonrası)
+- [ ] Marka tanıma (web araştırması)
+- [ ] 3 dakikalık video birleştirme
+- [ ] Komplikasyon paylaşımı (workflow export)
 
 ---
 
@@ -101,21 +116,36 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 PepperRootAiAgency/
 ├── backend/
 │   ├── app/
-│   │   ├── api/routes/       # sessions, chat, entities, generate, upload
+│   │   ├── api/routes/       # sessions, chat, entities, generate, upload, plugins
 │   │   ├── core/             # config, database
 │   │   ├── models/           # SQLAlchemy modelleri
 │   │   ├── schemas/          # Pydantic şemaları
 │   │   ├── services/
 │   │   │   ├── agent/        # orchestrator.py, tools.py
-│   │   │   ├── llm/          # claude_service.py
-│   │   │   ├── plugins/      # fal_plugin.py, fal_models.py, model_selector.py
+│   │   │   ├── llm/          # claude_service.py (Vision desteği)
+│   │   │   ├── plugins/      # plugin_base.py, plugin_loader.py, fal_plugin_v2.py
 │   │   │   ├── entity_service.py
-│   │   │   └── asset_service.py  ← YENİ
+│   │   │   ├── asset_service.py
+│   │   │   └── task_service.py  ← YENİ (Roadmap)
 │   │   └── main.py
 │   ├── alembic/
 │   └── requirements.txt
 ├── frontend/                 # Next.js (henüz yapılmadı)
 └── README.md
+```
+
+---
+
+## 🔧 API Endpoints (Yeni)
+
+```
+# Plugin Yönetimi
+GET  /api/v1/plugins/           - Tüm pluginleri listele
+GET  /api/v1/plugins/{name}     - Plugin detayı
+POST /api/v1/plugins/{name}/enable   - Aktif et
+POST /api/v1/plugins/{name}/disable  - Devre dışı bırak
+POST /api/v1/plugins/{name}/configure - Ayarla
+GET  /api/v1/plugins/health     - Sağlık kontrolü
 ```
 
 ---
@@ -142,6 +172,7 @@ git add . && git commit -m "mesaj" && git push
 ### URL'ler
 - API: http://localhost:8000
 - Swagger UI: http://localhost:8000/docs
+- Plugins API: http://localhost:8000/api/v1/plugins/
 
 ### Veritabanı
 - Container: pepperroot-db
@@ -154,29 +185,35 @@ git add . && git commit -m "mesaj" && git push
 ## 📝 Teknik Notlar
 
 - Python 3.14 kullanılıyor
-- Claude Sonnet 4 modeli (claude-sonnet-4-20250514)
+- Claude Sonnet 4 modeli (claude-sonnet-4-20250514) + Vision desteği
 - fal-client v0.12.0
 - Modeller: Nano Banana Pro, Kling 2.5 Turbo Pro, Topaz, Bria RMBG
 
 ---
 
-## 🎯 SON DURUM (30 Ocak 2026)
+## 🎯 SON DURUM (30 Ocak 2026 - 17:58)
 
 **Tamamlanan:**
-- Kapsamlı fal.ai entegrasyonu (25+ model)
-- Yüz tutarlılığı (Nano Banana + Face Swap)
-- Video üretimi (Kling 2.5)
-- Akıllı agent davranışları (geçmiş assetler, favoriler, undo)
+- ✅ Minecraft tarzı plugin sistemi
+- ✅ Görsel muhakeme (Claude Vision)
+- ✅ Roadmap/Task sistemi
+- ✅ Kapsamlı fal.ai entegrasyonu (25+ model)
+- ✅ Yüz tutarlılığı (Nano Banana + Face Swap)
+- ✅ Video üretimi (Kling 2.5)
+- ✅ Akıllı agent davranışları
 
 **Sıradaki Adım:**
-Frontend geliştirmesi veya kullanıcının belirleyeceği öncelikler
+Frontend geliştirmesi başlayabilir 🚀
 
 ---
 
-## ✅ SON COMMIT
+## ✅ SON COMMITLER
 
 ```
-f73a64b - feat: akıllı agent davranışları (30 Ocak 2026)
-834234f - feat: kapsamlı fal.ai plugin sistemi (30 Ocak 2026)
-0ec054b - feat: Entity sistemi ve @tag referans özelliği (29 Ocak 2026)
+fe9ca15 - feat: Roadmap/Task sistemi - çoklu adım görev planlama
+aba44aa - feat: Görsel muhakeme sistemi (Claude Vision)
+4fe1387 - feat: Minecraft tarzı plugin sistemi
+af1f8dc - docs: CLAUDE.md ve proje dökümanları güncellendi
+f73a64b - feat: akıllı agent davranışları
 ```
+
