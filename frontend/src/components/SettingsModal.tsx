@@ -54,12 +54,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             </div>
                             <button
                                 onClick={toggleTheme}
-                                className="relative w-12 h-6 rounded-full transition-colors"
-                                style={{ background: theme === "dark" ? "var(--accent)" : "var(--border)" }}
+                                className="relative w-14 h-7 rounded-full transition-all duration-300 ease-in-out"
+                                style={{
+                                    background: theme === "dark" ? "var(--accent)" : "rgba(120, 120, 128, 0.32)",
+                                    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.1)"
+                                }}
                             >
                                 <div
-                                    className="absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm"
-                                    style={{ left: theme === "dark" ? "28px" : "4px" }}
+                                    className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-lg transition-all duration-300 ease-in-out"
+                                    style={{
+                                        left: theme === "dark" ? "30px" : "2px",
+                                        boxShadow: "0 2px 4px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05)"
+                                    }}
                                 />
                             </button>
                         </div>
