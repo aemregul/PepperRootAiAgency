@@ -137,28 +137,19 @@ Create a detailed, photorealistic character portrait prompt."""
     return response.content[0].text.strip()
 
 
-# Convenience function for simple translations
-async def auto_translate_if_turkish(text: str) -> tuple[str, bool]:
+# Convenience function - translates any non-English text
+async def translate_to_english(text: str) -> tuple[str, bool]:
     """
-    Metin Türkçe ise İngilizce'ye çevirir.
+    Metni İngilizce'ye çevirir (hangi dilde olursa olsun).
+    Eğer metin zaten İngilizce ise ya da çok kısa ise çevirmez.
     
     Returns:
         (translated_text, was_translated)
     """
-    # Türkçe karakterler kontrolü
-    turkish_chars = set("çÇğĞıİöÖşŞüÜ")
-    has_turkish = any(c in turkish_chars for c in text)
+    # Çok kısa metinleri çevirme
+    if len(text.strip()) < 5:
+        return text, False
     
-    # Yaygın Türkçe kelimeler kontrolü
-    turkish_words = ["bir", "ve", "için", "ile", "olan", "bu", "da", "de", "oluştur", 
-                     "yap", "çiz", "göster", "karakter", "sahne", "görsel", "video",
-                     "mutfak", "ofis", "ev", "siyah", "beyaz", "mavi", "yeşil"]
-    
-    text_lower = text.lower()
-    has_turkish_words = any(word in text_lower for word in turkish_words)
-    
-    if has_turkish or has_turkish_words:
-        translated = await translate_prompt_to_english(text)
-        return translated, True
-    
-    return text, False
+    # Her zaman çevir (optimized English prompt için)
+    translated = await translate_prompt_to_english(text)
+    return translated, True

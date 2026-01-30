@@ -13,7 +13,7 @@ from app.services.agent.tools import AGENT_TOOLS
 from app.services.plugins.fal_plugin import FalPlugin
 from app.services.entity_service import entity_service
 from app.services.asset_service import asset_service
-from app.services.prompt_translator import auto_translate_if_turkish, enhance_character_prompt
+from app.services.prompt_translator import translate_to_english, enhance_character_prompt
 
 
 class AgentOrchestrator:
@@ -291,8 +291,8 @@ Görsel üretirken:
             aspect_ratio = params.get("aspect_ratio", "1:1")
             resolution = params.get("resolution", "1K")
             
-            # 🔄 TÜRKÇE PROMPTLARI İNGİLİZCE'YE ÇEVİR (Daha iyi görsel sonuçları için)
-            prompt, was_translated = await auto_translate_if_turkish(original_prompt)
+            # 🔄 PROMPTU İNGİLİZCE'YE ÇEVİR (Hangi dilde olursa olsun - daha iyi görsel sonuçları için)
+            prompt, was_translated = await translate_to_english(original_prompt)
             if was_translated:
                 print(f"📝 Prompt çevrildi: '{original_prompt[:50]}...' → '{prompt[:50]}...'")
             
