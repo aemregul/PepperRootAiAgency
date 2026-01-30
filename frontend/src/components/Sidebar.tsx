@@ -17,7 +17,8 @@ import {
     X,
     Settings,
     Shield,
-    User
+    User,
+    Puzzle
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 
@@ -49,6 +50,11 @@ const mockWardrobe = [
     { id: "w2", name: "@costume_chef_outfit" },
     { id: "w3", name: "@object_modern_tv" },
     { id: "w4", name: "@object_smartphone" },
+];
+
+const mockPlugins = [
+    { id: "p1", name: "fal.ai (Görsel)" },
+    { id: "p2", name: "Minimax (Video)" },
 ];
 
 interface CollapsibleSectionProps {
@@ -202,6 +208,34 @@ export function Sidebar() {
                         items={mockWardrobe}
                         defaultOpen={false}
                     />
+
+                    {/* Plugins Section */}
+                    <div className="mt-2">
+                        <div className="flex items-center justify-between px-2 py-1.5">
+                            <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                                <Puzzle size={14} />
+                                <span>Plugins</span>
+                            </div>
+                            <button
+                                className="p-1 rounded hover:bg-[var(--card)] transition-colors"
+                                title="Yeni Plugin Ekle"
+                            >
+                                <Plus size={12} style={{ color: "var(--accent)" }} />
+                            </button>
+                        </div>
+                        <div className="space-y-0.5">
+                            {mockPlugins.map((plugin) => (
+                                <div
+                                    key={plugin.id}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
+                                    style={{ color: "var(--foreground-muted)" }}
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)" }} />
+                                    <span className="truncate">{plugin.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Bottom section */}
