@@ -72,10 +72,17 @@ export function Sidebar() {
                 </button>
 
                 {/* Logo */}
-                <div className="w-10 h-10 mb-6 flex items-center justify-center text-2xl">
-                    🫑
+                <div className="flex flex-col items-center mb-6 px-2">
+                    <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>
+                        Pepper
+                    </span>
+                    <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>
+                        Root
+                    </span>
+                    <span className="text-[10px] mt-0.5" style={{ color: "var(--foreground-muted)" }}>
+                        AI Agency
+                    </span>
                 </div>
-
                 {/* Navigation */}
                 <nav className="flex-1 flex flex-col gap-2">
                     {navItems.map((item) => (
