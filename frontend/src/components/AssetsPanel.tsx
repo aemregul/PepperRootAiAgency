@@ -106,13 +106,11 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
     // Delete asset
     const handleDelete = async (assetId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm('Bu görseli silmek istediğinize emin misiniz?')) return;
+        e.preventDefault();
 
         const success = await deleteAsset(assetId);
         if (success) {
             setAssets(prev => prev.filter(a => a.id !== assetId));
-        } else {
-            alert('Silme işlemi başarısız oldu');
         }
     };
 
