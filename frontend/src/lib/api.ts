@@ -21,11 +21,16 @@ export interface Session {
 
 export interface Entity {
     id: string;
-    type: 'character' | 'location' | 'wardrobe';
+    session_id: string;
+    entity_type: 'character' | 'location' | 'wardrobe';
     name: string;
     tag: string;
     description?: string;
-    reference_images: string[];
+    attributes?: Record<string, string>;
+    reference_image_url?: string;
+    created_at: string;
+    // Alias for backwards compatibility
+    type?: 'character' | 'location' | 'wardrobe';
 }
 
 export interface ChatRequest {
@@ -98,8 +103,30 @@ export async function getSessions(): Promise<Session[]> {
 
 export async function sendMessage(
     sessionId: string,
-    message: string
+    message: string,
+    referenceImage?: File
 ): Promise<ChatResponse> {
+    // Eğer dosya varsa FormData ile /with-image endpoint kullan
+    if (referenceImage) {
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        formData.append('message', message);
+        formData.append('reference_image', referenceImage);
+
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/with-image`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Failed to send message: ${error}`);
+        }
+
+        return response.json();
+    }
+
+    // Dosya yoksa normal JSON gönder
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +144,7 @@ export async function sendMessage(
     return response.json();
 }
 
-export async function getSessionHistory(sessionId: string): Promise<Message[]> {
+export async function getSessionHistory(sessionId: string): Promise<MessageResponse[]> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/messages`);
 
     if (!response.ok) {

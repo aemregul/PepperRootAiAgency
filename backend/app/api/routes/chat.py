@@ -2,9 +2,11 @@
 Chat API endpoint'leri.
 """
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import base64
 
 from app.core.database import get_db
 from app.models.models import Session, Message
@@ -14,17 +16,18 @@ from app.services.agent.orchestrator import agent
 router = APIRouter(prefix="/chat", tags=["Sohbet"])
 
 
-@router.post("/", response_model=ChatResponse)
-async def chat(
-    request: ChatRequest,
-    db: AsyncSession = Depends(get_db)
-):
-    """Kullanıcı mesajını işle ve yanıt ver."""
+async def _process_chat(
+    actual_session_id: Optional[str],
+    actual_message: str,
+    reference_image_base64: Optional[str],
+    db: AsyncSession
+) -> ChatResponse:
+    """Chat işleme ortak logic."""
     
     # Session al veya oluştur
-    if request.session_id:
+    if actual_session_id:
         result = await db.execute(
-            select(Session).where(Session.id == request.session_id)
+            select(Session).where(Session.id == UUID(actual_session_id))
         )
         session = result.scalar_one_or_none()
         if not session:
@@ -40,17 +43,19 @@ async def chat(
     user_message = Message(
         session_id=session.id,
         role="user",
-        content=request.message
+        content=actual_message,
+        metadata_={"has_reference_image": reference_image_base64 is not None} if reference_image_base64 else {}
     )
     db.add(user_message)
     await db.flush()
     await db.refresh(user_message)
     
-    # Agent ile yanıt al (db ve session_id dahil)
+    # Agent ile yanıt al
     agent_result = await agent.process_message(
-        user_message=request.message,
+        user_message=actual_message,
         session_id=session.id,
-        db=db
+        db=db,
+        reference_image=reference_image_base64
     )
     
     response_content = agent_result.get("response", "")
@@ -116,4 +121,40 @@ async def chat(
         ),
         assets=assets,
         entities_created=entity_responses
+    )
+
+
+# JSON endpoint (normal mesajlar)
+@router.post("/", response_model=ChatResponse)
+async def chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Kullanıcı mesajını işle ve yanıt ver (JSON)."""
+    return await _process_chat(
+        actual_session_id=str(request.session_id) if request.session_id else None,
+        actual_message=request.message,
+        reference_image_base64=None,
+        db=db
+    )
+
+
+# FormData endpoint (dosya yükleme ile)
+@router.post("/with-image", response_model=ChatResponse)
+async def chat_with_image(
+    session_id: str = Form(...),
+    message: str = Form(...),
+    reference_image: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Kullanıcı mesajını referans görsel ile işle (FormData)."""
+    # Görseli base64'e çevir
+    image_content = await reference_image.read()
+    reference_image_base64 = base64.b64encode(image_content).decode('utf-8')
+    
+    return await _process_chat(
+        actual_session_id=session_id,
+        actual_message=message,
+        reference_image_base64=reference_image_base64,
+        db=db
     )

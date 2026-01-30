@@ -25,8 +25,7 @@ import {
     User,
     Puzzle,
     Trash2,
-    Store,
-    Zap
+    Store
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
@@ -37,7 +36,6 @@ import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
 import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePluginModal";
 import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
-import { WorkflowBuilder } from "./WorkflowBuilder";
 
 interface SidebarItem {
     id: string;
@@ -118,6 +116,12 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
     const [open, setOpen] = useState(defaultOpen);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+    const handleDragStart = (e: React.DragEvent, item: { id: string; name: string }) => {
+        e.dataTransfer.setData('text/plain', item.name);
+        e.dataTransfer.setData('application/x-entity-tag', item.name);
+        e.dataTransfer.effectAllowed = 'copy';
+    };
+
     return (
         <div className="mb-1">
             <button
@@ -134,7 +138,9 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
                     {items.map((item) => (
                         <div
                             key={item.id}
-                            className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, item)}
+                            className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-grab active:cursor-grabbing transition-colors"
                             style={{ color: "var(--foreground-muted)" }}
                             onMouseEnter={() => setHoveredId(item.id)}
                             onMouseLeave={() => setHoveredId(null)}
@@ -168,9 +174,10 @@ interface SidebarProps {
     onProjectChange?: (projectId: string) => void;
     sessionId?: string | null;
     refreshKey?: number;
+    onSendPrompt?: (prompt: string) => void;
 }
 
-export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKey }: SidebarProps) {
+export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKey, onSendPrompt }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -249,13 +256,13 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
 
                 // Entity'leri türlerine göre ayır
                 const chars = entities
-                    .filter((e: Entity) => e.type === 'character')
+                    .filter((e: Entity) => e.entity_type === 'character')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
                 const locs = entities
-                    .filter((e: Entity) => e.type === 'location')
+                    .filter((e: Entity) => e.entity_type === 'location')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
                 const ward = entities
-                    .filter((e: Entity) => e.type === 'wardrobe')
+                    .filter((e: Entity) => e.entity_type === 'wardrobe')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
 
                 setCharacters(chars);
@@ -277,7 +284,6 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
     const [selectedPlugin, setSelectedPlugin] = useState<CreativePlugin | null>(null);
     const [pluginDetailOpen, setPluginDetailOpen] = useState(false);
     const [marketplaceOpen, setMarketplaceOpen] = useState(false);
-    const [workflowOpen, setWorkflowOpen] = useState(false);
 
     // Trash state - backend'den yükle
     const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -659,16 +665,6 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
                     </button>
 
 
-                    {/* Workflow Builder */}
-                    <button
-                        onClick={() => setWorkflowOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
-                        style={{ background: "rgba(139, 92, 246, 0.1)" }}
-                    >
-                        <Zap size={16} className="text-purple-500" />
-                        <span style={{ color: "var(--foreground)" }}>Workflow Builder</span>
-                    </button>
-
                     {/* Settings */}
                     <button
                         onClick={() => setSettingsOpen(true)}
@@ -800,20 +796,6 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
                 onClose={() => setMarketplaceOpen(false)}
                 onInstall={(plugin) => setCreativePlugins([...creativePlugins, plugin])}
                 myPlugins={creativePlugins}
-            />
-
-            {/* Workflow Builder Modal */}
-            <WorkflowBuilder
-                isOpen={workflowOpen}
-                onClose={() => setWorkflowOpen(false)}
-                characters={characters}
-                locations={locations}
-                onExecute={(nodes) => {
-                    // Workflow'u çalıştır - chat'e prompt olarak gönder
-                    const prompt = nodes.map(n => `${n.label}: ${n.config.value || 'belirtilmemiş'}`).join(', ');
-                    console.log("Workflow çalıştırılıyor:", prompt, nodes);
-                    // TODO: Chat'e gönder
-                }}
             />
         </>
     );

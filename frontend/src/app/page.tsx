@@ -11,6 +11,7 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string>("samsung");
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
   // Refresh triggers - entity veya asset değiştiğinde artır
   const [entityRefreshKey, setEntityRefreshKey] = useState(0);
@@ -37,7 +38,10 @@ export default function Home() {
     initSession();
   }, []);
 
-  const handleProjectChange = async (projectId: string) => {
+  // Proje (session) değiştiğinde sessionId'yi güncelle
+  const handleProjectChange = (projectId: string) => {
+    // projectId aslında backend'deki session.id
+    setSessionId(projectId);
     setActiveProjectId(projectId);
   };
 
@@ -70,6 +74,7 @@ export default function Home() {
         onProjectChange={handleProjectChange}
         sessionId={sessionId}
         refreshKey={entityRefreshKey}
+        onSendPrompt={setPendingPrompt}
       />
 
       {/* Chat Panel */}
@@ -80,6 +85,8 @@ export default function Home() {
         onSessionChange={setSessionId}
         onNewAsset={handleNewAsset}
         onEntityChange={handleEntityChange}
+        pendingPrompt={pendingPrompt}
+        onPromptConsumed={() => setPendingPrompt(null)}
       />
 
       {/* Assets Panel */}

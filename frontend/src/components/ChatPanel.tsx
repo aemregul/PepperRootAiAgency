@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image } from "lucide-react";
-import { sendMessage, createSession, checkHealth } from "@/lib/api";
+import { sendMessage, createSession, checkHealth, getSessionHistory } from "@/lib/api";
 
 interface Message {
     id: string;
@@ -18,6 +18,8 @@ interface ChatPanelProps {
     onSessionChange?: (sessionId: string) => void;
     onNewAsset?: (asset: { url: string; type: string }) => void;
     onEntityChange?: () => void;
+    pendingPrompt?: string | null;
+    onPromptConsumed?: () => void;
 }
 
 // Helper to render @mentions with highlighting
@@ -38,7 +40,7 @@ function renderContent(content: string | undefined | null) {
     });
 }
 
-export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewAsset, onEntityChange }: ChatPanelProps) {
+export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -47,8 +49,40 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
     const [error, setError] = useState<string | null>(null);
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Handle entity drag & drop
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        if (e.dataTransfer.types.includes('application/x-entity-tag')) {
+            setIsDragOver(true);
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+
+        const entityTag = e.dataTransfer.getData('application/x-entity-tag');
+        if (entityTag) {
+            // Tag'ı input'a ekle
+            setInput((prev) => {
+                const newValue = prev.trim() ? `${prev} ${entityTag}` : entityTag;
+                return newValue;
+            });
+            // Input'a focus
+            inputRef.current?.focus();
+        }
+    };
 
     // Handle file selection
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,30 +121,48 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
         checkConnection();
     }, []);
 
-    // Create session if none exists
+    // initialSessionId değiştiğinde güncelle ve mesaj geçmişini yükle
     useEffect(() => {
-        const initSession = async () => {
-            if (!sessionId && isConnected) {
-                try {
-                    const session = await createSession("New Project");
-                    setSessionId(session.id);
-                    onSessionChange?.(session.id);
+        const loadHistory = async () => {
+            if (initialSessionId && initialSessionId !== sessionId) {
+                setSessionId(initialSessionId);
+                setIsLoading(true);
 
-                    // Welcome message
-                    setMessages([{
-                        id: "welcome",
-                        role: "assistant",
-                        content: "Merhaba! Ben Pepper Root AI asistanınız. Size nasıl yardımcı olabilirim? Görsel, video veya karakter oluşturabilirim.",
-                        timestamp: new Date(),
-                    }]);
+                try {
+                    // Backend'den mesaj geçmişini yükle
+                    const history = await getSessionHistory(initialSessionId);
+                    const formattedMessages: Message[] = history.map((msg) => ({
+                        id: msg.id,
+                        role: msg.role as 'user' | 'assistant',
+                        content: msg.content,
+                        timestamp: new Date(msg.created_at),
+                    }));
+                    setMessages(formattedMessages);
                 } catch (err) {
-                    console.error("Session creation failed:", err);
-                    setError("Oturum oluşturulamadı.");
+                    console.error('Mesaj geçmişi yüklenemedi:', err);
+                    setMessages([]);
+                } finally {
+                    setIsLoading(false);
                 }
             }
         };
-        initSession();
-    }, [isConnected, sessionId, onSessionChange]);
+        loadHistory();
+    }, [initialSessionId]);
+
+    // Workflow'dan gelen prompt'u otomatik gönder
+    useEffect(() => {
+        if (pendingPrompt && sessionId && !isLoading) {
+            setInput(pendingPrompt);
+            onPromptConsumed?.();
+            // Küçük bir gecikmeyle formu submit et
+            setTimeout(() => {
+                const form = document.querySelector('form');
+                if (form) {
+                    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
+            }, 100);
+        }
+    }, [pendingPrompt, sessionId, isLoading, onPromptConsumed]);
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -129,15 +181,22 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
             role: "user",
             content: input,
             timestamp: new Date(),
+            image_url: filePreview || undefined,
         };
 
         setMessages((prev) => [...prev, userMessage]);
+
+        const currentInput = input;
+        const currentFile = attachedFile;
+
         setInput("");
+        removeAttachment(); // Dosyayı temizle
         setIsLoading(true);
         setError(null);
 
         try {
-            const response = await sendMessage(sessionId, input);
+            const response = await sendMessage(sessionId, currentInput, currentFile || undefined);
+
 
             // Backend returns response as MessageResponse object
             const responseContent = typeof response.response === 'string'
@@ -182,7 +241,12 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
     };
 
     return (
-        <div className="flex-1 flex flex-col h-screen">
+        <div
+            className={`flex-1 flex flex-col h-screen ${isDragOver ? 'ring-2 ring-[var(--accent)] ring-inset' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
             {/* Header */}
             <header
                 className="h-14 px-4 lg:px-6 flex items-center justify-between border-b shrink-0"
@@ -301,6 +365,13 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                         <div key={msg.id}>
                             {msg.role === "user" ? (
                                 <div className="message-bubble message-user">
+                                    {msg.image_url && (
+                                        <img
+                                            src={msg.image_url}
+                                            alt="Referans görsel"
+                                            className="w-32 h-32 object-cover rounded-lg mb-2"
+                                        />
+                                    )}
                                     <p className="text-sm lg:text-[15px] leading-relaxed">
                                         {renderContent(msg.content)}
                                     </p>
@@ -388,11 +459,12 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                         </button>
 
                         <input
+                            ref={inputRef}
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder={isConnected ? "Mesajınızı yazın..." : "Backend bağlantısı bekleniyor..."}
-                            className="flex-1 bg-transparent outline-none text-sm lg:text-[15px] px-2"
+                            placeholder={isDragOver ? "Buraya bırak..." : isConnected ? "Mesajınızı yazın..." : "Backend bağlantısı bekleniyor..."}
+                            className={`flex-1 bg-transparent outline-none text-sm lg:text-[15px] px-2 ${isDragOver ? 'text-[var(--accent)]' : ''}`}
                             style={{ color: "var(--foreground)" }}
                             disabled={isLoading || !isConnected}
                         />

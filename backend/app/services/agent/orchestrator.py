@@ -59,7 +59,8 @@ DAVRANIŞ KURALLARI:
         user_message: str, 
         session_id: uuid.UUID,
         db: AsyncSession,
-        conversation_history: list = None
+        conversation_history: list = None,
+        reference_image: str = None
     ) -> dict:
         """
         Kullanıcı mesajını işle ve yanıt döndür.
@@ -69,6 +70,7 @@ DAVRANIŞ KURALLARI:
             session_id: Oturum ID
             db: Database session
             conversation_history: Önceki mesajlar (opsiyonel)
+            reference_image: Base64 encoded referans görsel (opsiyonel)
         
         Returns:
             dict: {"response": str, "images": list, "entities_created": list}
@@ -84,10 +86,30 @@ DAVRANIŞ KURALLARI:
         if entity_context:
             full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
         
-        # Mesajları hazırla
-        messages = conversation_history + [
-            {"role": "user", "content": user_message}
-        ]
+        # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
+        if reference_image:
+            # Claude vision API format
+            user_content = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": reference_image
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": user_message + "\n\n[Bu mesajla birlikte bir referans görsel gönderildi. Lütfen görseli analiz et ve bunu dikkate al.]"
+                }
+            ]
+            messages = conversation_history + [
+                {"role": "user", "content": user_content}
+            ]
+        else:
+            messages = conversation_history + [
+                {"role": "user", "content": user_message}
+            ]
         
         # Claude'a gönder
         response = self.client.messages.create(
