@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+    getEntities, deleteEntity, Entity, createSession, getSessions, deleteSession,
+    getCreativePlugins, createCreativePlugin, deleteCreativePlugin, CreativePluginData,
+    getTrashItems, restoreTrashItem, permanentDeleteTrashItem, TrashItemData
+} from "@/lib/api";
 import {
     ChevronDown,
     ChevronRight,
@@ -20,7 +25,8 @@ import {
     User,
     Puzzle,
     Trash2,
-    Store
+    Store,
+    Zap
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
@@ -31,6 +37,7 @@ import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
 import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePluginModal";
 import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
+import { WorkflowBuilder } from "./WorkflowBuilder";
 
 interface SidebarItem {
     id: string;
@@ -159,9 +166,11 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
 interface SidebarProps {
     activeProjectId?: string;
     onProjectChange?: (projectId: string) => void;
+    sessionId?: string | null;
+    refreshKey?: number;
 }
 
-export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
+export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKey }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -169,19 +178,132 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
     const [newProjectOpen, setNewProjectOpen] = useState(false);
     const [adminOpen, setAdminOpen] = useState(false);
     const [trashOpen, setTrashOpen] = useState(false);
-    const [projects, setProjects] = useState(mockProjects);
+    const [projects, setProjects] = useState<{ id: string; name: string; active: boolean }[]>([]);
+    const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+    const [isLoadingProjects, setIsLoadingProjects] = useState(false);
 
-    // Entity states
-    const [characters, setCharacters] = useState(mockCharacters);
-    const [locations, setLocations] = useState(mockLocations);
-    const [wardrobe, setWardrobe] = useState(mockWardrobe);
-    const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>(mockCreativePlugins);
+    // Entity states - API'den gelecek
+    const [characters, setCharacters] = useState<{ id: string; name: string }[]>([]);
+    const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
+    const [wardrobe, setWardrobe] = useState<{ id: string; name: string }[]>([]);
+    const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>([]);
+
+    // Backend'den projeleri yükle
+    useEffect(() => {
+        const fetchProjects = async () => {
+            setIsLoadingProjects(true);
+            try {
+                const sessions = await getSessions();
+                const projectList = sessions.map(s => ({
+                    id: s.id,
+                    name: s.title,
+                    active: sessionId === s.id
+                }));
+                setProjects(projectList);
+            } catch (error) {
+                console.error('Proje yükleme hatası:', error);
+                setProjects([]);
+            } finally {
+                setIsLoadingProjects(false);
+            }
+        };
+
+        fetchProjects();
+    }, [sessionId, refreshKey]);
+
+    // Backend'den creative plugins'i yükle
+    useEffect(() => {
+        const fetchCreativePlugins = async () => {
+            if (!sessionId) return;
+            try {
+                const plugins = await getCreativePlugins(sessionId);
+                const pluginList: CreativePlugin[] = plugins.map((p: CreativePluginData) => ({
+                    id: p.id,
+                    name: p.name,
+                    description: p.description || '',
+                    author: 'Ben',
+                    isPublic: p.is_public,
+                    config: {},
+                    createdAt: new Date(),
+                    downloads: p.usage_count,
+                    rating: 0
+                }));
+                setCreativePlugins(pluginList);
+            } catch (error) {
+                console.error('Creative plugins yükleme hatası:', error);
+                setCreativePlugins([]);
+            }
+        };
+
+        fetchCreativePlugins();
+    }, [sessionId, refreshKey]);
+
+    // API'den entity'leri çek
+    useEffect(() => {
+        const fetchEntities = async () => {
+            if (!sessionId) return;
+
+            setIsLoadingEntities(true);
+            try {
+                const entities = await getEntities(sessionId);
+
+                // Entity'leri türlerine göre ayır
+                const chars = entities
+                    .filter((e: Entity) => e.type === 'character')
+                    .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
+                const locs = entities
+                    .filter((e: Entity) => e.type === 'location')
+                    .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
+                const ward = entities
+                    .filter((e: Entity) => e.type === 'wardrobe')
+                    .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
+
+                setCharacters(chars);
+                setLocations(locs);
+                setWardrobe(ward);
+            } catch (error) {
+                console.error('Entity yükleme hatası:', error);
+                // Hata durumunda boş göster
+                setCharacters([]);
+                setLocations([]);
+                setWardrobe([]);
+            } finally {
+                setIsLoadingEntities(false);
+            }
+        };
+
+        fetchEntities();
+    }, [sessionId, refreshKey]);
     const [selectedPlugin, setSelectedPlugin] = useState<CreativePlugin | null>(null);
     const [pluginDetailOpen, setPluginDetailOpen] = useState(false);
     const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+    const [workflowOpen, setWorkflowOpen] = useState(false);
 
-    // Trash state
+    // Trash state - backend'den yükle
     const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+
+    // Backend'den trash items'ları yükle
+    useEffect(() => {
+        const fetchTrashItems = async () => {
+            try {
+                const items = await getTrashItems();
+                const trashList: TrashItem[] = items.map((i: TrashItemData) => ({
+                    id: i.id,
+                    name: i.item_name,
+                    type: i.item_type as TrashItem["type"],
+                    deletedAt: new Date(i.deleted_at),
+                    originalData: {}
+                }));
+                setTrashItems(trashList);
+            } catch (error) {
+                console.error('Trash yükleme hatası:', error);
+                setTrashItems([]);
+            }
+        };
+
+        fetchTrashItems();
+    }, [refreshKey]);
+
 
     // Delete confirmation state
     const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -212,7 +334,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
         }]);
     };
 
-    // Confirm delete handlers
+    // Confirm delete handlers - API'ye bağlı
     const confirmDeleteCharacter = (id: string) => {
         const char = characters.find(c => c.id === id);
         if (!char) return;
@@ -221,9 +343,15 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
             itemId: id,
             itemName: char.name,
             itemType: "karakter",
-            onConfirm: () => {
-                moveToTrash(id, char.name, "karakter", char);
-                setCharacters(characters.filter(c => c.id !== id));
+            onConfirm: async () => {
+                // Backend'den sil
+                const success = await deleteEntity(id);
+                if (success) {
+                    moveToTrash(id, char.name, "karakter", char);
+                    setCharacters(characters.filter(c => c.id !== id));
+                } else {
+                    console.error('Entity silinemedi');
+                }
             }
         });
     };
@@ -236,9 +364,12 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
             itemId: id,
             itemName: loc.name,
             itemType: "lokasyon",
-            onConfirm: () => {
-                moveToTrash(id, loc.name, "lokasyon", loc);
-                setLocations(locations.filter(l => l.id !== id));
+            onConfirm: async () => {
+                const success = await deleteEntity(id);
+                if (success) {
+                    moveToTrash(id, loc.name, "lokasyon", loc);
+                    setLocations(locations.filter(l => l.id !== id));
+                }
             }
         });
     };
@@ -251,9 +382,12 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
             itemId: id,
             itemName: item.name,
             itemType: "wardrobe",
-            onConfirm: () => {
-                moveToTrash(id, item.name, "wardrobe", item);
-                setWardrobe(wardrobe.filter(w => w.id !== id));
+            onConfirm: async () => {
+                const success = await deleteEntity(id);
+                if (success) {
+                    moveToTrash(id, item.name, "wardrobe", item);
+                    setWardrobe(wardrobe.filter(w => w.id !== id));
+                }
             }
         });
     };
@@ -273,31 +407,66 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
         });
     };
 
-    // Restore from trash
-    const handleRestore = (item: TrashItem) => {
-        switch (item.type) {
-            case "karakter":
-                setCharacters([...characters, item.originalData]);
-                break;
-            case "lokasyon":
-                setLocations([...locations, item.originalData]);
-                break;
-            case "wardrobe":
-                setWardrobe([...wardrobe, item.originalData]);
-                break;
-            case "proje":
-                setProjects([...projects, item.originalData]);
-                break;
-            case "plugin":
-                setCreativePlugins([...creativePlugins, item.originalData]);
-                break;
+    // Restore from trash - backend'e bağlı
+    const handleRestore = async (item: TrashItem) => {
+        try {
+            await restoreTrashItem(item.id);
+            // UI güncelle
+            switch (item.type) {
+                case "karakter":
+                    setCharacters([...characters, item.originalData]);
+                    break;
+                case "lokasyon":
+                    setLocations([...locations, item.originalData]);
+                    break;
+                case "wardrobe":
+                    setWardrobe([...wardrobe, item.originalData]);
+                    break;
+                case "proje":
+                    setProjects([...projects, item.originalData]);
+                    break;
+                case "plugin":
+                    setCreativePlugins([...creativePlugins, item.originalData]);
+                    break;
+            }
+            setTrashItems(trashItems.filter(t => t.id !== item.id));
+        } catch (error) {
+            console.error('Geri yükleme hatası:', error);
         }
-        setTrashItems(trashItems.filter(t => t.id !== item.id));
     };
 
-    // Permanent delete
-    const handlePermanentDelete = (id: string) => {
-        setTrashItems(trashItems.filter(t => t.id !== id));
+    // Permanent delete - backend'e bağlı
+    const handlePermanentDelete = async (id: string) => {
+        try {
+            await permanentDeleteTrashItem(id);
+            setTrashItems(trashItems.filter(t => t.id !== id));
+        } catch (error) {
+            console.error('Kalıcı silme hatası:', error);
+        }
+    };
+
+    // Delete all trash items
+    const handleDeleteAll = async () => {
+        try {
+            for (const item of trashItems) {
+                await permanentDeleteTrashItem(item.id);
+            }
+            setTrashItems([]);
+        } catch (error) {
+            console.error('Tümünü silme hatası:', error);
+        }
+    };
+
+    // Delete multiple selected items
+    const handleDeleteMultiple = async (ids: string[]) => {
+        try {
+            for (const id of ids) {
+                await permanentDeleteTrashItem(id);
+            }
+            setTrashItems(trashItems.filter(t => !ids.includes(t.id)));
+        } catch (error) {
+            console.error('Çoklu silme hatası:', error);
+        }
     };
 
     return (
@@ -360,39 +529,44 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                             <FolderOpen size={14} />
                             Projects
                         </div>
-                        <button className="p-1 rounded hover:bg-[var(--card)]">
+                        <button
+                            onClick={() => setNewProjectOpen(true)}
+                            className="p-1 rounded hover:bg-[var(--card)]"
+                        >
                             <Plus size={14} style={{ color: "var(--foreground-muted)" }} />
                         </button>
                     </div>
 
-                    {projects.map((project) => (
-                        <div
-                            key={project.id}
-                            onClick={() => handleProjectClick(project.id)}
-                            className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg cursor-pointer transition-all duration-200 ${project.active
-                                ? "bg-[var(--accent)] text-[var(--background)] font-medium"
-                                : "hover:bg-[var(--card)]"
-                                }`}
-                        >
-                            <span className="truncate">{project.name}</span>
-                            {!project.active && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        confirmDeleteProject(project.id);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all"
-                                    title="Sil"
-                                >
-                                    <Trash2 size={14} className="text-red-400" />
-                                </button>
-                            )}
-                        </div>
-                    ))}
+                    <div className="max-h-40 overflow-y-auto">
+                        {projects.map((project) => (
+                            <div
+                                key={project.id}
+                                onClick={() => handleProjectClick(project.id)}
+                                className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg cursor-pointer transition-all duration-200 ${project.active
+                                    ? "bg-[var(--accent)] text-[var(--background)] font-medium"
+                                    : "hover:bg-[var(--card)]"
+                                    }`}
+                            >
+                                <span className="truncate">{project.name}</span>
+                                {!project.active && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            confirmDeleteProject(project.id);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all"
+                                        title="Sil"
+                                    >
+                                        <Trash2 size={14} className="text-red-400" />
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
 
                     <button
                         onClick={() => setNewProjectOpen(true)}
-                        className="w-full px-3 py-2 text-sm text-left rounded-lg hover:bg-[var(--card)] transition-colors"
+                        className="w-full px-3 py-2 text-sm text-left rounded-lg hover:bg-[var(--card)] transition-colors mt-1"
                         style={{ color: "var(--foreground-muted)" }}
                     >
                         + New Project
@@ -472,7 +646,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                         }}
                     >
                         <Store size={16} />
-                        <span>🔮 Plugin Marketplace</span>
+                        <span>Plugin Marketplace</span>
                     </button>
 
                     {/* Search */}
@@ -485,6 +659,15 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                     </button>
 
 
+                    {/* Workflow Builder */}
+                    <button
+                        onClick={() => setWorkflowOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
+                        style={{ background: "rgba(139, 92, 246, 0.1)" }}
+                    >
+                        <Zap size={16} className="text-purple-500" />
+                        <span style={{ color: "var(--foreground)" }}>Workflow Builder</span>
+                    </button>
 
                     {/* Settings */}
                     <button
@@ -552,14 +735,23 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
             <SearchModal
                 isOpen={searchOpen}
                 onClose={() => setSearchOpen(false)}
+                sessionId={sessionId}
             />
 
             {/* New Project Modal */}
             <NewProjectModal
                 isOpen={newProjectOpen}
                 onClose={() => setNewProjectOpen(false)}
-                onSubmit={(name) => {
-                    setProjects([...projects, { id: Date.now().toString(), name, active: false }]);
+                onSubmit={async (name) => {
+                    try {
+                        // Backend'de yeni session oluştur
+                        const newSession = await createSession(name);
+                        setProjects([...projects, { id: newSession.id, name, active: false }]);
+                    } catch (error) {
+                        console.error('Proje oluşturulamadı:', error);
+                        // Fallback olarak local ekle
+                        setProjects([...projects, { id: Date.now().toString(), name, active: false }]);
+                    }
                 }}
             />
 
@@ -578,6 +770,7 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                 itemType={deleteConfirm?.itemType ?? "öğe"}
             />
 
+
             {/* Trash Modal */}
             <TrashModal
                 isOpen={trashOpen}
@@ -585,6 +778,8 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                 items={trashItems}
                 onRestore={handleRestore}
                 onPermanentDelete={handlePermanentDelete}
+                onDeleteAll={handleDeleteAll}
+                onDeleteMultiple={handleDeleteMultiple}
             />
 
             {/* Plugin Detail Modal */}
@@ -605,6 +800,20 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                 onClose={() => setMarketplaceOpen(false)}
                 onInstall={(plugin) => setCreativePlugins([...creativePlugins, plugin])}
                 myPlugins={creativePlugins}
+            />
+
+            {/* Workflow Builder Modal */}
+            <WorkflowBuilder
+                isOpen={workflowOpen}
+                onClose={() => setWorkflowOpen(false)}
+                characters={characters}
+                locations={locations}
+                onExecute={(nodes) => {
+                    // Workflow'u çalıştır - chat'e prompt olarak gönder
+                    const prompt = nodes.map(n => `${n.label}: ${n.config.value || 'belirtilmemiş'}`).join(', ');
+                    console.log("Workflow çalıştırılıyor:", prompt, nodes);
+                    // TODO: Chat'e gönder
+                }}
             />
         </>
     );

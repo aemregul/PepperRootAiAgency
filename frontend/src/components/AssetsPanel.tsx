@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2 } from "lucide-react";
+import { getAssets, GeneratedAsset } from "@/lib/api";
 
 interface Asset {
     id: string;
@@ -9,6 +10,7 @@ interface Asset {
     type: "image" | "video";
     label?: string;
     duration?: string;
+    isFavorite?: boolean;
 }
 
 // Mock data with more realistic images
@@ -19,41 +21,141 @@ const mockAssets: Asset[] = [
         type: "video",
         label: "Location_kitchen at night",
         duration: "3:00",
+        isFavorite: true,
     },
     {
         id: "2",
         url: "https://fal.media/files/tiger/DL-2D_z3wVHxM1OPJVYHS.png",
         type: "image",
+        isFavorite: false,
     },
     {
         id: "3",
         url: "https://fal.media/files/lion/VoLY3j7gPj_rEV9lqTaVB.png",
         type: "image",
+        isFavorite: true,
     },
     {
         id: "4",
         url: "https://fal.media/files/elephant/6Xbc7RaBCW8dFx-xgG8d5.png",
         type: "image",
+        isFavorite: false,
     },
     {
         id: "5",
         url: "https://fal.media/files/penguin/ttzc_uRNnT2DW-b0c-WRD.png",
         type: "image",
+        isFavorite: false,
     },
     {
         id: "6",
         url: "https://fal.media/files/tiger/DL-2D_z3wVHxM1OPJVYHS.png",
         type: "image",
+        isFavorite: false,
     },
 ];
 
 interface AssetsPanelProps {
     collapsed?: boolean;
     onToggle?: () => void;
+    sessionId?: string | null;
+    refreshKey?: number;
 }
 
-export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
-    const [assets] = useState<Asset[]>(mockAssets);
+export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey }: AssetsPanelProps) {
+    const [assets, setAssets] = useState<Asset[]>([]);
+    const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // API'den asset'leri çek
+    useEffect(() => {
+        const fetchAssets = async () => {
+            if (!sessionId) {
+                setAssets([]);
+                return;
+            }
+
+            setIsLoading(true);
+            try {
+                const apiAssets = await getAssets(sessionId);
+                const mappedAssets: Asset[] = apiAssets.map((a: GeneratedAsset) => ({
+                    id: a.id,
+                    url: a.url,
+                    type: a.type,
+                    label: a.prompt?.substring(0, 30),
+                    isFavorite: false
+                }));
+                setAssets(mappedAssets);
+            } catch (error) {
+                console.error('Asset yükleme hatası:', error);
+                setAssets([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchAssets();
+    }, [sessionId, refreshKey]);
+
+    const toggleFavorite = (assetId: string) => {
+        setAssets(prev => prev.map(asset =>
+            asset.id === assetId ? { ...asset, isFavorite: !asset.isFavorite } : asset
+        ));
+    };
+
+    // Download all assets
+    const handleDownloadAll = async () => {
+        for (const asset of displayAssets) {
+            try {
+                const response = await fetch(asset.url);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `asset_${asset.id}.${asset.type === 'video' ? 'mp4' : 'png'}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Download failed:', error);
+            }
+        }
+    };
+
+    // Copy first asset URL to clipboard
+    const handleCopyLink = async () => {
+        if (displayAssets.length > 0) {
+            try {
+                await navigator.clipboard.writeText(displayAssets[0].url);
+                alert('Link kopyalandı!');
+            } catch (error) {
+                console.error('Copy failed:', error);
+            }
+        }
+    };
+
+    // Share via Web Share API
+    const handleShare = async () => {
+        if (displayAssets.length > 0 && navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Pepper Root AI Agency - Generated Assets',
+                    text: 'AI ile oluşturulmuş görseller',
+                    url: displayAssets[0].url
+                });
+            } catch (error) {
+                // User cancelled or share failed
+                console.log('Share cancelled');
+            }
+        } else {
+            // Fallback: copy to clipboard
+            handleCopyLink();
+        }
+    };
+
+    const displayAssets = showFavoritesOnly ? assets.filter(a => a.isFavorite) : assets;
+    const favoritesCount = assets.filter(a => a.isFavorite).length;
 
     if (collapsed) {
         return (
@@ -87,6 +189,17 @@ export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
             >
                 <h2 className="font-medium">Media Assets</h2>
                 <div className="flex items-center gap-1">
+                    {/* Favorites Filter */}
+                    <button
+                        onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                        className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${showFavoritesOnly ? 'bg-yellow-500/20' : 'hover:bg-[var(--card)]'}`}
+                        title={showFavoritesOnly ? "Tümünü Göster" : "Sadece Favoriler"}
+                    >
+                        <Star size={16} fill={showFavoritesOnly ? "#eab308" : "none"} style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }} />
+                        {favoritesCount > 0 && (
+                            <span className="text-xs" style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }}>{favoritesCount}</span>
+                        )}
+                    </button>
                     <button
                         className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
                         title="Refresh"
@@ -104,7 +217,7 @@ export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
 
             {/* Assets Grid */}
             <div className="flex-1 overflow-y-auto p-3">
-                {assets.length === 0 ? (
+                {displayAssets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center">
                         <p style={{ color: "var(--foreground-muted)" }}>
                             No assets yet
@@ -116,15 +229,26 @@ export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
                 ) : (
                     <div className="space-y-3">
                         {/* Featured video/image */}
-                        {assets[0] && (
+                        {displayAssets[0] && (
                             <div className="asset-card">
-                                <div className="aspect-video relative">
+                                <div className="aspect-video relative group">
                                     <img
-                                        src={assets[0].url}
+                                        src={displayAssets[0].url}
                                         alt="Featured asset"
                                         className="w-full h-full object-cover"
                                     />
-                                    {assets[0].type === "video" && (
+                                    {/* Favorite Star */}
+                                    <button
+                                        onClick={() => toggleFavorite(displayAssets[0].id)}
+                                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors z-10"
+                                    >
+                                        <Star
+                                            size={16}
+                                            fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
+                                            className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
+                                        />
+                                    </button>
+                                    {displayAssets[0].type === "video" && (
                                         <>
                                             <div className="absolute inset-0 flex items-center justify-center">
                                                 <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
@@ -132,14 +256,14 @@ export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
                                                 </div>
                                             </div>
                                             <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
-                                                VIDEO • {assets[0].duration}
+                                                VIDEO • {displayAssets[0].duration}
                                             </div>
                                         </>
                                     )}
                                 </div>
-                                {assets[0].label && (
+                                {displayAssets[0].label && (
                                     <div className="p-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                        ▪ {assets[0].label}
+                                        ▪ {displayAssets[0].label}
                                     </div>
                                 )}
                             </div>
@@ -147,7 +271,7 @@ export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
 
                         {/* Grid of smaller assets */}
                         <div className="grid grid-cols-2 gap-2">
-                            {assets.slice(1).map((asset) => (
+                            {displayAssets.slice(1).map((asset) => (
                                 <div key={asset.id} className="asset-card group">
                                     <div className="aspect-square relative">
                                         <img
@@ -162,9 +286,21 @@ export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
                                             </div>
                                         )}
 
+                                        {/* Favorite Star */}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
+                                            className="absolute top-2 right-2 p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                                        >
+                                            <Star
+                                                size={14}
+                                                fill={asset.isFavorite ? "#eab308" : "none"}
+                                                className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
+                                            />
+                                        </button>
+
                                         {/* Hover overlay */}
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <button className="p-2 rounded-lg bg-white/20 hover:bg-white/30">
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                            <button className="p-2 rounded-lg bg-white/20 hover:bg-white/30 pointer-events-auto">
                                                 <Download size={16} className="text-white" />
                                             </button>
                                         </div>
@@ -182,17 +318,32 @@ export function AssetsPanel({ collapsed = false, onToggle }: AssetsPanelProps) {
                 style={{ borderColor: "var(--border)" }}
             >
                 <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-lg hover:bg-[var(--card)]" title="Download all">
+                    <button
+                        onClick={handleDownloadAll}
+                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                        title="Tümünü İndir"
+                    >
                         <Download size={18} style={{ color: "var(--foreground-muted)" }} />
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-[var(--card)]" title="Copy link">
+                    <button
+                        onClick={handleCopyLink}
+                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                        title="Link Kopyala"
+                    >
                         <Copy size={18} style={{ color: "var(--foreground-muted)" }} />
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-[var(--card)]" title="Share">
+                    <button
+                        onClick={handleShare}
+                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                        title="Paylaş"
+                    >
                         <Globe size={18} style={{ color: "var(--foreground-muted)" }} />
                     </button>
                 </div>
-                <button className="p-2 rounded-lg hover:bg-[var(--card)]">
+                <button
+                    className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                    title="Daha Fazla"
+                >
                     <MoreHorizontal size={18} style={{ color: "var(--foreground-muted)" }} />
                 </button>
             </div>

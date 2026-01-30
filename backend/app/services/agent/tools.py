@@ -399,6 +399,202 @@ AGENT_TOOLS = [
                 }
             }
         }
+    },
+    
+    # ===============================
+    # SİSTEM YÖNETİM ARAÇLARI
+    # ===============================
+    
+    {
+        "name": "manage_project",
+        "description": "Proje oluştur, sil, değiştir veya listele. Kullanıcı 'yeni proje aç', 'projeleri göster', 'Samsung projesine geç', 'bu projeyi sil' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["create", "delete", "switch", "rename", "list"],
+                    "description": "Yapılacak işlem"
+                },
+                "project_name": {
+                    "type": "string",
+                    "description": "Proje adı (create/rename için)"
+                },
+                "project_id": {
+                    "type": "string",
+                    "description": "Proje ID (delete/switch/rename için)"
+                },
+                "new_name": {
+                    "type": "string",
+                    "description": "Yeni proje adı (rename için)"
+                }
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "delete_entity",
+        "description": "Bir karakteri veya mekanı sil (çöp kutusuna gider). Kullanıcı 'Emre'yi sil', 'bu mekanı kaldır' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_tag": {
+                    "type": "string",
+                    "description": "Silinecek entity'nin tag'i (örn: @character_emre, @location_mutfak)"
+                }
+            },
+            "required": ["entity_tag"]
+        }
+    },
+    {
+        "name": "manage_trash",
+        "description": "Çöp kutusu işlemleri. Silinen öğeleri göster, geri getir veya kalıcı olarak sil. Kullanıcı 'çöpü göster', 'Emre'yi geri getir', 'çöpü boşalt' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["list", "restore", "delete_permanently", "empty"],
+                    "description": "Yapılacak işlem"
+                },
+                "item_id": {
+                    "type": "string",
+                    "description": "Öğe ID (restore/delete_permanently için)"
+                },
+                "item_type": {
+                    "type": "string",
+                    "enum": ["character", "location", "asset", "plugin"],
+                    "description": "Öğe tipi (filtreleme için, opsiyonel)"
+                }
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "manage_plugin",
+        "description": "Creative Plugin oluştur, sil veya listele. Kullanıcı 'bunu plugin yap', 'plugin oluştur', 'pluginleri göster' dediğinde kullan. Plugin oluştururken chat context'inden stil, kamera açısı, zaman dilimi çıkar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["create", "delete", "list", "update"],
+                    "description": "Yapılacak işlem"
+                },
+                "plugin_id": {
+                    "type": "string",
+                    "description": "Plugin ID (delete/update için)"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Plugin adı (create için)"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Plugin açıklaması"
+                },
+                "config": {
+                    "type": "object",
+                    "description": "Plugin ayarları",
+                    "properties": {
+                        "style": {
+                            "type": "string",
+                            "description": "Görsel stili (örn: cinematic, anime, realistic)"
+                        },
+                        "camera_angles": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Kamera açıları listesi (örn: ['wide shot', 'close-up'])"
+                        },
+                        "time_of_day": {
+                            "type": "string",
+                            "description": "Zaman dilimi (örn: golden hour, night, dawn)"
+                        },
+                        "mood": {
+                            "type": "string",
+                            "description": "Genel atmosfer (örn: dramatic, peaceful, energetic)"
+                        },
+                        "color_palette": {
+                            "type": "string",
+                            "description": "Renk paleti (örn: warm tones, cool blues, high contrast)"
+                        },
+                        "characters": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "İlişkili karakter tag'leri"
+                        },
+                        "locations": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "İlişkili mekan tag'leri"
+                        }
+                    }
+                }
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "get_system_state",
+        "description": "Sistemin mevcut durumunu öğren: aktif proje, mevcut karakterler, mekanlar, son üretimler, toplam istatistikler. Kullanıcı 'ne var?', 'durumu göster', 'elimde ne var?' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "include_assets": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Son üretimleri dahil et"
+                },
+                "include_entities": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Karakter ve mekanları dahil et"
+                },
+                "include_plugins": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Pluginleri dahil et"
+                }
+            }
+        }
+    },
+    {
+        "name": "manage_wardrobe",
+        "description": "Wardrobe (kıyafet) yönetimi. Kıyafet ekle, sil veya listele. Kullanıcı 'bu kıyafeti kaydet', 'kıyafetleri göster' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["add", "remove", "list"],
+                    "description": "Yapılacak işlem"
+                },
+                "wardrobe_id": {
+                    "type": "string",
+                    "description": "Kıyafet ID (remove için)"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Kıyafet adı (add için)"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Kıyafet açıklaması (İngilizce)"
+                },
+                "attributes": {
+                    "type": "object",
+                    "description": "Kıyafet özellikleri",
+                    "properties": {
+                        "type": {"type": "string", "description": "Tip (shirt, dress, suit, etc.)"},
+                        "color": {"type": "string"},
+                        "style": {"type": "string"},
+                        "material": {"type": "string"},
+                        "season": {"type": "string"}
+                    }
+                }
+            },
+            "required": ["action"]
+        }
     }
 ]
 

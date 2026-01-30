@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles } from "lucide-react";
+import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image } from "lucide-react";
 import { sendMessage, createSession, checkHealth } from "@/lib/api";
 
 interface Message {
@@ -17,6 +17,7 @@ interface ChatPanelProps {
     projectId?: string;
     onSessionChange?: (sessionId: string) => void;
     onNewAsset?: (asset: { url: string; type: string }) => void;
+    onEntityChange?: () => void;
 }
 
 // Helper to render @mentions with highlighting
@@ -37,14 +38,42 @@ function renderContent(content: string | undefined | null) {
     });
 }
 
-export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewAsset }: ChatPanelProps) {
+export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewAsset, onEntityChange }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
     const [isConnected, setIsConnected] = useState<boolean | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [attachedFile, setAttachedFile] = useState<File | null>(null);
+    const [filePreview, setFilePreview] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Handle file selection
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.type.startsWith('image/')) {
+                setAttachedFile(file);
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    setFilePreview(e.target?.result as string);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                setError('Sadece resim dosyaları destekleniyor.');
+            }
+        }
+    };
+
+    const removeAttachment = () => {
+        setAttachedFile(null);
+        setFilePreview(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
 
     // Check backend connection
     useEffect(() => {
@@ -124,11 +153,16 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
 
             setMessages((prev) => [...prev, assistantMessage]);
 
-            // Handle generated assets
+            // Handle generated assets - trigger refresh
             if (response.assets && response.assets.length > 0) {
                 response.assets.forEach((asset) => {
                     onNewAsset?.({ url: asset.url, type: asset.asset_type });
                 });
+            }
+
+            // Handle created entities - trigger sidebar refresh
+            if (response.entities_created && response.entities_created.length > 0) {
+                onEntityChange?.();
             }
         } catch (err) {
             console.error("Chat error:", err);
@@ -205,14 +239,61 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
             >
                 <div className="max-w-3xl mx-auto space-y-4">
                     {messages.length === 0 && !isLoading && (
-                        <div className="text-center py-12" style={{ color: "var(--foreground-muted)" }}>
-                            <svg className="w-8 h-8 mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: "var(--accent)" }}>
-                                <path d="M12 2c-1.5 0-3 .5-4 1.5C7 2.5 6 2 5 2c-1 0-2 .5-2.5 1.5" strokeLinecap="round" />
-                                <path d="M12 2c1.5 0 3 .5 4 1.5C17 2.5 18 2 19 2c1 0 2 .5 2.5 1.5" strokeLinecap="round" />
-                                <path d="M12 2v3M9 22c-2-1-3.5-3-4-5.5-.5-2.5 0-5 1-7s2.5-4 4-5c1.5 1 3 3 4 5s1.5 4.5 1 7c-.5 2.5-2 4.5-4 5.5" strokeLinejoin="round" />
-                                <path d="M12 10c.5 1.5.5 3.5 0 5" strokeLinecap="round" />
-                            </svg>
-                            <p>Merhaba! Bir şeyler yazmaya başlayın.</p>
+                        <div className="flex flex-col items-center justify-center py-16">
+                            {/* Logo & Title */}
+                            <div className="text-4xl mb-4">🫑</div>
+                            <h2 className="text-2xl font-bold mb-2">Pepper Root AI</h2>
+                            <p className="text-sm mb-8" style={{ color: "var(--foreground-muted)" }}>
+                                Yapay zeka destekli görsel üretim asistanın
+                            </p>
+
+                            {/* Quick Actions */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
+                                <button
+                                    onClick={() => setInput("Mutfak ortamında bir karakter görseli oluştur")}
+                                    className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                                >
+                                    <span className="text-lg mb-2 block">🎨</span>
+                                    <span className="text-sm font-medium">Görsel Oluştur</span>
+                                    <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                        Karakter ve mekan görselleri
+                                    </p>
+                                </button>
+                                <button
+                                    onClick={() => setInput("Yeni bir karakter tanımla: @karakter_ali")}
+                                    className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                                >
+                                    <span className="text-lg mb-2 block">👤</span>
+                                    <span className="text-sm font-medium">Karakter Ekle</span>
+                                    <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                        Yeni bir karakter tanımla
+                                    </p>
+                                </button>
+                                <button
+                                    onClick={() => setInput("Modern ofis mekanı tanımla: @lokasyon_ofis")}
+                                    className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                                >
+                                    <span className="text-lg mb-2 block">📍</span>
+                                    <span className="text-sm font-medium">Lokasyon Ekle</span>
+                                    <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                        Yeni bir mekan tanımla
+                                    </p>
+                                </button>
+                                <button
+                                    onClick={() => setInput("Neler yapabilirsin?")}
+                                    className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                                >
+                                    <span className="text-lg mb-2 block">💡</span>
+                                    <span className="text-sm font-medium">Ne Yapabilirim?</span>
+                                    <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                        Yeteneklerimi keşfet
+                                    </p>
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -268,6 +349,35 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                 style={{ background: "var(--background-secondary)" }}
             >
                 <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+                    {/* File Preview */}
+                    {filePreview && (
+                        <div className="mb-2 p-2 rounded-lg flex items-center gap-3" style={{ background: "var(--card)" }}>
+                            <div className="relative">
+                                <img
+                                    src={filePreview}
+                                    alt="Referans görsel"
+                                    className="w-16 h-16 object-cover rounded-lg"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={removeAttachment}
+                                    className="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                    <Image size={14} style={{ color: "var(--accent)" }} />
+                                    Referans Görsel
+                                </div>
+                                <p className="text-xs mt-0.5 truncate" style={{ color: "var(--foreground-muted)" }}>
+                                    {attachedFile?.name}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="chat-input flex items-center gap-2 p-2">
                         <button
                             type="button"
@@ -292,7 +402,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                             <button
                                 type="button"
                                 onClick={() => {
-                                    const pluginMessage = "🔮 Plugin oluşturma modunu başlat. Şu ana kadar bu sohbette kullandığım karakter, lokasyon, zaman, kamera açıları ve stil ayarlarını analiz et ve bana uygun bir Creative Plugin önerisi sun.";
+                                    const pluginMessage = "Plugin oluşturma modunu başlat. Şu ana kadar bu sohbette kullandığım karakter, lokasyon, zaman, kamera açıları ve stil ayarlarını analiz et ve bana uygun bir Creative Plugin önerisi sun.";
                                     setInput(pluginMessage);
                                 }}
                                 className="p-2 rounded-lg transition-all hover:shadow-md"
@@ -311,12 +421,20 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                             >
                                 <Smile size={20} style={{ color: "var(--foreground-muted)" }} />
                             </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
                             <button
                                 type="button"
-                                className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                title="Dosya ekle"
+                                onClick={() => fileInputRef.current?.click()}
+                                className={`p-2 rounded-lg transition-colors ${attachedFile ? 'bg-[var(--accent)]/20' : 'hover:bg-[var(--card)]'}`}
+                                title="Referans görsel ekle"
                             >
-                                <Paperclip size={20} style={{ color: "var(--foreground-muted)" }} />
+                                <Paperclip size={20} style={{ color: attachedFile ? 'var(--accent)' : 'var(--foreground-muted)' }} />
                             </button>
                             <button
                                 type="submit"

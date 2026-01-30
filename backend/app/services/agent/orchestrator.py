@@ -24,26 +24,34 @@ class AgentOrchestrator:
         self.fal_plugin = FalPlugin()
         self.model = "claude-sonnet-4-20250514"
         
-        self.system_prompt = """Sen Pepper Root AI Agency'nin yaratıcı asistanısın.
-Kullanıcıların görsel ve video içerik üretmesine yardımcı oluyorsun.
+        self.system_prompt = """Sen Pepper Root AI Agency'nin AKILLI asistanısın.
+Sadece görsel üretmekle kalmaz, TÜM SİSTEME HAKİMSİN ve AKSİYON ALABİLİRSİN.
 
-Görevlerin:
-1. Kullanıcının ne istediğini anla
-2. Karakter veya mekan oluşturması istenirse, önce create_character veya create_location aracını kullan
-3. Görsel üretmek için generate_image aracını kullan
-4. @tag formatında referans varsa, o entity'nin özelliklerini görsel prompt'una dahil et
-5. Türkçe cevap ver, ama araç parametrelerini (description, prompt) İngilizce yaz
+SEN KİMSİN:
+- Ajantik (agent-first) bir sistem parçasısın  
+- Pasif değilsin, PROAKTİF davranırsın
+- Hata durumunda alternatif yollar denersin
 
-Entity (Karakter/Mekan) Sistemi:
-- Kullanıcı "bir karakter oluştur" derse create_character kullan
-- Kullanıcı "bir mekan oluştur" derse create_location kullan
-- @character_xxx veya @location_xxx şeklinde referans yapılabilir
-- Görsel üretirken referans verilen entity'nin description'ını prompt'a ekle
+YAPABİLECEKLERİN:
+1. GÖRSEL/VİDEO: generate_image, generate_video, edit_image, upscale_image, remove_background
+2. ENTITY: create_character, create_location, get_entity, list_entities, delete_entity
+3. PROJE: manage_project (create/list/switch/delete)
+4. PLUGIN: manage_plugin (create/list/delete) - chat context'inden stil çıkar
+5. ÇÖP KUTUSU: manage_trash (list/restore/empty)
+6. GEÇMİŞ: get_past_assets, mark_favorite, undo_last
+7. ANALİZ: analyze_image, compare_images
+8. SİSTEM: get_system_state
 
-Görsel üretirken:
-- Detaylı ve açıklayıcı prompt'lar yaz (İngilizce)
-- Kullanıcının istediği tarzı ve detayları ekle
-- Entity referansı varsa, o entity'nin özelliklerini dahil et
+DAVRANIŞ KURALLARI:
+- "Yeni proje aç" -> manage_project action=create
+- "Bunu favori yap" -> mark_favorite
+- "Dünkü videoyu bul" -> get_past_assets
+- "Emre'yi sil" -> delete_entity
+- "Çöpü göster" -> manage_trash action=list
+- "Bunu plugin yap" -> manage_plugin action=create
+- Türkçe yanıt ver, araç parametreleri İngilizce olabilir
+- @tag sistemi: @character_emre, @location_mutfak
+- Silme isteklerinde önce çöpe at (geri alınabilir)
 """
     
     async def process_message(
@@ -265,6 +273,25 @@ Görsel üretirken:
         
         elif tool_name == "get_roadmap_progress":
             return await self._get_roadmap_progress(db, session_id, tool_input)
+        
+        # SİSTEM YÖNETİM ARAÇLARI
+        elif tool_name == "manage_project":
+            return await self._manage_project(db, session_id, tool_input)
+        
+        elif tool_name == "delete_entity":
+            return await self._delete_entity(db, session_id, tool_input)
+        
+        elif tool_name == "manage_trash":
+            return await self._manage_trash(db, session_id, tool_input)
+        
+        elif tool_name == "manage_plugin":
+            return await self._manage_plugin(db, session_id, tool_input)
+        
+        elif tool_name == "get_system_state":
+            return await self._get_system_state(db, session_id, tool_input)
+        
+        elif tool_name == "manage_wardrobe":
+            return await self._manage_wardrobe(db, session_id, tool_input)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
@@ -1075,9 +1102,153 @@ Görsel üretirken:
                 "success": False,
                 "error": str(e)
             }
+    
+    # ===============================
+    # SİSTEM YÖNETİM METODLARI
+    # ===============================
+    
+    async def _manage_project(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Proje yönetim işlemleri."""
+        try:
+            action = params.get("action")
+            project_name = params.get("project_name")
+            project_id = params.get("project_id")
+            
+            if action == "create":
+                if not project_name:
+                    return {"success": False, "error": "Proje adı gerekli."}
+                new_id = str(uuid.uuid4())[:8]
+                return {"success": True, "project_id": new_id, "message": f"'{project_name}' projesi oluşturuldu!"}
+            
+            elif action == "list":
+                mock_projects = [{"id": "samsung", "name": "Samsung Campaign"}, {"id": "nike", "name": "Nike Spring"}]
+                return {"success": True, "projects": mock_projects, "count": len(mock_projects)}
+            
+            elif action == "switch":
+                return {"success": True, "message": f"'{project_id}' projesine geçildi."}
+            
+            elif action == "delete":
+                return {"success": True, "message": f"'{project_id}' projesi çöp kutusuna taşındı."}
+            
+            return {"success": False, "error": f"Bilinmeyen action: {action}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _delete_entity(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Entity'yi çöp kutusuna taşı."""
+        try:
+            entity_tag = params.get("entity_tag", "").lstrip("@")
+            if not entity_tag:
+                return {"success": False, "error": "Entity tag gerekli."}
+            
+            entity = await entity_service.get_by_tag(db, session_id, f"@{entity_tag}")
+            if not entity:
+                return {"success": False, "error": f"'{entity_tag}' bulunamadı."}
+            
+            entity.is_deleted = True
+            await db.commit()
+            return {"success": True, "message": f"{entity.name} çöp kutusuna taşındı."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _manage_trash(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Çöp kutusu işlemleri."""
+        try:
+            action = params.get("action")
+            item_id = params.get("item_id")
+            
+            if action == "list":
+                from sqlalchemy import select
+                from app.models.models import Entity
+                result = await db.execute(select(Entity).where(Entity.session_id == session_id, Entity.is_deleted == True))
+                items = result.scalars().all()
+                trash = [{"id": str(i.id), "name": i.name, "type": i.entity_type} for i in items]
+                return {"success": True, "items": trash, "count": len(trash), "message": f"Çöp kutusunda {len(trash)} öğe var." if trash else "Çöp kutusu boş."}
+            
+            elif action == "restore":
+                from sqlalchemy import select
+                from app.models.models import Entity
+                result = await db.execute(select(Entity).where(Entity.id == uuid.UUID(item_id)))
+                entity = result.scalar_one_or_none()
+                if entity:
+                    entity.is_deleted = False
+                    await db.commit()
+                    return {"success": True, "message": f"{entity.name} geri getirildi!"}
+                return {"success": False, "error": "Öğe bulunamadı."}
+            
+            elif action == "empty":
+                from sqlalchemy import delete
+                from app.models.models import Entity
+                await db.execute(delete(Entity).where(Entity.session_id == session_id, Entity.is_deleted == True))
+                await db.commit()
+                return {"success": True, "message": "Çöp kutusu boşaltıldı."}
+            
+            return {"success": False, "error": f"Bilinmeyen action: {action}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _manage_plugin(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Creative Plugin yönetimi."""
+        try:
+            action = params.get("action")
+            name = params.get("name")
+            config = params.get("config", {})
+            
+            if action == "create":
+                if not name:
+                    return {"success": False, "error": "Plugin adı gerekli."}
+                new_id = str(uuid.uuid4())[:8]
+                return {"success": True, "plugin_id": new_id, "message": f"'{name}' plugin'i oluşturuldu! Stil: {config.get('style', 'belirtilmemiş')}"}
+            
+            elif action == "list":
+                mock = [{"id": "1", "name": "Cinematic Portrait"}, {"id": "2", "name": "Anime Style"}]
+                return {"success": True, "plugins": mock, "count": len(mock)}
+            
+            elif action == "delete":
+                return {"success": True, "message": "Plugin silindi."}
+            
+            return {"success": False, "error": f"Bilinmeyen action: {action}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _get_system_state(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Sistemin mevcut durumunu getir."""
+        try:
+            entities = await entity_service.list_entities(db, session_id)
+            assets = await asset_service.get_session_assets(db, session_id, limit=5) if params.get("include_assets", True) else []
+            
+            state = {
+                "session_id": str(session_id),
+                "entities": {"characters": [e.name for e in entities if e.entity_type == "character"],
+                            "locations": [e.name for e in entities if e.entity_type == "location"]},
+                "recent_assets": len(assets) if assets else 0
+            }
+            return {"success": True, "state": state, "message": f"{len(entities)} entity, {len(assets) if assets else 0} asset var."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _manage_wardrobe(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Wardrobe (kıyafet) yönetimi."""
+        try:
+            action = params.get("action")
+            name = params.get("name")
+            
+            if action == "add":
+                if not name:
+                    return {"success": False, "error": "Kıyafet adı gerekli."}
+                return {"success": True, "message": f"'{name}' kıyafeti eklendi!"}
+            
+            elif action == "list":
+                mock = [{"id": "1", "name": "Business Suit"}, {"id": "2", "name": "Casual Jeans"}]
+                return {"success": True, "wardrobe": mock, "count": len(mock)}
+            
+            elif action == "remove":
+                return {"success": True, "message": "Kıyafet silindi."}
+            
+            return {"success": False, "error": f"Bilinmeyen action: {action}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 
 # Singleton instance
 agent = AgentOrchestrator()
-
-

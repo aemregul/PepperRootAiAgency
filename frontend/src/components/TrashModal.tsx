@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Trash2, RotateCcw, Clock, AlertCircle } from "lucide-react";
+import { X, Trash2, RotateCcw, Clock, AlertCircle, CheckSquare, Square, Trash } from "lucide-react";
 
 export interface TrashItem {
     id: string;
@@ -17,6 +17,8 @@ interface TrashModalProps {
     items: TrashItem[];
     onRestore: (item: TrashItem) => void;
     onPermanentDelete: (id: string) => void;
+    onDeleteAll?: () => void;
+    onDeleteMultiple?: (ids: string[]) => void;
 }
 
 function getTimeRemaining(deletedAt: Date): string {
@@ -64,11 +66,51 @@ export function TrashModal({
     onClose,
     items,
     onRestore,
-    onPermanentDelete
+    onPermanentDelete,
+    onDeleteAll,
+    onDeleteMultiple
 }: TrashModalProps) {
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+    const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
 
     if (!isOpen) return null;
+
+    const toggleSelection = (id: string) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(i => i !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === items.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(items.map(i => i.id));
+        }
+    };
+
+    const handleDeleteSelected = () => {
+        if (onDeleteMultiple) {
+            onDeleteMultiple(selectedIds);
+        } else {
+            selectedIds.forEach(id => onPermanentDelete(id));
+        }
+        setSelectedIds([]);
+        setConfirmDeleteSelected(false);
+    };
+
+    const handleDeleteAll = () => {
+        if (onDeleteAll) {
+            onDeleteAll();
+        } else {
+            items.forEach(item => onPermanentDelete(item.id));
+        }
+        setConfirmDeleteAll(false);
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -113,8 +155,86 @@ export function TrashModal({
                     </button>
                 </div>
 
+                {/* Toolbar - Select All & Bulk Actions */}
+                {items.length > 0 && (
+                    <div
+                        className="flex items-center justify-between px-4 py-2 border-b"
+                        style={{ borderColor: "var(--border)", background: "var(--background)" }}
+                    >
+                        <button
+                            onClick={toggleSelectAll}
+                            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity"
+                        >
+                            {selectedIds.length === items.length ? (
+                                <CheckSquare size={18} style={{ color: "var(--accent)" }} />
+                            ) : (
+                                <Square size={18} style={{ color: "var(--foreground-muted)" }} />
+                            )}
+                            <span style={{ color: "var(--foreground-muted)" }}>
+                                {selectedIds.length > 0 ? `${selectedIds.length} seçili` : "Tümünü Seç"}
+                            </span>
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                            {/* Delete Selected */}
+                            {selectedIds.length > 0 && (
+                                confirmDeleteSelected ? (
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={handleDeleteSelected}
+                                            className="px-3 py-1.5 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                        >
+                                            {selectedIds.length} Öğeyi Sil
+                                        </button>
+                                        <button
+                                            onClick={() => setConfirmDeleteSelected(false)}
+                                            className="px-3 py-1.5 text-xs rounded-lg hover:bg-[var(--card)] transition-colors"
+                                        >
+                                            İptal
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setConfirmDeleteSelected(true)}
+                                        className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
+                                    >
+                                        <Trash size={14} />
+                                        Seçilenleri Sil
+                                    </button>
+                                )
+                            )}
+
+                            {/* Delete All */}
+                            {confirmDeleteAll ? (
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={handleDeleteAll}
+                                        className="px-3 py-1.5 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                    >
+                                        Tümünü Sil
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmDeleteAll(false)}
+                                        className="px-3 py-1.5 text-xs rounded-lg hover:bg-[var(--card)] transition-colors"
+                                    >
+                                        İptal
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setConfirmDeleteAll(true)}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/20 transition-colors"
+                                >
+                                    <Trash2 size={14} />
+                                    Tümünü Sil
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Content */}
-                <div className="p-4 overflow-y-auto max-h-[calc(80vh-120px)]">
+                <div className="p-4 overflow-y-auto max-h-[calc(80vh-180px)]">
                     {items.length === 0 ? (
                         <div className="text-center py-12">
                             <Trash2 size={48} className="mx-auto mb-3 opacity-20" />
@@ -127,9 +247,22 @@ export function TrashModal({
                             {items.map((item) => (
                                 <div
                                     key={item.id}
-                                    className="flex items-center justify-between p-3 rounded-xl transition-all"
+                                    className={`flex items-center justify-between p-3 rounded-xl transition-all ${selectedIds.includes(item.id) ? "ring-2 ring-[var(--accent)]" : ""
+                                        }`}
                                     style={{ background: "var(--background)" }}
                                 >
+                                    {/* Checkbox */}
+                                    <button
+                                        onClick={() => toggleSelection(item.id)}
+                                        className="mr-3 shrink-0"
+                                    >
+                                        {selectedIds.includes(item.id) ? (
+                                            <CheckSquare size={20} style={{ color: "var(--accent)" }} />
+                                        ) : (
+                                            <Square size={20} style={{ color: "var(--foreground-muted)" }} />
+                                        )}
+                                    </button>
+
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <div
                                             className="w-2 h-2 rounded-full shrink-0"

@@ -203,3 +203,115 @@ class Plugin(Base):
     config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     capabilities: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ============== KULLANICI AYARLARI ==============
+
+class UserSettings(Base):
+    """Kullanıcı ayarları."""
+    __tablename__ = "user_settings"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    theme: Mapped[str] = mapped_column(String(50), default="dark")
+    language: Mapped[str] = mapped_column(String(10), default="tr")
+    notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_save: Mapped[bool] = mapped_column(Boolean, default=True)
+    default_model: Mapped[str] = mapped_column(String(100), default="claude")
+    settings_json: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ============== AI MODELLERİ ==============
+
+class AIModel(Base):
+    """AI model tanımları."""
+    __tablename__ = "ai_models"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    display_name: Mapped[str] = mapped_column(String(255))
+    model_type: Mapped[str] = mapped_column(String(50))  # llm, image, video, audio
+    provider: Mapped[str] = mapped_column(String(100))  # anthropic, openai, fal, etc.
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    icon: Mapped[str] = mapped_column(String(10), default="🤖")
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    requires_api_key: Mapped[bool] = mapped_column(Boolean, default=True)
+    config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ============== YÜKLÜ PLUGİNLER ==============
+
+class InstalledPlugin(Base):
+    """Kullanıcının yüklediği pluginler."""
+    __tablename__ = "installed_plugins"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    plugin_id: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    icon: Mapped[str] = mapped_column(String(10), default="🔌")
+    category: Mapped[str] = mapped_column(String(50), default="general")
+    api_key_encrypted: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    installed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ============== KULLANIM İSTATİSTİKLERİ ==============
+
+class UsageStats(Base):
+    """API kullanım istatistikleri."""
+    __tablename__ = "usage_stats"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    api_calls: Mapped[int] = mapped_column(Integer, default=0)
+    images_generated: Mapped[int] = mapped_column(Integer, default=0)
+    videos_generated: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_used: Mapped[int] = mapped_column(Integer, default=0)
+    model_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ============== CREATIVE PLUGİNLER (Kullanıcı Tanımlı) ==============
+
+class CreativePlugin(Base):
+    """Kullanıcının oluşturduğu özel pluginler."""
+    __tablename__ = "creative_plugins"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    session_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    icon: Mapped[str] = mapped_column(String(10), default="✨")
+    color: Mapped[str] = mapped_column(String(20), default="#22c55e")
+    system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    usage_count: Mapped[int] = mapped_column(Integer, default=0)
+    config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ============== ÇÖP KUTUSU ==============
+
+class TrashItem(Base):
+    """Silinen öğeler."""
+    __tablename__ = "trash_items"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    session_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    item_type: Mapped[str] = mapped_column(String(50))  # entity, asset, session, plugin
+    item_id: Mapped[str] = mapped_column(String(100))
+    item_name: Mapped[str] = mapped_column(String(255))
+    original_data: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # 3 gün sonra silinecek
+
