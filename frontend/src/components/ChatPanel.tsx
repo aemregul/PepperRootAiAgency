@@ -70,7 +70,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                     setMessages([{
                         id: "welcome",
                         role: "assistant",
-                        content: "Merhaba! Ben Pepper Root AI asistanınız. Size nasıl yardımcı olabilirim? Görsel, video veya karakter oluşturabilirim. 🫑",
+                        content: "Merhaba! Ben Pepper Root AI asistanınız. Size nasıl yardımcı olabilirim? Görsel, video veya karakter oluşturabilirim.",
                         timestamp: new Date(),
                     }]);
                 } catch (err) {
@@ -205,7 +205,12 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                 <div className="max-w-3xl mx-auto space-y-4">
                     {messages.length === 0 && !isLoading && (
                         <div className="text-center py-12" style={{ color: "var(--foreground-muted)" }}>
-                            <p className="text-lg mb-2">🫑</p>
+                            <svg className="w-8 h-8 mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: "var(--accent)" }}>
+                                <path d="M12 2c-1.5 0-3 .5-4 1.5C7 2.5 6 2 5 2c-1 0-2 .5-2.5 1.5" strokeLinecap="round" />
+                                <path d="M12 2c1.5 0 3 .5 4 1.5C17 2.5 18 2 19 2c1 0 2 .5 2.5 1.5" strokeLinecap="round" />
+                                <path d="M12 2v3M9 22c-2-1-3.5-3-4-5.5-.5-2.5 0-5 1-7s2.5-4 4-5c1.5 1 3 3 4 5s1.5 4.5 1 7c-.5 2.5-2 4.5-4 5.5" strokeLinejoin="round" />
+                                <path d="M12 10c.5 1.5.5 3.5 0 5" strokeLinecap="round" />
+                            </svg>
                             <p>Merhaba! Bir şeyler yazmaya başlayın.</p>
                         </div>
                     )}
@@ -221,10 +226,14 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                             ) : (
                                 <div className="flex gap-3">
                                     <div
-                                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
-                                        style={{ background: "var(--accent)", color: "var(--background)" }}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                                        style={{ background: "var(--accent)" }}
                                     >
-                                        P
+                                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--background)" }}>
+                                            <path d="M12 2c-1.5 0-3 .5-4 1.5C7 2.5 6 2 5 2c-1 0-2 .5-2.5 1.5" strokeLinecap="round" />
+                                            <path d="M12 2c1.5 0 3 .5 4 1.5C17 2.5 18 2 19 2c1 0 2 .5 2.5 1.5" strokeLinecap="round" />
+                                            <path d="M12 2v3M9 22c-2-1-3.5-3-4-5.5-.5-2.5 0-5 1-7s2.5-4 4-5c1.5 1 3 3 4 5s1.5 4.5 1 7c-.5 2.5-2 4.5-4 5.5" strokeLinejoin="round" />
+                                        </svg>
                                     </div>
                                     <div className="flex-1">
                                         <div className="font-medium mb-2 text-sm">Pepper AI Assistant</div>
