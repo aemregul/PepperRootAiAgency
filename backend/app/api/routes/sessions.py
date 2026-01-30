@@ -21,18 +21,21 @@ async def create_session(
     db: AsyncSession = Depends(get_db)
 ):
     """Yeni oturum oluştur."""
-    # Geçici user_id (auth eklenince değişecek)
-    from uuid import uuid4
-    temp_user_id = uuid4()
-    
-    new_session = Session(
-        user_id=temp_user_id,
-        title=session_data.title or "Yeni Oturum"
-    )
-    db.add(new_session)
-    await db.flush()
-    await db.refresh(new_session)
-    return new_session
+    try:
+        new_session = Session(
+            user_id=None,  # Auth eklenince değişecek
+            title=session_data.title or "Yeni Oturum"
+        )
+        db.add(new_session)
+        await db.commit()
+        await db.refresh(new_session)
+        return new_session
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Oturum oluşturulurken hata: {str(e)}"
+        )
 
 
 @router.get("/", response_model=list[SessionResponse])

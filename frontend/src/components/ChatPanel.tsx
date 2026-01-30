@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle } from "lucide-react";
+import { sendMessage, createSession, checkHealth } from "@/lib/api";
 
 interface Message {
     id: string;
@@ -9,15 +10,19 @@ interface Message {
     content: string;
     timestamp: Date;
     image_url?: string;
-    status?: "pending" | "done";
 }
 
 interface ChatPanelProps {
+    sessionId?: string;
+    onSessionChange?: (sessionId: string) => void;
     onNewAsset?: (asset: { url: string; type: string }) => void;
 }
 
 // Helper to render @mentions with highlighting
-function renderContent(content: string) {
+function renderContent(content: string | undefined | null) {
+    if (!content || typeof content !== 'string') {
+        return content ?? '';
+    }
     const parts = content.split(/(@\w+)/g);
     return parts.map((part, i) => {
         if (part.startsWith("@")) {
@@ -31,36 +36,63 @@ function renderContent(content: string) {
     });
 }
 
-export function ChatPanel({ onNewAsset }: ChatPanelProps) {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: "1",
-            role: "user",
-            content: "@character_emre and @character_ahmet @location_kitchen at night. Create a 3-minute cinematic video.",
-            timestamp: new Date(),
-        },
-        {
-            id: "2",
-            role: "assistant",
-            content: `Understood! I'll create a cinematic video with Emre and Ahmet in a modern kitchen at night. Let me handle the details while you get comfortable. Here's the plan:`,
-            timestamp: new Date(),
-        },
-    ]);
+export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewAsset }: ChatPanelProps) {
+    const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
+    const [isConnected, setIsConnected] = useState<boolean | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const scrollToBottom = () => {
+    // Check backend connection
+    useEffect(() => {
+        const checkConnection = async () => {
+            const healthy = await checkHealth();
+            setIsConnected(healthy);
+            if (!healthy) {
+                setError("Backend bağlantısı kurulamadı. Sunucunun çalıştığından emin olun.");
+            }
+        };
+        checkConnection();
+    }, []);
+
+    // Create session if none exists
+    useEffect(() => {
+        const initSession = async () => {
+            if (!sessionId && isConnected) {
+                try {
+                    const session = await createSession("New Project");
+                    setSessionId(session.id);
+                    onSessionChange?.(session.id);
+
+                    // Welcome message
+                    setMessages([{
+                        id: "welcome",
+                        role: "assistant",
+                        content: "Merhaba! Ben Pepper Root AI asistanınız. Size nasıl yardımcı olabilirim? Görsel, video veya karakter oluşturabilirim. 🫑",
+                        timestamp: new Date(),
+                    }]);
+                } catch (err) {
+                    console.error("Session creation failed:", err);
+                    setError("Oturum oluşturulamadı.");
+                }
+            }
+        };
+        initSession();
+    }, [isConnected, sessionId, onSessionChange]);
+
+    const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    }, []);
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, scrollToBottom]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || isLoading) return;
+        if (!input.trim() || isLoading || !sessionId) return;
 
         const userMessage: Message = {
             id: Date.now().toString(),
@@ -72,20 +104,43 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
         setMessages((prev) => [...prev, userMessage]);
         setInput("");
         setIsLoading(true);
+        setError(null);
 
         try {
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            const response = await sendMessage(sessionId, input);
+
+            // Backend returns response as MessageResponse object
+            const responseContent = typeof response.response === 'string'
+                ? response.response
+                : response.response?.content ?? 'Yanıt alınamadı';
 
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant",
-                content: "I'll get started on that right away. Let me gather the necessary references and begin processing your request.",
+                content: responseContent,
                 timestamp: new Date(),
             };
 
             setMessages((prev) => [...prev, assistantMessage]);
-        } catch (error) {
-            console.error("Chat error:", error);
+
+            // Handle generated assets
+            if (response.assets && response.assets.length > 0) {
+                response.assets.forEach((asset) => {
+                    onNewAsset?.({ url: asset.url, type: asset.asset_type });
+                });
+            }
+        } catch (err) {
+            console.error("Chat error:", err);
+            setError("Mesaj gönderilemedi. Lütfen tekrar deneyin.");
+
+            // Fallback message
+            const errorMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: "assistant",
+                content: "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.",
+                timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
         }
@@ -113,6 +168,17 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
                         <span style={{ color: "var(--foreground-muted)" }}>AI Agency</span>
                         <ChevronDown size={16} style={{ color: "var(--foreground-muted)" }} />
                     </div>
+
+                    {/* Connection status */}
+                    <div className="ml-2">
+                        {isConnected === null ? (
+                            <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--foreground-muted)" }} />
+                        ) : isConnected ? (
+                            <div className="w-2 h-2 rounded-full bg-green-500" title="Bağlı" />
+                        ) : (
+                            <div className="w-2 h-2 rounded-full bg-red-500" title="Bağlantı yok" />
+                        )}
+                    </div>
                 </div>
 
                 <button className="p-2 rounded-lg hover:bg-[var(--card)]">
@@ -120,23 +186,39 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
                 </button>
             </header>
 
+            {/* Error banner */}
+            {error && (
+                <div
+                    className="px-4 py-2 flex items-center gap-2 text-sm"
+                    style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
+                >
+                    <AlertCircle size={16} />
+                    {error}
+                </div>
+            )}
+
             {/* Messages */}
             <div
                 className="flex-1 overflow-y-auto p-4 lg:p-6"
                 style={{ background: "var(--background)" }}
             >
                 <div className="max-w-3xl mx-auto space-y-4">
+                    {messages.length === 0 && !isLoading && (
+                        <div className="text-center py-12" style={{ color: "var(--foreground-muted)" }}>
+                            <p className="text-lg mb-2">🫑</p>
+                            <p>Merhaba! Bir şeyler yazmaya başlayın.</p>
+                        </div>
+                    )}
+
                     {messages.map((msg) => (
                         <div key={msg.id}>
                             {msg.role === "user" ? (
-                                // User message
                                 <div className="message-bubble message-user">
                                     <p className="text-sm lg:text-[15px] leading-relaxed">
                                         {renderContent(msg.content)}
                                     </p>
                                 </div>
                             ) : (
-                                // AI message
                                 <div className="flex gap-3">
                                     <div
                                         className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
@@ -147,36 +229,18 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
                                     <div className="flex-1">
                                         <div className="font-medium mb-2 text-sm">Pepper AI Assistant</div>
                                         <div className="message-bubble message-ai">
-                                            <p className="text-sm lg:text-[15px] leading-relaxed">
+                                            <p className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
                                                 {renderContent(msg.content)}
                                             </p>
 
-                                            {/* Task steps (mock) */}
-                                            {msg.id === "2" && (
-                                                <div className="mt-4 space-y-2">
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <span>•</span>
-                                                        <span>Gathering character references: @character_emre</span>
-                                                        <span style={{ color: "var(--accent)" }}>✓</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <span>•</span>
-                                                        <span>Setting location context: @location_kitchen</span>
-                                                        <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--foreground-muted)" }} />
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-                                                        <span>•</span>
-                                                        <span>Starting video engine...</span>
-                                                    </div>
-                                                </div>
+                                            {msg.image_url && (
+                                                <img
+                                                    src={msg.image_url}
+                                                    alt="Generated"
+                                                    className="mt-3 rounded-lg max-w-full"
+                                                />
                                             )}
                                         </div>
-
-                                        {msg.id === "2" && (
-                                            <p className="text-sm mt-3" style={{ color: "var(--foreground-muted)" }}>
-                                                If I need more detail, I&apos;ll let you know.
-                                            </p>
-                                        )}
                                     </div>
                                 </div>
                             )}
@@ -193,7 +257,7 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
                             </div>
                             <div className="message-bubble message-ai flex items-center gap-2">
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                <span className="text-sm">Thinking...</span>
+                                <span className="text-sm">Düşünüyor...</span>
                             </div>
                         </div>
                     )}
@@ -212,7 +276,7 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
                         <button
                             type="button"
                             className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors shrink-0"
-                            title="Voice input"
+                            title="Sesli giriş"
                         >
                             <Mic size={20} style={{ color: "var(--foreground-muted)" }} />
                         </button>
@@ -221,10 +285,10 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder="Type your request..."
+                            placeholder={isConnected ? "Mesajınızı yazın..." : "Backend bağlantısı bekleniyor..."}
                             className="flex-1 bg-transparent outline-none text-sm lg:text-[15px] px-2"
                             style={{ color: "var(--foreground)" }}
-                            disabled={isLoading}
+                            disabled={isLoading || !isConnected}
                         />
 
                         <div className="flex items-center gap-1 shrink-0">
@@ -238,17 +302,17 @@ export function ChatPanel({ onNewAsset }: ChatPanelProps) {
                             <button
                                 type="button"
                                 className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                title="Attach file"
+                                title="Dosya ekle"
                             >
                                 <Paperclip size={20} style={{ color: "var(--foreground-muted)" }} />
                             </button>
                             <button
                                 type="submit"
-                                disabled={!input.trim() || isLoading}
+                                disabled={!input.trim() || isLoading || !isConnected}
                                 className="p-2 rounded-lg transition-all duration-200 disabled:opacity-40"
                                 style={{
-                                    background: input.trim() ? "var(--accent)" : "transparent",
-                                    color: input.trim() ? "var(--background)" : "var(--foreground-muted)"
+                                    background: input.trim() && isConnected ? "var(--accent)" : "transparent",
+                                    color: input.trim() && isConnected ? "var(--background)" : "var(--foreground-muted)"
                                 }}
                             >
                                 <Send size={18} />
