@@ -177,7 +177,16 @@ export function Sidebar() {
                     {projects.map((project) => (
                         <div
                             key={project.id}
-                            className={`px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${project.active ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"
+                            onClick={() => {
+                                // Tüm projeleri pasif yap, tıklananı aktif yap
+                                setProjects(projects.map(p => ({
+                                    ...p,
+                                    active: p.id === project.id
+                                })));
+                            }}
+                            className={`px-3 py-2 text-sm rounded-lg cursor-pointer transition-all duration-200 ${project.active
+                                    ? "bg-[var(--accent)] text-[var(--background)] font-medium"
+                                    : "hover:bg-[var(--card)]"
                                 }`}
                         >
                             {project.name}
