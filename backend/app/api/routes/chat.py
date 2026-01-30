@@ -26,8 +26,13 @@ async def _process_chat(
     
     # Session al veya oluştur
     if actual_session_id:
+        try:
+            session_uuid = UUID(actual_session_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Geçersiz session ID formatı: {actual_session_id}")
+        
         result = await db.execute(
-            select(Session).where(Session.id == UUID(actual_session_id))
+            select(Session).where(Session.id == session_uuid)
         )
         session = result.scalar_one_or_none()
         if not session:
