@@ -21,6 +21,7 @@ import {
     Puzzle
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { SettingsModal } from "./SettingsModal";
 
 interface SidebarItem {
     id: string;
@@ -99,6 +100,7 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false }: Collaps
 export function Sidebar() {
     const { theme, toggleTheme } = useTheme();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
     return (
         <>
@@ -249,7 +251,10 @@ export function Sidebar() {
 
 
                     {/* Settings */}
-                    <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1">
+                    <button
+                        onClick={() => setSettingsOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
+                    >
                         <Settings size={16} style={{ color: "var(--foreground-muted)" }} />
                         <span style={{ color: "var(--foreground-muted)" }}>Settings</span>
                     </button>
@@ -278,6 +283,12 @@ export function Sidebar() {
                     </div>
                 </div>
             </aside>
+
+            {/* Settings Modal */}
+            <SettingsModal
+                isOpen={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+            />
         </>
     );
 }
