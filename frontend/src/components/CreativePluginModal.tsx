@@ -1,14 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Puzzle, Plus, Users, MapPin, Camera, Palette, Clock, ChevronDown, Check, Sparkles, Share2 } from "lucide-react";
-
-interface CreativePluginModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (plugin: CreativePlugin) => void;
-    editPlugin?: CreativePlugin | null;
-}
+import { X, Sparkles, Share2, Download, Check, Users, MapPin, Clock, Camera, Palette, FileJson } from "lucide-react";
 
 export interface CreativePlugin {
     id: string;
@@ -21,14 +14,14 @@ export interface CreativePlugin {
         character?: {
             id: string;
             name: string;
-            isVariable: boolean; // Kullanıcı kendi karakterini koyabilir
+            isVariable: boolean;
         };
         location?: {
             id: string;
             name: string;
-            settings: string; // "aydınlatma", "mobilya stili" vb.
+            settings: string;
         };
-        timeOfDay?: string; // "sabah", "öğle", "akşam", "gece"
+        timeOfDay?: string;
         cameraAngles?: string[];
         style?: string;
         promptTemplate?: string;
@@ -38,105 +31,185 @@ export interface CreativePlugin {
     rating: number;
 }
 
-// Mock data
-const mockCharacters = [
-    { id: "emre", name: "@character_emre" },
-    { id: "ayse", name: "@character_ayse" },
-    { id: "variable", name: "🔄 Değişken (Kullanıcı seçer)" },
-];
+// =====================================================
+// 1. SAVE PLUGIN MODAL (AI tarafından tetiklenir)
+// =====================================================
+interface SavePluginModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (name: string, isPublic: boolean) => void;
+    suggestedName?: string;
+    pluginPreview: Partial<CreativePlugin["config"]>;
+}
 
-const mockLocations = [
-    { id: "mutfak", name: "Modern Mutfak" },
-    { id: "ofis", name: "Minimalist Ofis" },
-    { id: "outdoor", name: "Outdoor - Park" },
-];
-
-const timeOptions = ["Sabah", "Öğle", "Gün Batımı", "Gece"];
-
-const cameraOptions = [
-    "Yakın Çekim (Close-up)",
-    "Orta Plan (Medium Shot)",
-    "Geniş Açı (Wide Shot)",
-    "Kuş Bakışı (Bird's Eye)",
-    "Alt Açı (Low Angle)",
-    "Omuz Çekimi (Over Shoulder)",
-];
-
-const styleOptions = [
-    "Sinematik",
-    "Minimalist",
-    "Sıcak Tonlar",
-    "Soğuk Tonlar",
-    "Editorial",
-    "Commercial",
-];
-
-export function CreativePluginModal({ isOpen, onClose, onSave, editPlugin }: CreativePluginModalProps) {
-    const [step, setStep] = useState(1);
-    const [name, setName] = useState(editPlugin?.name || "");
-    const [description, setDescription] = useState(editPlugin?.description || "");
-    const [isPublic, setIsPublic] = useState(editPlugin?.isPublic || false);
-
-    // Config
-    const [selectedCharacter, setSelectedCharacter] = useState(editPlugin?.config.character?.id || "variable");
-    const [selectedLocation, setSelectedLocation] = useState(editPlugin?.config.location?.id || "");
-    const [selectedTime, setSelectedTime] = useState(editPlugin?.config.timeOfDay || "");
-    const [selectedAngles, setSelectedAngles] = useState<string[]>(editPlugin?.config.cameraAngles || []);
-    const [selectedStyle, setSelectedStyle] = useState(editPlugin?.config.style || "");
-    const [promptTemplate, setPromptTemplate] = useState(editPlugin?.config.promptTemplate || "");
+export function SavePluginModal({ isOpen, onClose, onSave, suggestedName, pluginPreview }: SavePluginModalProps) {
+    const [name, setName] = useState(suggestedName || "");
+    const [isPublic, setIsPublic] = useState(false);
 
     if (!isOpen) return null;
 
-    const toggleAngle = (angle: string) => {
-        setSelectedAngles(prev =>
-            prev.includes(angle)
-                ? prev.filter(a => a !== angle)
-                : [...prev, angle]
-        );
-    };
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
 
-    const handleSave = () => {
-        const plugin: CreativePlugin = {
-            id: editPlugin?.id || Date.now().toString(),
-            name,
-            description,
-            author: "Ben",
-            isPublic,
-            config: {
-                character: {
-                    id: selectedCharacter,
-                    name: mockCharacters.find(c => c.id === selectedCharacter)?.name || "",
-                    isVariable: selectedCharacter === "variable"
-                },
-                location: selectedLocation ? {
-                    id: selectedLocation,
-                    name: mockLocations.find(l => l.id === selectedLocation)?.name || "",
-                    settings: ""
-                } : undefined,
-                timeOfDay: selectedTime,
-                cameraAngles: selectedAngles,
-                style: selectedStyle,
-                promptTemplate
-            },
-            createdAt: editPlugin?.createdAt || new Date(),
-            downloads: editPlugin?.downloads || 0,
-            rating: editPlugin?.rating || 0
+            <div
+                className="relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            >
+                {/* Header */}
+                <div
+                    className="p-5 border-b"
+                    style={{ borderColor: "var(--border)", background: "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, transparent 100%)" }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl" style={{ background: "rgba(139, 92, 246, 0.2)" }}>
+                            <Sparkles size={24} className="text-purple-500" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold">Plugin Olarak Kaydet</h2>
+                            <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                Bu kombinasyonu kaydet ve tekrar kullan
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Preview */}
+                <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
+                    <div className="text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                        Algılanan Ayarlar:
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {pluginPreview.character && (
+                            <span className="px-2 py-1 text-xs rounded-lg flex items-center gap-1" style={{ background: "var(--background)" }}>
+                                <Users size={12} /> {pluginPreview.character.name}
+                            </span>
+                        )}
+                        {pluginPreview.location && (
+                            <span className="px-2 py-1 text-xs rounded-lg flex items-center gap-1" style={{ background: "var(--background)" }}>
+                                <MapPin size={12} /> {pluginPreview.location.name}
+                            </span>
+                        )}
+                        {pluginPreview.timeOfDay && (
+                            <span className="px-2 py-1 text-xs rounded-lg flex items-center gap-1" style={{ background: "var(--background)" }}>
+                                <Clock size={12} /> {pluginPreview.timeOfDay}
+                            </span>
+                        )}
+                        {pluginPreview.cameraAngles && pluginPreview.cameraAngles.length > 0 && (
+                            <span className="px-2 py-1 text-xs rounded-lg flex items-center gap-1" style={{ background: "var(--background)" }}>
+                                <Camera size={12} /> {pluginPreview.cameraAngles.length} açı
+                            </span>
+                        )}
+                        {pluginPreview.style && (
+                            <span className="px-2 py-1 text-xs rounded-lg flex items-center gap-1" style={{ background: "var(--background)" }}>
+                                <Palette size={12} /> {pluginPreview.style}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Form */}
+                <div className="p-4 space-y-4">
+                    <div>
+                        <label className="text-sm font-medium mb-2 block">Plugin Adı</label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Örn: Mutfak Akşam Seti"
+                            className="w-full px-4 py-3 rounded-xl text-sm"
+                            style={{ background: "var(--background)", border: "1px solid var(--border)" }}
+                            autoFocus
+                        />
+                    </div>
+
+                    <div
+                        className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                        style={{ background: isPublic ? "rgba(139, 92, 246, 0.1)" : "var(--background)" }}
+                        onClick={() => setIsPublic(!isPublic)}
+                    >
+                        <div
+                            className={`w-5 h-5 rounded flex items-center justify-center transition-all ${isPublic ? "bg-purple-500" : ""}`}
+                            style={!isPublic ? { border: "2px solid var(--border)" } : {}}
+                        >
+                            {isPublic && <Check size={14} className="text-white" />}
+                        </div>
+                        <div className="flex-1">
+                            <div className="font-medium text-sm flex items-center gap-2">
+                                <Share2 size={14} />
+                                Marketplace'te Paylaş
+                            </div>
+                            <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                Diğer kullanıcılar bu plugin'i görüp kullanabilir
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 p-4 border-t" style={{ borderColor: "var(--border)" }}>
+                    <button
+                        onClick={onClose}
+                        className="flex-1 px-4 py-2.5 text-sm rounded-xl hover:bg-[var(--background)] transition-colors"
+                        style={{ border: "1px solid var(--border)" }}
+                    >
+                        İptal
+                    </button>
+                    <button
+                        onClick={() => { onSave(name, isPublic); onClose(); }}
+                        disabled={!name.trim()}
+                        className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                        style={{ background: "var(--accent)", color: "var(--background)" }}
+                    >
+                        Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// =====================================================
+// 2. PLUGIN DETAIL MODAL (Tıklayınca açılır)
+// =====================================================
+interface PluginDetailModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    plugin: CreativePlugin | null;
+    onDelete?: (id: string) => void;
+    onUse?: (plugin: CreativePlugin) => void;
+}
+
+export function PluginDetailModal({ isOpen, onClose, plugin, onDelete, onUse }: PluginDetailModalProps) {
+    if (!isOpen || !plugin) return null;
+
+    const handleDownload = () => {
+        const pluginData = {
+            name: plugin.name,
+            description: plugin.description,
+            version: "1.0",
+            author: plugin.author,
+            createdAt: plugin.createdAt,
+            config: plugin.config
         };
-        onSave(plugin);
-        onClose();
+
+        const blob = new Blob([JSON.stringify(pluginData, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${plugin.name.toLowerCase().replace(/\s+/g, "_")}.pepper-plugin.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/70 backdrop-blur-md"
-                onClick={onClose}
-            />
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
 
-            {/* Modal */}
             <div
-                className="relative w-full max-w-2xl max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden"
+                className="relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
                 style={{ background: "var(--card)", border: "1px solid var(--border)" }}
             >
                 {/* Header */}
@@ -145,280 +218,138 @@ export function CreativePluginModal({ isOpen, onClose, onSave, editPlugin }: Cre
                     style={{ borderColor: "var(--border)", background: "linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%)" }}
                 >
                     <div className="flex items-center gap-3">
-                        <div
-                            className="p-2 rounded-xl"
-                            style={{ background: "rgba(139, 92, 246, 0.2)" }}
-                        >
+                        <div className="p-2 rounded-xl" style={{ background: "rgba(139, 92, 246, 0.2)" }}>
                             <Sparkles size={24} className="text-purple-500" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">
-                                {editPlugin ? "Plugin Düzenle" : "Yeni Creative Plugin"}
-                            </h2>
-                            <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                Kombinasyonunu oluştur ve paylaş
-                            </p>
+                            <h2 className="text-lg font-bold">{plugin.name}</h2>
+                            <div className="flex items-center gap-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                <span>by {plugin.author}</span>
+                                {plugin.isPublic && (
+                                    <span className="px-1.5 py-0.5 rounded" style={{ background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
+                                        Public
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-xl hover:bg-[var(--background)] transition-all duration-200"
-                    >
+                    <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--background)] transition-all">
                         <X size={20} />
                     </button>
                 </div>
 
-                {/* Steps Indicator */}
-                <div className="flex items-center justify-center gap-2 p-4 border-b" style={{ borderColor: "var(--border)" }}>
-                    {[1, 2, 3].map((s) => (
-                        <div key={s} className="flex items-center gap-2">
-                            <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${step >= s ? "bg-purple-500 text-white" : "bg-[var(--background)]"
-                                    }`}
-                            >
-                                {step > s ? <Check size={16} /> : s}
-                            </div>
-                            {s < 3 && (
-                                <div
-                                    className="w-12 h-0.5 rounded"
-                                    style={{ background: step > s ? "#8b5cf6" : "var(--border)" }}
-                                />
+                {/* Content */}
+                <div className="p-5 space-y-4">
+                    {plugin.description && (
+                        <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                            {plugin.description}
+                        </p>
+                    )}
+
+                    {/* Config Details */}
+                    <div className="space-y-3">
+                        <h3 className="text-sm font-medium">Konfigürasyon</h3>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            {plugin.config.character && (
+                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
+                                        <Users size={12} /> Karakter
+                                    </div>
+                                    <div className="text-sm font-medium">
+                                        {plugin.config.character.isVariable ? "🔄 Değişken" : plugin.config.character.name}
+                                    </div>
+                                </div>
+                            )}
+
+                            {plugin.config.location && (
+                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
+                                        <MapPin size={12} /> Lokasyon
+                                    </div>
+                                    <div className="text-sm font-medium">{plugin.config.location.name}</div>
+                                </div>
+                            )}
+
+                            {plugin.config.timeOfDay && (
+                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
+                                        <Clock size={12} /> Zaman
+                                    </div>
+                                    <div className="text-sm font-medium">{plugin.config.timeOfDay}</div>
+                                </div>
+                            )}
+
+                            {plugin.config.style && (
+                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
+                                        <Palette size={12} /> Stil
+                                    </div>
+                                    <div className="text-sm font-medium">{plugin.config.style}</div>
+                                </div>
                             )}
                         </div>
-                    ))}
+
+                        {plugin.config.cameraAngles && plugin.config.cameraAngles.length > 0 && (
+                            <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                <div className="flex items-center gap-2 text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
+                                    <Camera size={12} /> Kamera Açıları
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                    {plugin.config.cameraAngles.map((angle, i) => (
+                                        <span key={i} className="px-2 py-1 text-xs rounded" style={{ background: "var(--card)" }}>
+                                            {angle}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {plugin.config.promptTemplate && (
+                            <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                <div className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
+                                    Prompt Şablonu
+                                </div>
+                                <code className="text-xs font-mono block" style={{ color: "var(--accent)" }}>
+                                    {plugin.config.promptTemplate}
+                                </code>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 overflow-y-auto max-h-[calc(85vh-220px)]">
-
-                    {/* Step 1: Basic Info */}
-                    {step === 1 && (
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-medium mb-4">Temel Bilgiler</h3>
-
-                            <div>
-                                <label className="text-sm font-medium mb-2 block">Plugin Adı</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Örn: Mutfak Reklamı Seti"
-                                    className="w-full px-4 py-3 rounded-xl text-sm"
-                                    style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium mb-2 block">Açıklama</label>
-                                <textarea
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="Bu plugin ne işe yarar?"
-                                    rows={3}
-                                    className="w-full px-4 py-3 rounded-xl text-sm resize-none"
-                                    style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-                                />
-                            </div>
-
-                            <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: "var(--background)" }}>
-                                <input
-                                    type="checkbox"
-                                    id="isPublic"
-                                    checked={isPublic}
-                                    onChange={(e) => setIsPublic(e.target.checked)}
-                                    className="w-5 h-5 rounded accent-purple-500"
-                                />
-                                <label htmlFor="isPublic" className="flex-1">
-                                    <div className="font-medium flex items-center gap-2">
-                                        <Share2 size={16} />
-                                        Herkese Açık Yap
-                                    </div>
-                                    <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                        Diğer kullanıcılar bu plugin'i Marketplace'te görebilir
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Step 2: Character & Location */}
-                    {step === 2 && (
-                        <div className="space-y-6">
-                            <h3 className="text-lg font-medium">Karakter & Lokasyon</h3>
-
-                            {/* Character Selection */}
-                            <div>
-                                <label className="text-sm font-medium mb-3 flex items-center gap-2">
-                                    <Users size={16} />
-                                    Karakter
-                                </label>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {mockCharacters.map((char) => (
-                                        <button
-                                            key={char.id}
-                                            onClick={() => setSelectedCharacter(char.id)}
-                                            className={`p-3 rounded-xl text-left transition-all ${selectedCharacter === char.id
-                                                    ? "ring-2 ring-purple-500"
-                                                    : ""
-                                                }`}
-                                            style={{ background: "var(--background)" }}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <span>{char.name}</span>
-                                                {selectedCharacter === char.id && (
-                                                    <Check size={16} className="text-purple-500" />
-                                                )}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Location Selection */}
-                            <div>
-                                <label className="text-sm font-medium mb-3 flex items-center gap-2">
-                                    <MapPin size={16} />
-                                    Lokasyon
-                                </label>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {mockLocations.map((loc) => (
-                                        <button
-                                            key={loc.id}
-                                            onClick={() => setSelectedLocation(loc.id)}
-                                            className={`p-3 rounded-xl text-left transition-all ${selectedLocation === loc.id
-                                                    ? "ring-2 ring-purple-500"
-                                                    : ""
-                                                }`}
-                                            style={{ background: "var(--background)" }}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <span>{loc.name}</span>
-                                                {selectedLocation === loc.id && (
-                                                    <Check size={16} className="text-purple-500" />
-                                                )}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Time of Day */}
-                            <div>
-                                <label className="text-sm font-medium mb-3 flex items-center gap-2">
-                                    <Clock size={16} />
-                                    Zaman
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {timeOptions.map((time) => (
-                                        <button
-                                            key={time}
-                                            onClick={() => setSelectedTime(time)}
-                                            className={`px-4 py-2 rounded-lg text-sm transition-all ${selectedTime === time
-                                                    ? "bg-purple-500 text-white"
-                                                    : ""
-                                                }`}
-                                            style={selectedTime !== time ? { background: "var(--background)" } : {}}
-                                        >
-                                            {time}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Step 3: Camera & Style */}
-                    {step === 3 && (
-                        <div className="space-y-6">
-                            <h3 className="text-lg font-medium">Kamera & Stil</h3>
-
-                            {/* Camera Angles */}
-                            <div>
-                                <label className="text-sm font-medium mb-3 flex items-center gap-2">
-                                    <Camera size={16} />
-                                    Kamera Açıları (birden fazla seçebilirsin)
-                                </label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {cameraOptions.map((angle) => (
-                                        <button
-                                            key={angle}
-                                            onClick={() => toggleAngle(angle)}
-                                            className={`p-3 rounded-xl text-left text-sm transition-all ${selectedAngles.includes(angle)
-                                                    ? "ring-2 ring-purple-500 bg-purple-500/10"
-                                                    : ""
-                                                }`}
-                                            style={!selectedAngles.includes(angle) ? { background: "var(--background)" } : {}}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <span>{angle}</span>
-                                                {selectedAngles.includes(angle) && (
-                                                    <Check size={14} className="text-purple-500" />
-                                                )}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Style */}
-                            <div>
-                                <label className="text-sm font-medium mb-3 flex items-center gap-2">
-                                    <Palette size={16} />
-                                    Görsel Stil
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {styleOptions.map((style) => (
-                                        <button
-                                            key={style}
-                                            onClick={() => setSelectedStyle(style)}
-                                            className={`px-4 py-2 rounded-lg text-sm transition-all ${selectedStyle === style
-                                                    ? "bg-purple-500 text-white"
-                                                    : ""
-                                                }`}
-                                            style={selectedStyle !== style ? { background: "var(--background)" } : {}}
-                                        >
-                                            {style}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Prompt Template */}
-                            <div>
-                                <label className="text-sm font-medium mb-2 block">Prompt Şablonu (opsiyonel)</label>
-                                <textarea
-                                    value={promptTemplate}
-                                    onChange={(e) => setPromptTemplate(e.target.value)}
-                                    placeholder="professional photography, {character} in {location}, {time} lighting..."
-                                    rows={3}
-                                    className="w-full px-4 py-3 rounded-xl text-sm resize-none font-mono"
-                                    style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-                                />
-                                <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                                    {"{character}"}, {"{location}"}, {"{time}"} değişkenleri otomatik değiştirilir
-                                </p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-between p-4 border-t" style={{ borderColor: "var(--border)" }}>
+                {/* Actions */}
+                <div className="flex gap-2 p-4 border-t" style={{ borderColor: "var(--border)" }}>
                     <button
-                        onClick={() => step > 1 ? setStep(step - 1) : onClose()}
-                        className="px-4 py-2.5 text-sm rounded-xl hover:bg-[var(--background)] transition-colors"
+                        onClick={handleDownload}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl hover:bg-[var(--background)] transition-colors"
+                        style={{ border: "1px solid var(--border)" }}
                     >
-                        {step === 1 ? "İptal" : "Geri"}
+                        <FileJson size={16} />
+                        JSON İndir
                     </button>
 
-                    <button
-                        onClick={() => step < 3 ? setStep(step + 1) : handleSave()}
-                        disabled={step === 1 && !name}
-                        className="px-6 py-2.5 text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
-                        style={{ background: "var(--accent)", color: "var(--background)" }}
-                    >
-                        {step < 3 ? "Devam" : "Kaydet"}
-                    </button>
+                    {onDelete && (
+                        <button
+                            onClick={() => { onDelete(plugin.id); onClose(); }}
+                            className="px-4 py-2.5 text-sm rounded-xl hover:bg-red-500/20 text-red-400 transition-colors"
+                        >
+                            Sil
+                        </button>
+                    )}
+
+                    <div className="flex-1" />
+
+                    {onUse && (
+                        <button
+                            onClick={() => { onUse(plugin); onClose(); }}
+                            className="px-6 py-2.5 text-sm font-medium rounded-xl transition-colors flex items-center gap-2"
+                            style={{ background: "var(--accent)", color: "var(--background)" }}
+                        >
+                            <Sparkles size={16} />
+                            Kullan
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
