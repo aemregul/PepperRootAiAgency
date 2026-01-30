@@ -455,21 +455,26 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                                     )}
                                 </div>
                             ))}
-                            {/* Marketplace Button */}
-                            <button
-                                onClick={() => setMarketplaceOpen(true)}
-                                className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-xs rounded-lg transition-colors"
-                                style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6" }}
-                            >
-                                <Store size={14} />
-                                <span>Marketplace'i Keşfet</span>
-                            </button>
                         </div>
                     </div>
                 </div>
 
                 {/* Bottom section */}
                 <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
+                    {/* Marketplace - Prominent */}
+                    <button
+                        onClick={() => setMarketplaceOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg mb-2 transition-all hover:shadow-lg hover:shadow-purple-500/20"
+                        style={{
+                            background: "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)",
+                            color: "#a78bfa",
+                            border: "1px solid rgba(139, 92, 246, 0.3)"
+                        }}
+                    >
+                        <Store size={16} />
+                        <span>🔮 Plugin Marketplace</span>
+                    </button>
+
                     {/* Search */}
                     <button
                         onClick={() => setSearchOpen(true)}

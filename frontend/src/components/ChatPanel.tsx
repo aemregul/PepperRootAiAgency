@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle } from "lucide-react";
+import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles } from "lucide-react";
 import { sendMessage, createSession, checkHealth } from "@/lib/api";
 
 interface Message {
@@ -288,6 +288,22 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                         />
 
                         <div className="flex items-center gap-1 shrink-0">
+                            {/* Plugin Yap Button */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const pluginMessage = "🔮 Plugin oluşturma modunu başlat. Şu ana kadar bu sohbette kullandığım karakter, lokasyon, zaman, kamera açıları ve stil ayarlarını analiz et ve bana uygun bir Creative Plugin önerisi sun.";
+                                    setInput(pluginMessage);
+                                }}
+                                className="p-2 rounded-lg transition-all hover:shadow-md"
+                                style={{
+                                    background: "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%)",
+                                    border: "1px solid rgba(139, 92, 246, 0.3)"
+                                }}
+                                title="Bu sohbetten otomatik plugin oluştur"
+                            >
+                                <Sparkles size={18} className="text-purple-400" />
+                            </button>
                             <button
                                 type="button"
                                 className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
