@@ -1,31 +1,91 @@
 "use client";
 
+import { useState } from "react";
 import {
-    MessageSquare,
-    Image as ImageIcon,
+    ChevronDown,
+    ChevronRight,
+    FolderOpen,
+    Brain,
     Users,
-    Settings,
+    MapPin,
+    Shirt,
+    Search,
+    Plus,
     Sun,
     Moon,
     Menu,
     X
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
-import { useState } from "react";
 
-interface NavItem {
-    icon: React.ReactNode;
-    label: string;
-    href: string;
-    active?: boolean;
+interface SidebarItem {
+    id: string;
+    name: string;
+    type: "project" | "character" | "location" | "wardrobe";
 }
 
-const navItems: NavItem[] = [
-    { icon: <MessageSquare size={22} />, label: "Chat", href: "/", active: true },
-    { icon: <ImageIcon size={22} />, label: "Assets", href: "/assets" },
-    { icon: <Users size={22} />, label: "Karakterler", href: "/characters" },
-    { icon: <Settings size={22} />, label: "Ayarlar", href: "/settings" },
+// Mock data
+const mockProjects = [
+    { id: "1", name: "Samsung Ad Campaign", active: false },
+    { id: "2", name: "Modern Kitchen Promo", active: true },
 ];
+
+const mockCharacters = [
+    { id: "c1", name: "@character_emre" },
+    { id: "c2", name: "@character_ahmet" },
+    { id: "c3", name: "@character_ayse" },
+];
+
+const mockLocations = [
+    { id: "l1", name: "@location_kitchen" },
+    { id: "l2", name: "@location_office" },
+];
+
+const mockWardrobe = [
+    { id: "w1", name: "@costume_black_jacket" },
+    { id: "w2", name: "@costume_chef_outfit" },
+    { id: "w3", name: "@object_modern_tv" },
+    { id: "w4", name: "@object_smartphone" },
+];
+
+interface CollapsibleSectionProps {
+    title: string;
+    icon: React.ReactNode;
+    items: { id: string; name: string }[];
+    defaultOpen?: boolean;
+}
+
+function CollapsibleSection({ title, icon, items, defaultOpen = false }: CollapsibleSectionProps) {
+    const [open, setOpen] = useState(defaultOpen);
+
+    return (
+        <div className="mb-1">
+            <button
+                onClick={() => setOpen(!open)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--card)] rounded-lg transition-colors"
+            >
+                {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                {icon}
+                <span className="font-medium">{title}</span>
+            </button>
+
+            {open && (
+                <div className="ml-4 mt-1 space-y-0.5">
+                    {items.map((item) => (
+                        <div
+                            key={item.id}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
+                            style={{ color: "var(--foreground-muted)" }}
+                        >
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)" }} />
+                            <span className="truncate">{item.name}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export function Sidebar() {
     const { theme, toggleTheme } = useTheme();
@@ -45,7 +105,7 @@ export function Sidebar() {
             {/* Mobile overlay */}
             {mobileOpen && (
                 <div
-                    className="lg:hidden fixed inset-0 bg-black/50 z-40"
+                    className="lg:hidden fixed inset-0 bg-black/60 z-40"
                     onClick={() => setMobileOpen(false)}
                 />
             )}
@@ -54,14 +114,17 @@ export function Sidebar() {
             <aside
                 className={`
           fixed lg:relative
-          h-screen w-[70px] lg:w-[70px]
-          flex flex-col items-center
-          py-4 gap-2
+          h-screen w-[240px]
+          flex flex-col
           z-50
           transition-transform duration-300
           ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          border-r
         `}
-                style={{ background: "var(--sidebar)" }}
+                style={{
+                    background: "var(--sidebar)",
+                    borderColor: "var(--border)"
+                }}
             >
                 {/* Close button (mobile) */}
                 <button
@@ -72,54 +135,104 @@ export function Sidebar() {
                 </button>
 
                 {/* Logo */}
-                <div className="flex flex-col items-center mb-6 px-2">
-                    <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>
-                        Pepper
-                    </span>
-                    <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>
-                        Root
-                    </span>
-                    <span className="text-[10px] mt-0.5" style={{ color: "var(--foreground-muted)" }}>
-                        AI Agency
-                    </span>
-                </div>
-                {/* Navigation */}
-                <nav className="flex-1 flex flex-col gap-2">
-                    {navItems.map((item) => (
-                        <a
-                            key={item.href}
-                            href={item.href}
-                            className={`
-                w-12 h-12 rounded-xl flex items-center justify-center
-                transition-all duration-200
-                hover:scale-105
-                ${item.active
-                                    ? "bg-[var(--accent)] text-[var(--background)]"
-                                    : "hover:bg-[var(--card)]"
-                                }
-              `}
-                            title={item.label}
+                <div className="px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-2">
+                        <div
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
+                            style={{ background: "var(--accent)", color: "var(--background)" }}
                         >
-                            {item.icon}
-                        </a>
+                            P
+                        </div>
+                        <div>
+                            <div className="font-semibold text-sm">PepperRoot</div>
+                            <div className="text-[10px]" style={{ color: "var(--foreground-muted)" }}>
+                                AI Agency
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Projects Section */}
+                <div className="px-2 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center justify-between px-2 mb-2">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                            <FolderOpen size={14} />
+                            Projects
+                        </div>
+                        <button className="p-1 rounded hover:bg-[var(--card)]">
+                            <Plus size={14} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                    </div>
+
+                    {mockProjects.map((project) => (
+                        <div
+                            key={project.id}
+                            className={`px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${project.active ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"
+                                }`}
+                        >
+                            {project.name}
+                        </div>
                     ))}
-                </nav>
 
-                {/* Theme toggle */}
-                <button
-                    onClick={toggleTheme}
-                    className="w-12 h-12 rounded-xl flex items-center justify-center hover:bg-[var(--card)] transition-all duration-200"
-                    title={theme === "dark" ? "Aydınlık mod" : "Karanlık mod"}
-                >
-                    {theme === "dark" ? <Sun size={22} /> : <Moon size={22} />}
-                </button>
+                    <button
+                        className="w-full px-3 py-2 text-sm text-left rounded-lg hover:bg-[var(--card)] transition-colors"
+                        style={{ color: "var(--foreground-muted)" }}
+                    >
+                        + New Project
+                    </button>
+                </div>
 
-                {/* User avatar */}
-                <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center mt-4 text-sm font-semibold"
-                    style={{ background: "var(--accent)", color: "var(--background)" }}
-                >
-                    E
+                {/* Memory */}
+                <div className="px-2 py-2 border-b" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer">
+                        <Brain size={16} />
+                        <span>Memory</span>
+                    </div>
+                </div>
+
+                {/* Scrollable content */}
+                <div className="flex-1 overflow-y-auto px-2 py-2">
+                    {/* Characters */}
+                    <CollapsibleSection
+                        title="Characters"
+                        icon={<Users size={16} />}
+                        items={mockCharacters}
+                        defaultOpen={true}
+                    />
+
+                    {/* Locations */}
+                    <CollapsibleSection
+                        title="Locations"
+                        icon={<MapPin size={16} />}
+                        items={mockLocations}
+                        defaultOpen={true}
+                    />
+
+                    {/* Wardrobe */}
+                    <CollapsibleSection
+                        title="Wardrobe"
+                        icon={<Shirt size={16} />}
+                        items={mockWardrobe}
+                        defaultOpen={false}
+                    />
+                </div>
+
+                {/* Bottom section */}
+                <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
+                    {/* Search */}
+                    <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-2">
+                        <Search size={16} style={{ color: "var(--foreground-muted)" }} />
+                        <span style={{ color: "var(--foreground-muted)" }}>Search</span>
+                    </button>
+
+                    {/* Theme toggle */}
+                    <button
+                        onClick={toggleTheme}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)]"
+                    >
+                        {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                        <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                    </button>
                 </div>
             </aside>
         </>
