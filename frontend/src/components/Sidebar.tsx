@@ -18,7 +18,8 @@ import {
     Settings,
     Shield,
     User,
-    Puzzle
+    Puzzle,
+    Trash2
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
@@ -66,10 +67,12 @@ interface CollapsibleSectionProps {
     icon: React.ReactNode;
     items: { id: string; name: string }[];
     defaultOpen?: boolean;
+    onDelete?: (id: string) => void;
 }
 
-function CollapsibleSection({ title, icon, items, defaultOpen = false }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete }: CollapsibleSectionProps) {
     const [open, setOpen] = useState(defaultOpen);
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
 
     return (
         <div className="mb-1">
@@ -87,11 +90,27 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false }: Collaps
                     {items.map((item) => (
                         <div
                             key={item.id}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
+                            className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
                             style={{ color: "var(--foreground-muted)" }}
+                            onMouseEnter={() => setHoveredId(item.id)}
+                            onMouseLeave={() => setHoveredId(null)}
                         >
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)" }} />
-                            <span className="truncate">{item.name}</span>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
+                                <span className="truncate">{item.name}</span>
+                            </div>
+                            {onDelete && hoveredId === item.id && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(item.id);
+                                    }}
+                                    className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                                    title="Sil"
+                                >
+                                    <Trash2 size={14} className="text-red-400" />
+                                </button>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -114,6 +133,12 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
     const [adminOpen, setAdminOpen] = useState(false);
     const [projects, setProjects] = useState(mockProjects);
 
+    // Entity states
+    const [characters, setCharacters] = useState(mockCharacters);
+    const [locations, setLocations] = useState(mockLocations);
+    const [wardrobe, setWardrobe] = useState(mockWardrobe);
+    const [plugins, setPlugins] = useState(mockPlugins);
+
     // Update projects when activeProjectId changes from parent
     const handleProjectClick = (projectId: string) => {
         setProjects(projects.map(p => ({
@@ -122,6 +147,12 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
         })));
         onProjectChange?.(projectId);
     };
+
+    // Delete handlers
+    const handleDeleteCharacter = (id: string) => setCharacters(characters.filter(c => c.id !== id));
+    const handleDeleteLocation = (id: string) => setLocations(locations.filter(l => l.id !== id));
+    const handleDeleteWardrobe = (id: string) => setWardrobe(wardrobe.filter(w => w.id !== id));
+    const handleDeletePlugin = (id: string) => setPlugins(plugins.filter(p => p.id !== id));
 
     return (
         <>
@@ -192,12 +223,24 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                         <div
                             key={project.id}
                             onClick={() => handleProjectClick(project.id)}
-                            className={`px-3 py-2 text-sm rounded-lg cursor-pointer transition-all duration-200 ${project.active
-                                    ? "bg-[var(--accent)] text-[var(--background)] font-medium"
-                                    : "hover:bg-[var(--card)]"
+                            className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg cursor-pointer transition-all duration-200 ${project.active
+                                ? "bg-[var(--accent)] text-[var(--background)] font-medium"
+                                : "hover:bg-[var(--card)]"
                                 }`}
                         >
-                            {project.name}
+                            <span className="truncate">{project.name}</span>
+                            {!project.active && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setProjects(projects.filter(p => p.id !== project.id));
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all"
+                                    title="Sil"
+                                >
+                                    <Trash2 size={14} className="text-red-400" />
+                                </button>
+                            )}
                         </div>
                     ))}
 
@@ -216,24 +259,27 @@ export function Sidebar({ activeProjectId, onProjectChange }: SidebarProps) {
                     <CollapsibleSection
                         title="Characters"
                         icon={<Users size={16} />}
-                        items={mockCharacters}
+                        items={characters}
                         defaultOpen={true}
+                        onDelete={handleDeleteCharacter}
                     />
 
                     {/* Locations */}
                     <CollapsibleSection
                         title="Locations"
                         icon={<MapPin size={16} />}
-                        items={mockLocations}
+                        items={locations}
                         defaultOpen={true}
+                        onDelete={handleDeleteLocation}
                     />
 
                     {/* Wardrobe */}
                     <CollapsibleSection
                         title="Wardrobe"
                         icon={<Shirt size={16} />}
-                        items={mockWardrobe}
+                        items={wardrobe}
                         defaultOpen={false}
+                        onDelete={handleDeleteWardrobe}
                     />
 
                     {/* Plugins Section */}
