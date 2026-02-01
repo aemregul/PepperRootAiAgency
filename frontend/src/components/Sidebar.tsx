@@ -27,9 +27,11 @@ import {
     Trash2,
     Store,
     Pencil,
-    Grid3x3
+    Grid3x3,
+    LogOut
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { useAuth } from "@/contexts/AuthContext";
 import { SettingsModal } from "./SettingsModal";
 import { SearchModal } from "./SearchModal";
 import { NewProjectModal } from "./NewProjectModal";
@@ -183,6 +185,7 @@ interface SidebarProps {
 
 export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
+    const { user, logout } = useAuth();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -190,6 +193,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [adminOpen, setAdminOpen] = useState(false);
     const [trashOpen, setTrashOpen] = useState(false);
     const [gridGeneratorOpen, setGridGeneratorOpen] = useState(false);
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [projects, setProjects] = useState<{ id: string; name: string; active: boolean }[]>([]);
     const [isLoadingEntities, setIsLoadingEntities] = useState(false);
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
@@ -818,20 +822,59 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     </button>
 
                     {/* User Profile - En altta */}
-                    <div
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--card)] cursor-pointer border-t pt-3 mt-2"
-                        style={{ borderColor: "var(--border)" }}
-                    >
+                    <div className="relative">
                         <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                            style={{ background: "var(--accent)", color: "var(--background)" }}
+                            onClick={() => setUserMenuOpen(!userMenuOpen)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--card)] cursor-pointer border-t pt-3 mt-2"
+                            style={{ borderColor: "var(--border)" }}
                         >
-                            <User size={16} />
+                            <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden"
+                                style={{ background: "var(--accent)", color: "var(--background)" }}
+                            >
+                                {user?.avatar_url ? (
+                                    <img src={user.avatar_url} alt={user.full_name || "User"} className="w-full h-full object-cover" />
+                                ) : (
+                                    <span>{(user?.full_name || user?.email || "U")[0].toUpperCase()}</span>
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate">{user?.full_name || "User"}</div>
+                                <div className="text-xs truncate" style={{ color: "var(--foreground-muted)" }}>
+                                    {user?.email || "Free Plan"}
+                                </div>
+                            </div>
+                            <ChevronDown
+                                size={14}
+                                className={`transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                                style={{ color: "var(--foreground-muted)" }}
+                            />
                         </div>
-                        <div className="flex-1">
-                            <div className="text-sm font-medium">User</div>
-                            <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>Free Plan</div>
-                        </div>
+
+                        {/* User Dropdown Menu */}
+                        {userMenuOpen && (
+                            <div
+                                className="absolute bottom-full left-0 right-0 mb-1 rounded-lg shadow-lg border overflow-hidden"
+                                style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                            >
+                                <div className="p-3 border-b" style={{ borderColor: "var(--border)" }}>
+                                    <div className="text-sm font-medium">{user?.full_name || "User"}</div>
+                                    <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                        {user?.email}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setUserMenuOpen(false);
+                                        logout();
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-red-500/10 transition-colors text-red-400"
+                                >
+                                    <LogOut size={16} />
+                                    Çıkış Yap
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </aside>

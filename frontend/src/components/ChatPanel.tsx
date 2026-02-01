@@ -50,9 +50,76 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [offlineQueue, setOfflineQueue] = useState<{ message: string, timestamp: number }[]>([]);
+    const [isOffline, setIsOffline] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // === AUTO-SAVE DRAFT TO LOCALSTORAGE ===
+    const DRAFT_KEY = `pepper_draft_${initialSessionId || 'default'}`;
+
+    // Load draft from localStorage on mount
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const savedDraft = localStorage.getItem(DRAFT_KEY);
+        if (savedDraft && !input) {
+            setInput(savedDraft);
+        }
+    }, [initialSessionId]);
+
+    // Save draft to localStorage on input change (debounced)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const timer = setTimeout(() => {
+            if (input.trim()) {
+                localStorage.setItem(DRAFT_KEY, input);
+            } else {
+                localStorage.removeItem(DRAFT_KEY);
+            }
+        }, 500); // 500ms debounce
+        return () => clearTimeout(timer);
+    }, [input, DRAFT_KEY]);
+
+    // === OFFLINE DETECTION ===
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const handleOnline = () => {
+            setIsOffline(false);
+            // Retry queued messages when back online
+            if (offlineQueue.length > 0) {
+                offlineQueue.forEach((item) => {
+                    // Re-add to input for user to send
+                    setInput(item.message);
+                });
+                setOfflineQueue([]);
+                localStorage.removeItem('pepper_offline_queue');
+            }
+        };
+
+        const handleOffline = () => {
+            setIsOffline(true);
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Load any saved offline queue
+        const savedQueue = localStorage.getItem('pepper_offline_queue');
+        if (savedQueue) {
+            try {
+                setOfflineQueue(JSON.parse(savedQueue));
+            } catch (e) {
+                console.error('Failed to parse offline queue');
+            }
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     // Handle entity and asset drag & drop
     const handleDragOver = (e: React.DragEvent) => {
@@ -200,6 +267,16 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
         e.preventDefault();
         if (!input.trim() || isLoading || !sessionId) return;
 
+        // If offline, queue the message
+        if (isOffline || !navigator.onLine) {
+            const queueItem = { message: input, timestamp: Date.now() };
+            const newQueue = [...offlineQueue, queueItem];
+            setOfflineQueue(newQueue);
+            localStorage.setItem('pepper_offline_queue', JSON.stringify(newQueue));
+            setError("Çevrimdışısınız. Mesaj bağlantı geldiğinde gönderilecek.");
+            return;
+        }
+
         const userMessage: Message = {
             id: Date.now().toString(),
             role: "user",
@@ -214,6 +291,8 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
         const currentFile = attachedFile;
 
         setInput("");
+        // Clear draft from localStorage after successful send start
+        localStorage.removeItem(DRAFT_KEY);
         removeAttachment(); // Dosyayı temizle
         setIsLoading(true);
         setError(null);
@@ -249,13 +328,15 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
             }
         } catch (err) {
             console.error("Chat error:", err);
-            setError("Mesaj gönderilemedi. Lütfen tekrar deneyin.");
+            // Save failed message back to draft for retry
+            localStorage.setItem(DRAFT_KEY, currentInput);
+            setError("Mesaj gönderilemedi. Mesajınız kaydedildi, tekrar deneyin.");
 
             // Fallback message
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant",
-                content: "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.",
+                content: "Üzgünüm, bir hata oluştu. Mesajınız kaydedildi, lütfen tekrar deneyin.",
                 timestamp: new Date(),
             };
             setMessages((prev) => [...prev, errorMessage]);
@@ -296,7 +377,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                     <div className="ml-2">
                         {isConnected === null ? (
                             <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--foreground-muted)" }} />
-                        ) : isConnected ? (
+                        ) : isConnected && !isOffline ? (
                             <div className="w-2 h-2 rounded-full bg-green-500" title="Bağlı" />
                         ) : (
                             <div className="w-2 h-2 rounded-full bg-red-500" title="Bağlantı yok" />
@@ -308,6 +389,17 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                     <MoreHorizontal size={20} style={{ color: "var(--foreground-muted)" }} />
                 </button>
             </header>
+
+            {/* Offline banner */}
+            {isOffline && (
+                <div
+                    className="px-4 py-2 flex items-center gap-2 text-sm"
+                    style={{ background: "rgba(234, 179, 8, 0.1)", color: "#eab308" }}
+                >
+                    <AlertCircle size={16} />
+                    Çevrimdışı - İnternet bağlantınız yok. Mesajlar bağlantı geldiğinde gönderilecek.
+                </div>
+            )}
 
             {/* Error banner */}
             {error && (

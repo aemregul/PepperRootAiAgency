@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2, Trash2 } from "lucide-react";
+import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2, Trash2, X, ZoomIn } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset } from "@/lib/api";
 
 interface Asset {
@@ -66,6 +66,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
     const [assets, setAssets] = useState<Asset[]>([]);
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
     // API'den asset'leri çek
     useEffect(() => {
@@ -176,6 +177,34 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
     const displayAssets = showFavoritesOnly ? assets.filter(a => a.isFavorite) : assets;
     const favoritesCount = assets.filter(a => a.isFavorite).length;
 
+    // Navigate between assets in lightbox
+    const navigateLightbox = (direction: 'prev' | 'next') => {
+        if (!selectedAsset) return;
+        const currentIndex = displayAssets.findIndex(a => a.id === selectedAsset.id);
+        const newIndex = direction === 'next'
+            ? (currentIndex + 1) % displayAssets.length
+            : (currentIndex - 1 + displayAssets.length) % displayAssets.length;
+        setSelectedAsset(displayAssets[newIndex]);
+    };
+
+    // Download single asset
+    const downloadAsset = async (asset: Asset) => {
+        try {
+            const response = await fetch(asset.url);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pepper_asset_${asset.id}.${asset.type === 'video' ? 'mp4' : 'png'}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Download failed:', error);
+        }
+    };
+
     if (collapsed) {
         return (
             <button
@@ -189,212 +218,289 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
     }
 
     return (
-        <aside
-            className="
-        hidden lg:flex flex-col
-        w-[300px] xl:w-[340px]
-        h-screen
-        border-l
-      "
-            style={{
-                background: "var(--background-secondary)",
-                borderColor: "var(--border)"
-            }}
-        >
-            {/* Header */}
-            <header
-                className="h-14 px-4 flex items-center justify-between border-b shrink-0"
-                style={{ borderColor: "var(--border)" }}
-            >
-                <h2 className="font-medium">Media Assets</h2>
-                <div className="flex items-center gap-1">
-                    {/* Favorites Filter */}
+        <>
+            {/* Lightbox Modal */}
+            {selectedAsset && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+                    onClick={() => setSelectedAsset(null)}
+                >
+                    {/* Close button */}
                     <button
-                        onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                        className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${showFavoritesOnly ? 'bg-yellow-500/20' : 'hover:bg-[var(--card)]'}`}
-                        title={showFavoritesOnly ? "Tümünü Göster" : "Sadece Favoriler"}
+                        onClick={() => setSelectedAsset(null)}
+                        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
                     >
-                        <Star size={16} fill={showFavoritesOnly ? "#eab308" : "none"} style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }} />
-                        {favoritesCount > 0 && (
-                            <span className="text-xs" style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }}>{favoritesCount}</span>
-                        )}
+                        <X size={24} className="text-white" />
                     </button>
-                    <button
-                        className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Refresh"
-                    >
-                        <RefreshCw size={16} style={{ color: "var(--foreground-muted)" }} />
-                    </button>
-                    <button
-                        onClick={onToggle}
-                        className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                    >
-                        <ChevronRight size={16} />
-                    </button>
-                </div>
-            </header>
 
-            {/* Assets Grid */}
-            <div className="flex-1 overflow-y-auto p-3">
-                {displayAssets.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                        <p style={{ color: "var(--foreground-muted)" }}>
-                            No assets yet
-                        </p>
-                        <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                            Start chatting to generate content!
-                        </p>
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        {/* Featured video/image */}
-                        {displayAssets[0] && (
-                            <div
-                                className="asset-card cursor-grab active:cursor-grabbing"
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, displayAssets[0])}
+                    {/* Previous button */}
+                    {displayAssets.length > 1 && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); navigateLightbox('prev'); }}
+                            className="absolute left-4 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                        >
+                            <ChevronLeft size={28} className="text-white" />
+                        </button>
+                    )}
+
+                    {/* Image */}
+                    <div
+                        className="max-w-[90vw] max-h-[85vh] relative"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <img
+                            src={selectedAsset.url}
+                            alt="Full size asset"
+                            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                        />
+
+                        {/* Bottom controls */}
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-black/60">
+                            <button
+                                onClick={() => downloadAsset(selectedAsset)}
+                                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                                title="İndir"
                             >
-                                <div className="aspect-video relative group">
-                                    <img
-                                        src={displayAssets[0].url}
-                                        alt="Featured asset"
-                                        className="w-full h-full object-cover"
-                                    />
-                                    {/* Action buttons */}
-                                    <div className="absolute top-2 right-2 flex gap-1 z-10">
-                                        <button
-                                            onClick={() => toggleFavorite(displayAssets[0].id)}
-                                            className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-                                        >
-                                            <Star
-                                                size={16}
-                                                fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
-                                                className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
-                                            />
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleDelete(displayAssets[0].id, e)}
-                                            className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
-                                            title="Sil"
-                                        >
-                                            <Trash2 size={16} className="text-white/70" />
-                                        </button>
-                                    </div>
-                                    {displayAssets[0].type === "video" && (
-                                        <>
-                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-                                                    <Play size={24} fill="white" className="text-white ml-1" />
-                                                </div>
-                                            </div>
-                                            <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
-                                                VIDEO • {displayAssets[0].duration}
-                                            </div>
-                                        </>
-                                    )}
-                                    {/* Drag hint */}
-                                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        Sürükle → Chat
-                                    </div>
-                                </div>
-                                {displayAssets[0].label && (
-                                    <div className="p-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                        ▪ {displayAssets[0].label}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                <Download size={18} className="text-white" />
+                            </button>
+                            <button
+                                onClick={() => toggleFavorite(selectedAsset.id)}
+                                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                                title="Favori"
+                            >
+                                <Star
+                                    size={18}
+                                    fill={selectedAsset.isFavorite ? "#eab308" : "none"}
+                                    className={selectedAsset.isFavorite ? "text-yellow-500" : "text-white"}
+                                />
+                            </button>
+                            <span className="text-white/70 text-sm px-2">
+                                {displayAssets.findIndex(a => a.id === selectedAsset.id) + 1} / {displayAssets.length}
+                            </span>
+                        </div>
+                    </div>
 
-                        {/* Grid of smaller assets */}
-                        <div className="grid grid-cols-2 gap-2">
-                            {displayAssets.slice(1).map((asset) => (
+                    {/* Next button */}
+                    {displayAssets.length > 1 && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); navigateLightbox('next'); }}
+                            className="absolute right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                        >
+                            <ChevronRight size={28} className="text-white" />
+                        </button>
+                    )}
+                </div>
+            )}
+
+            <aside
+                className="
+            hidden lg:flex flex-col
+            w-[300px] xl:w-[340px]
+            h-screen
+            border-l
+          "
+                style={{
+                    background: "var(--background-secondary)",
+                    borderColor: "var(--border)"
+                }}
+            >
+                {/* Header */}
+                <header
+                    className="h-14 px-4 flex items-center justify-between border-b shrink-0"
+                    style={{ borderColor: "var(--border)" }}
+                >
+                    <h2 className="font-medium">Media Assets</h2>
+                    <div className="flex items-center gap-1">
+                        {/* Favorites Filter */}
+                        <button
+                            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                            className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${showFavoritesOnly ? 'bg-yellow-500/20' : 'hover:bg-[var(--card)]'}`}
+                            title={showFavoritesOnly ? "Tümünü Göster" : "Sadece Favoriler"}
+                        >
+                            <Star size={16} fill={showFavoritesOnly ? "#eab308" : "none"} style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }} />
+                            {favoritesCount > 0 && (
+                                <span className="text-xs" style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }}>{favoritesCount}</span>
+                            )}
+                        </button>
+                        <button
+                            className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            title="Refresh"
+                        >
+                            <RefreshCw size={16} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                        <button
+                            onClick={onToggle}
+                            className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </header>
+
+                {/* Assets Grid */}
+                <div className="flex-1 overflow-y-auto p-3">
+                    {displayAssets.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center">
+                            <p style={{ color: "var(--foreground-muted)" }}>
+                                No assets yet
+                            </p>
+                            <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                Start chatting to generate content!
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {/* Featured video/image */}
+                            {displayAssets[0] && (
                                 <div
-                                    key={asset.id}
-                                    className="asset-card group cursor-grab active:cursor-grabbing"
+                                    className="asset-card cursor-pointer"
                                     draggable
-                                    onDragStart={(e) => handleDragStart(e, asset)}
+                                    onDragStart={(e) => handleDragStart(e, displayAssets[0])}
+                                    onClick={() => setSelectedAsset(displayAssets[0])}
                                 >
-                                    <div className="aspect-square relative">
+                                    <div className="aspect-video relative group">
                                         <img
-                                            src={asset.url}
-                                            alt="Generated asset"
+                                            src={displayAssets[0].url}
+                                            alt="Featured asset"
                                             className="w-full h-full object-cover"
                                         />
-
-                                        {asset.type === "video" && (
-                                            <div className="absolute top-2 left-2">
-                                                <Play size={16} fill="white" className="text-white drop-shadow-lg" />
-                                            </div>
-                                        )}
-
                                         {/* Action buttons */}
-                                        <div className="absolute top-2 right-2 flex gap-1">
+                                        <div className="absolute top-2 right-2 flex gap-1 z-10">
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
-                                                className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                                                onClick={() => toggleFavorite(displayAssets[0].id)}
+                                                className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
                                             >
                                                 <Star
-                                                    size={14}
-                                                    fill={asset.isFavorite ? "#eab308" : "none"}
-                                                    className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
+                                                    size={16}
+                                                    fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
+                                                    className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
                                                 />
                                             </button>
                                             <button
-                                                onClick={(e) => handleDelete(asset.id, e)}
-                                                className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors opacity-0 group-hover:opacity-100"
+                                                onClick={(e) => handleDelete(displayAssets[0].id, e)}
+                                                className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
                                                 title="Sil"
                                             >
-                                                <Trash2 size={14} className="text-white/70" />
+                                                <Trash2 size={16} className="text-white/70" />
                                             </button>
                                         </div>
-
-                                        {/* Hover overlay with download */}
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                            <span className="text-xs text-white/70 px-2 py-1 bg-black/50 rounded">Sürükle → Chat</span>
+                                        {displayAssets[0].type === "video" && (
+                                            <>
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+                                                        <Play size={24} fill="white" className="text-white ml-1" />
+                                                    </div>
+                                                </div>
+                                                <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
+                                                    VIDEO • {displayAssets[0].duration}
+                                                </div>
+                                            </>
+                                        )}
+                                        {/* Drag hint */}
+                                        <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            Sürükle → Chat
                                         </div>
                                     </div>
+                                    {displayAssets[0].label && (
+                                        <div className="p-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                            ▪ {displayAssets[0].label}
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
+                            )}
 
-            {/* Bottom actions */}
-            <div
-                className="p-3 border-t flex items-center justify-between"
-                style={{ borderColor: "var(--border)" }}
-            >
-                <div className="flex items-center gap-1">
+                            {/* Grid of smaller assets */}
+                            <div className="grid grid-cols-2 gap-2">
+                                {displayAssets.slice(1).map((asset) => (
+                                    <div
+                                        key={asset.id}
+                                        className="asset-card group cursor-pointer"
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, asset)}
+                                        onClick={() => setSelectedAsset(asset)}
+                                    >
+                                        <div className="aspect-square relative">
+                                            <img
+                                                src={asset.url}
+                                                alt="Generated asset"
+                                                className="w-full h-full object-cover"
+                                            />
+
+                                            {asset.type === "video" && (
+                                                <div className="absolute top-2 left-2">
+                                                    <Play size={16} fill="white" className="text-white drop-shadow-lg" />
+                                                </div>
+                                            )}
+
+                                            {/* Action buttons */}
+                                            <div className="absolute top-2 right-2 flex gap-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
+                                                    className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                                                >
+                                                    <Star
+                                                        size={14}
+                                                        fill={asset.isFavorite ? "#eab308" : "none"}
+                                                        className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
+                                                    />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDelete(asset.id, e)}
+                                                    className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors opacity-0 group-hover:opacity-100"
+                                                    title="Sil"
+                                                >
+                                                    <Trash2 size={14} className="text-white/70" />
+                                                </button>
+                                            </div>
+
+                                            {/* Hover overlay with download */}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                                <span className="text-xs text-white/70 px-2 py-1 bg-black/50 rounded">Sürükle → Chat</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom actions */}
+                <div
+                    className="p-3 border-t flex items-center justify-between"
+                    style={{ borderColor: "var(--border)" }}
+                >
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={handleDownloadAll}
+                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            title="Tümünü İndir"
+                        >
+                            <Download size={18} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                        <button
+                            onClick={handleCopyLink}
+                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            title="Link Kopyala"
+                        >
+                            <Copy size={18} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                        <button
+                            onClick={handleShare}
+                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            title="Paylaş"
+                        >
+                            <Globe size={18} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                    </div>
                     <button
-                        onClick={handleDownloadAll}
                         className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Tümünü İndir"
+                        title="Daha Fazla"
                     >
-                        <Download size={18} style={{ color: "var(--foreground-muted)" }} />
-                    </button>
-                    <button
-                        onClick={handleCopyLink}
-                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Link Kopyala"
-                    >
-                        <Copy size={18} style={{ color: "var(--foreground-muted)" }} />
-                    </button>
-                    <button
-                        onClick={handleShare}
-                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Paylaş"
-                    >
-                        <Globe size={18} style={{ color: "var(--foreground-muted)" }} />
+                        <MoreHorizontal size={18} style={{ color: "var(--foreground-muted)" }} />
                     </button>
                 </div>
-                <button
-                    className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                    title="Daha Fazla"
-                >
-                    <MoreHorizontal size={18} style={{ color: "var(--foreground-muted)" }} />
-                </button>
-            </div>
-        </aside>
+            </aside>
+        </>
     );
 }

@@ -33,14 +33,14 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (1 Şubat 2026)
+## 📊 Genel Durum (1 Şubat 2026 - 23:06)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
 | Hafta 1: Altyapı | ✅ Tamamlandı | %100 |
 | Hafta 2: Agent + Entity + Referans + Video | ✅ Tamamlandı | %100 |
 | Hafta 3: Akıllı Agent + Plugin + Vision | ✅ Tamamlandı | %100 |
-| Hafta 4: Frontend + Web Browsing + Grid | 🔄 Devam Ediyor | %80 |
+| Hafta 4: Frontend + Auth + Multi-User | 🔄 Devam Ediyor | %90 |
 
 ---
 
@@ -99,7 +99,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ## 🎯 ŞİMDİ YAPILACAK
 
-### Öncelik 1: Frontend ✅ TAMAMLANDI!
+### ✅ Frontend TAMAMLANDI!
 - [x] Next.js kurulumu
 - [x] Chat UI (sol panel)
 - [x] Asset Panel (sağ panel grid)
@@ -109,30 +109,31 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - [x] Prompt çevirisi (tüm diller → İngilizce)
 - [x] Gelişmiş karakter özellikleri
 
-### Hafta 4: Web Browsing Agent (1 Şubat) ⭐ YENİ
-- [x] search_images - DuckDuckGo görsel arama
-- [x] search_web - Metin/bilgi arama
-- [x] search_videos - Video arama
-- [x] browse_url - Web sayfası okuma (BeautifulSoup)
-- [x] fetch_web_image - Görsel indirme ve kaydetme
-- [x] Akıllı fallback: search → fetch → edit → video
+### ✅ Auth Sistemi TAMAMLANDI! (1 Şubat)
+- [x] Google OAuth 2.0 entegrasyonu
+- [x] JWT token (Argon2 hash)
+- [x] Login/Register sayfası (modern UI)
+- [x] Multi-user izolasyonu (her user kendi verisini görür)
+- [x] Logout sistemi (sidebar dropdown)
+- [x] Auth middleware (protected routes)
 
-### Hafta 4: Grid Generator (1 Şubat) ⭐ YENİ
-- [x] generate_grid tool
-- [x] 3x3 grid (9 kamera açısı veya storyboard)
-- [x] Panel extraction ve upscale
-- [x] @karakter referansı ile grid
+### ✅ Veri Güvenliği TAMAMLANDI! (1 Şubat)
+- [x] Auto-save draft (localStorage 500ms debounce)
+- [x] Offline message queue
+- [x] Error recovery (başarısız mesajları kaydet)
+- [x] Offline status banner
 
-### Öncelik 2: UI Entegrasyonu (Devam)
-- [ ] Characters/Locations gerçek veritabanına bağla
-- [ ] Media Assets paneli gerçek asset'lere bağla
-- [ ] Search fonksiyonu
-- [ ] Admin Panel sayfası
+### ✅ UI Polish TAMAMLANDI! (1 Şubat)
+- [x] Image Lightbox Modal (tam ekran görsel inceleme)
+- [x] Navigation arrows (prev/next)
+- [x] Download button
+- [x] Favorite toggle
 
-### Öncelik 3: Faz 2 Özellikler
-- [ ] Marka tanıma (web araştırması)
-- [ ] 3 dakikalık video birleştirme
-- [ ] Workflow export
+### Öncelik: Deploy (Sırada)
+- [ ] Anthropic API kredi yükleme
+- [ ] Railway backend deploy
+- [ ] Vercel frontend deploy
+- [ ] Uçtan uca test
 
 ---
 
@@ -217,22 +218,26 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (1 Şubat 2026 - 21:00)
+## 🎯 SON DURUM (1 Şubat 2026 - 23:06)
 
-**Tamamlanan:**
+**Bugün Tamamlanan:**
+- ✅ Google OAuth 2.0 (login/register)
+- ✅ JWT + Argon2 authentication
+- ✅ Multi-user izolasyonu
+- ✅ Logout sistemi (sidebar dropdown)
+- ✅ Auto-save draft (localStorage)
+- ✅ Offline message queue
+- ✅ Image Lightbox Modal
+
+**Önceden Tamamlanan:**
 - ✅ Frontend: Next.js + Tailwind CSS
-- ✅ Chat UI çalışıyor (AI yanıt veriyor)
-- ✅ Plugin bölümü sidebar'da (fal.ai, Minimax)
-- ✅ Settings modal (tema toggle)
-- ✅ Dark mode varsayılan
-- ✅ Prompt çevirisi (tüm diller → İngilizce)
-- ✅ Admin Panel (gelişmiş)
+- ✅ Chat UI, Asset Panel, Admin Panel
 - ✅ Grid Generator Modal
-- ✅ Web Browsing Agent (DuckDuckGo + BeautifulSoup)
-- ✅ Akıllı fallback zinciri (search → fetch → edit → video)
+- ✅ Web Browsing Agent
+- ✅ Plugin sistemi
 
 **Sıradaki Adım:**
-- Auth sistemi (Google OAuth)
+- Anthropic API kredi yükleme
 - Deploy (Railway + Vercel)
 
 ---
@@ -240,10 +245,11 @@ git add . && git commit -m "mesaj" && git push
 ## ✅ SON COMMITLER
 
 ```
-fe9ca15 - feat: Roadmap/Task sistemi - çoklu adım görev planlama
-aba44aa - feat: Görsel muhakeme sistemi (Claude Vision)
-4fe1387 - feat: Minecraft tarzı plugin sistemi
-af1f8dc - docs: CLAUDE.md ve proje dökümanları güncellendi
-f73a64b - feat: akıllı agent davranışları
+[bugün] - feat: Image Lightbox Modal
+[bugün] - feat: Auto-save draft + offline queue
+[bugün] - feat: Multi-user isolation + logout
+[bugün] - feat: Google OAuth + JWT auth
+fe9ca15 - feat: Roadmap/Task sistemi
+aba44aa - feat: Claude Vision
 ```
 

@@ -76,10 +76,23 @@ export interface GeneratedAsset {
 }
 
 // API Functions
+
+// Helper to get auth headers
+function getAuthHeaders(): HeadersInit {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
 export async function createSession(title?: string): Promise<Session> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ title: title || 'Yeni Oturum' }),
     });
 
@@ -92,7 +105,15 @@ export async function createSession(title?: string): Promise<Session> {
 }
 
 export async function getSessions(): Promise<Session[]> {
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/`);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers: HeadersInit = {};
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/`, {
+        headers,
+    });
 
     if (!response.ok) {
         throw new Error('Failed to fetch sessions');

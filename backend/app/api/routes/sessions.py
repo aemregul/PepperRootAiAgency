@@ -9,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.models import Session, Message, Entity, GeneratedAsset, TrashItem
+from app.core.auth import get_current_user, get_current_user_required
+from app.models.models import Session, Message, Entity, GeneratedAsset, TrashItem, User
 from app.schemas.schemas import SessionCreate, SessionResponse, MessageResponse, EntityResponse, AssetResponse
 
 router = APIRouter(prefix="/sessions", tags=["Oturumlar"])
@@ -18,12 +19,13 @@ router = APIRouter(prefix="/sessions", tags=["Oturumlar"])
 @router.post("/", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
     session_data: SessionCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """Yeni oturum oluştur."""
     try:
         new_session = Session(
-            user_id=None,  # Auth eklenince değişecek
+            user_id=current_user.id if current_user else None,
             title=session_data.title or "Yeni Oturum"
         )
         db.add(new_session)
@@ -42,13 +44,21 @@ async def create_session(
 async def list_sessions(
     skip: int = 0,
     limit: int = 20,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
 ):
-    """Oturumları listele."""
+    """Oturumları listele (kullanıcıya özel)."""
+    query = select(Session).where(Session.is_active == True)
+    
+    # Kullanıcı giriş yapmışsa sadece onun session'larını göster
+    if current_user:
+        query = query.where(Session.user_id == current_user.id)
+    else:
+        # Giriş yapmamışsa sadece user_id=None olanları göster
+        query = query.where(Session.user_id == None)
+    
     result = await db.execute(
-        select(Session)
-        .where(Session.is_active == True)
-        .order_by(Session.updated_at.desc())
+        query.order_by(Session.updated_at.desc())
         .offset(skip)
         .limit(limit)
     )
