@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import sessions, chat, generate, entities, upload, plugins, admin, grid
+from app.api.routes import sessions, chat, generate, entities, upload, plugins, admin, grid, auth
 from app.services.plugins.plugin_loader import initialize_plugins
 
 
@@ -42,6 +42,7 @@ app.add_middleware(
 )
 
 # API Route'ları
+app.include_router(auth.router, prefix=settings.API_PREFIX)  # Auth first
 app.include_router(sessions.router, prefix=settings.API_PREFIX)
 app.include_router(chat.router, prefix=settings.API_PREFIX)
 app.include_router(entities.router, prefix=settings.API_PREFIX)

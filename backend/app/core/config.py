@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     FAL_KEY: Optional[str] = None
     SERPAPI_KEY: Optional[str] = None  # Web search for images
     
+    # Google OAuth
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    
     # Storage
     STORAGE_TYPE: str = "local"
     STORAGE_PATH: str = "./uploads"
