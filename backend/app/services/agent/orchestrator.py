@@ -6,6 +6,7 @@ import json
 import uuid
 from typing import Optional
 from anthropic import Anthropic
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -14,6 +15,18 @@ from app.services.plugins.fal_plugin import FalPlugin
 from app.services.entity_service import entity_service
 from app.services.asset_service import asset_service
 from app.services.prompt_translator import translate_to_english, enhance_character_prompt
+from app.models.models import Session as SessionModel
+
+
+async def get_user_id_from_session(db: AsyncSession, session_id: uuid.UUID) -> uuid.UUID:
+    """Session'dan user_id'yi al."""
+    result = await db.execute(
+        select(SessionModel.user_id).where(SessionModel.id == session_id)
+    )
+    user_id = result.scalar_one_or_none()
+    if not user_id:
+        raise ValueError(f"Session bulunamadı: {session_id}")
+    return user_id
 
 
 class AgentOrchestrator:
@@ -188,8 +201,10 @@ DAVRANIŞ KURALLARI:
         }
         
         # @tag'leri çözümle ve result'a ekle
-        resolved = await entity_service.resolve_tags(db, session_id, user_message)
+        user_id = await get_user_id_from_session(db, session_id)
+        resolved = await entity_service.resolve_tags(db, user_id, user_message)
         result["_resolved_entities"] = resolved
+        result["_user_id"] = user_id  # Entity işlemleri için
         
         # Response'u işle - tool call loop
         await self._process_response(response, messages, result, session_id, db)
@@ -208,7 +223,8 @@ DAVRANIŞ KURALLARI:
         message: str
     ) -> str:
         """Mesajdaki @tag'leri çözümle ve context string oluştur."""
-        entities = await entity_service.resolve_tags(db, session_id, message)
+        user_id = await get_user_id_from_session(db, session_id)
+        entities = await entity_service.resolve_tags(db, user_id, message)
         
         if not entities:
             return ""
@@ -597,14 +613,18 @@ DAVRANIŞ KURALLARI:
                 except Exception as upload_error:
                     print(f"⚠️ Referans görsel yükleme hatası: {upload_error}")
             
+            # Session'dan user_id al
+            user_id = await get_user_id_from_session(db, session_id)
+            
             entity = await entity_service.create_entity(
                 db=db,
-                session_id=session_id,
+                user_id=user_id,
                 entity_type=entity_type,
                 name=params.get("name"),
                 description=params.get("description"),
                 attributes=params.get("attributes", {}),
-                reference_image_url=reference_image_url
+                reference_image_url=reference_image_url,
+                session_id=session_id  # Opsiyonel - hangi projede oluşturulduğu
             )
             
             return {
@@ -636,7 +656,8 @@ DAVRANIŞ KURALLARI:
         """Tag ile entity bul."""
         try:
             tag = params.get("tag", "")
-            entity = await entity_service.get_by_tag(db, session_id, tag)
+            user_id = await get_user_id_from_session(db, session_id)
+            entity = await entity_service.get_by_tag(db, user_id, tag)
             
             if entity:
                 return {
@@ -668,14 +689,15 @@ DAVRANIŞ KURALLARI:
         session_id: uuid.UUID, 
         params: dict
     ) -> dict:
-        """Session'daki entity'leri listele."""
+        """Kullanıcının entity'lerini listele."""
         try:
             entity_type = params.get("entity_type", "all")
+            user_id = await get_user_id_from_session(db, session_id)
             
             if entity_type == "all":
-                entities = await entity_service.list_entities(db, session_id)
+                entities = await entity_service.list_entities(db, user_id)
             else:
-                entities = await entity_service.list_entities(db, session_id, entity_type)
+                entities = await entity_service.list_entities(db, user_id, entity_type)
             
             return {
                 "success": True,
@@ -1683,13 +1705,15 @@ DAVRANIŞ KURALLARI:
             # Entity olarak kaydet
             if save_as_entity and entity_name:
                 # Entity oluştur veya güncelle
+                user_id = await get_user_id_from_session(db, session_id)
                 entity = await entity_service.create_entity(
                     db=db,
-                    session_id=session_id,
+                    user_id=user_id,
                     entity_type="character",
                     name=entity_name,
                     description=f"Web'den indirilen görsel: {image_url[:50]}...",
-                    reference_image_url=saved_url
+                    reference_image_url=saved_url,
+                    session_id=session_id
                 )
                 result["entity_id"] = str(entity.id)
                 result["entity_tag"] = f"@{entity_name.lower().replace(' ', '_')}"

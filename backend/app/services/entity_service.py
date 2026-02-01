@@ -33,35 +33,37 @@ class EntityService:
     async def create_entity(
         self,
         db: AsyncSession,
-        session_id: uuid.UUID,
+        user_id: uuid.UUID,
         entity_type: str,
         name: str,
         description: Optional[str] = None,
         attributes: Optional[dict] = None,
-        reference_image_url: Optional[str] = None
+        reference_image_url: Optional[str] = None,
+        session_id: Optional[uuid.UUID] = None
     ) -> Entity:
         """
         Yeni entity oluştur.
         
         Args:
             db: Database session
-            session_id: Sohbet oturumu ID
+            user_id: Kullanıcı ID (entity sahibi)
             entity_type: character, location, costume, object
             name: Entity adı
             description: Detaylı açıklama
             attributes: Ek özellikler (JSON)
             reference_image_url: Yüz/vücut referans görseli URL
+            session_id: Opsiyonel - entity'nin oluşturulduğu proje
         
         Returns:
             Oluşturulan Entity
         """
         # Tag otomatik oluştur: sadece isim (@emre, @mutfak)
-        # Entity tipi ayrıca entity_type alanında saklanır
         name_slug = slugify(name)
         tag = f"@{name_slug}"
         
         entity = Entity(
-            session_id=session_id,
+            user_id=user_id,
+            session_id=session_id,  # Opsiyonel
             entity_type=entity_type,
             name=name,
             tag=tag,
@@ -79,16 +81,16 @@ class EntityService:
     async def get_by_tag(
         self,
         db: AsyncSession,
-        session_id: uuid.UUID,
+        user_id: uuid.UUID,
         tag: str
     ) -> Optional[Entity]:
         """
-        Tag ile entity bul.
+        Tag ile entity bul (kullanıcıya ait).
         
         Args:
             db: Database session
-            session_id: Sohbet oturumu ID
-            tag: Entity tag'i (örn: @character_emre)
+            user_id: Kullanıcı ID
+            tag: Entity tag'i (örn: @emre)
         
         Returns:
             Entity veya None
@@ -99,7 +101,7 @@ class EntityService:
         
         result = await db.execute(
             select(Entity).where(
-                Entity.session_id == session_id,
+                Entity.user_id == user_id,
                 Entity.tag == tag
             )
         )
@@ -119,21 +121,21 @@ class EntityService:
     async def list_entities(
         self,
         db: AsyncSession,
-        session_id: uuid.UUID,
+        user_id: uuid.UUID,
         entity_type: Optional[str] = None
     ) -> list[Entity]:
         """
-        Session'daki entity'leri listele.
+        Kullanıcının entity'lerini listele.
         
         Args:
             db: Database session
-            session_id: Sohbet oturumu ID
+            user_id: Kullanıcı ID
             entity_type: Opsiyonel filtre (character, location, vb.)
         
         Returns:
             Entity listesi
         """
-        query = select(Entity).where(Entity.session_id == session_id)
+        query = select(Entity).where(Entity.user_id == user_id)
         
         if entity_type:
             query = query.where(Entity.entity_type == entity_type)
@@ -209,7 +211,7 @@ class EntityService:
     async def resolve_tags(
         self,
         db: AsyncSession,
-        session_id: uuid.UUID,
+        user_id: uuid.UUID,
         text: str
     ) -> list[Entity]:
         """
@@ -217,7 +219,7 @@ class EntityService:
         
         Args:
             db: Database session
-            session_id: Sohbet oturumu ID
+            user_id: Kullanıcı ID
             text: Kullanıcı mesajı
         
         Returns:
@@ -227,7 +229,7 @@ class EntityService:
         entities = []
         
         for tag in tags:
-            entity = await self.get_by_tag(db, session_id, tag)
+            entity = await self.get_by_tag(db, user_id, tag)
             if entity:
                 entities.append(entity)
         

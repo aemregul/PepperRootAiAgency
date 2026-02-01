@@ -77,7 +77,10 @@ class Entity(Base):
     __tablename__ = "entities"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"))
+    # Entity artık user'a bağlı - proje silinse de entity kalır!
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    # Session opsiyonel - entity belirli bir projeyle ilişkilendirilebilir ama zorunlu değil
+    session_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True)
     entity_type: Mapped[str] = mapped_column(String(50))
     name: Mapped[str] = mapped_column(String(255))
     tag: Mapped[str] = mapped_column(String(255), index=True)
@@ -93,7 +96,8 @@ class Entity(Base):
     # Faz 2 hazırlık
     embedding_vector: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     
-    session: Mapped["Session"] = relationship(back_populates="entities")
+    user: Mapped["User"] = relationship("User")
+    session: Mapped[Optional["Session"]] = relationship(back_populates="entities")
     assets: Mapped[list["EntityAsset"]] = relationship(back_populates="entity")
 
 

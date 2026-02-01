@@ -5,14 +5,27 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.models.models import Session as SessionModel
 from app.schemas.schemas import EntityCreate, EntityResponse
 from app.services.entity_service import entity_service
 
 
 router = APIRouter(prefix="/entities", tags=["Varlıklar"])
+
+
+async def get_user_id_from_session(db: AsyncSession, session_id: UUID) -> UUID:
+    """Session'dan user_id'yi al."""
+    result = await db.execute(
+        select(SessionModel.user_id).where(SessionModel.id == session_id)
+    )
+    user_id = result.scalar_one_or_none()
+    if not user_id:
+        raise HTTPException(status_code=404, detail="Session bulunamadı")
+    return user_id
 
 
 @router.post("/", response_model=EntityResponse, summary="Entity Oluştur")
@@ -24,17 +37,19 @@ async def create_entity(
     """
     Yeni bir entity (karakter/mekan/nesne) oluşturur.
     
-    Tag otomatik oluşturulur: @{entity_type}_{name}
-    reference_image_url ile yüz/vücut referansı bağlanabilir.
+    Entity kullanıcıya bağlıdır - proje silinse bile entity kalır!
     """
+    user_id = await get_user_id_from_session(db, session_id)
+    
     entity = await entity_service.create_entity(
         db=db,
-        session_id=session_id,
+        user_id=user_id,
         entity_type=data.entity_type,
         name=data.name,
         description=data.description,
         attributes=data.attributes,
-        reference_image_url=data.reference_image_url
+        reference_image_url=data.reference_image_url,
+        session_id=session_id  # Opsiyonel - hangi projede oluşturulduğu
     )
     return entity
 
@@ -46,13 +61,15 @@ async def list_entities(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Session'daki tüm entity'leri listeler.
+    Kullanıcının tüm entity'lerini listeler (proje bağımsız).
     
     Opsiyonel olarak entity_type ile filtrelenebilir.
     """
+    user_id = await get_user_id_from_session(db, session_id)
+    
     entities = await entity_service.list_entities(
         db=db,
-        session_id=session_id,
+        user_id=user_id,
         entity_type=entity_type
     )
     return entities
@@ -65,11 +82,13 @@ async def get_entity_by_tag(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Tag ile entity arar.
+    Tag ile entity arar (kullanıcının tüm entity'leri arasında).
     
-    Tag formatı: @character_emre veya character_emre (@ opsiyonel)
+    Tag formatı: @emre veya emre (@ opsiyonel)
     """
-    entity = await entity_service.get_by_tag(db, session_id, tag)
+    user_id = await get_user_id_from_session(db, session_id)
+    
+    entity = await entity_service.get_by_tag(db, user_id, tag)
     
     if not entity:
         raise HTTPException(status_code=404, detail=f"'{tag}' tag'i ile entity bulunamadı")
@@ -89,3 +108,4 @@ async def delete_entity(
         raise HTTPException(status_code=404, detail="Entity bulunamadı")
     
     return {"success": True, "message": "Entity silindi"}
+
