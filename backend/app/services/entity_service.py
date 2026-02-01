@@ -55,9 +55,10 @@ class EntityService:
         Returns:
             Oluşturulan Entity
         """
-        # Tag otomatik oluştur: @character_emre
+        # Tag otomatik oluştur: sadece isim (@emre, @mutfak)
+        # Entity tipi ayrıca entity_type alanında saklanır
         name_slug = slugify(name)
-        tag = f"@{entity_type}_{name_slug}"
+        tag = f"@{name_slug}"
         
         entity = Entity(
             session_id=session_id,

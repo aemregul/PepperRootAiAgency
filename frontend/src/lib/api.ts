@@ -438,3 +438,40 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
     return response.ok;
 }
 
+// Update Session (Rename Project)
+export async function updateSession(sessionId: string, title: string): Promise<Session> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+    });
+    if (!response.ok) throw new Error('Failed to update session');
+    return response.json();
+}
+
+// Grid Generator
+export interface GridGenerateRequest {
+    image: string;  // Base64 encoded
+    aspect: string;  // 16:9, 9:16, 1:1
+    mode: string;  // angles, storyboard
+    prompt?: string;
+}
+
+export interface GridGenerateResponse {
+    success: boolean;
+    gridImage?: string;
+    error?: string;
+}
+
+export async function generateGrid(request: GridGenerateRequest): Promise<GridGenerateResponse> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/grid/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Grid generation failed');
+    }
+    return response.json();
+}

@@ -338,47 +338,47 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                             {/* Quick Actions */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
                                 <button
-                                    onClick={() => setInput("Mutfak ortamında bir karakter görseli oluştur")}
+                                    onClick={() => setInput("Profesyonel bir stüdyo ortamında, yumuşak aydınlatma altında, 30'lu yaşlarında karizmatik bir iş insanı portresi oluştur. Modern ve minimal bir arka plan kullan.")}
                                     className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
                                     style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                                 >
                                     <span className="text-lg mb-2 block">🎨</span>
                                     <span className="text-sm font-medium">Görsel Oluştur</span>
                                     <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                                        Karakter ve mekan görselleri
+                                        Profesyonel görsel üret
                                     </p>
                                 </button>
                                 <button
-                                    onClick={() => setInput("Yeni bir karakter tanımla: @karakter_ali")}
+                                    onClick={() => setInput("Yeni bir ana karakter oluşturmak istiyorum. İsmi Ayşe olsun, 28 yaşında, profesyonel bir iç mimar. Kısa kahverengi saçları, yeşil gözleri ve modern, şık bir giyim tarzı var. @karakter_ayse olarak kaydet.")}
                                     className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
                                     style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                                 >
                                     <span className="text-lg mb-2 block">👤</span>
                                     <span className="text-sm font-medium">Karakter Ekle</span>
                                     <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                                        Yeni bir karakter tanımla
+                                        Detaylı karakter profili
                                     </p>
                                 </button>
                                 <button
-                                    onClick={() => setInput("Modern ofis mekanı tanımla: @lokasyon_ofis")}
+                                    onClick={() => setInput("Yeni bir mekan oluşturmak istiyorum: Lüks bir penthouse dairesi, geniş pencerelerden şehir manzarası görünen, minimalist dekorasyonlu, beyaz ve gri tonlarında modern bir oturma odası. @lokasyon_penthouse olarak kaydet.")}
                                     className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
                                     style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                                 >
                                     <span className="text-lg mb-2 block">📍</span>
                                     <span className="text-sm font-medium">Lokasyon Ekle</span>
                                     <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                                        Yeni bir mekan tanımla
+                                        Atmosferik mekan tanımla
                                     </p>
                                 </button>
                                 <button
-                                    onClick={() => setInput("Neler yapabilirsin?")}
+                                    onClick={() => setInput("Merhaba! Tüm yeteneklerini ve yapabileceklerini detaylı olarak açıkla. Görsel üretimi, karakter yönetimi, video oluşturma ve diğer özelliklerini anlat.")}
                                     className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
                                     style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                                 >
                                     <span className="text-lg mb-2 block">💡</span>
                                     <span className="text-sm font-medium">Ne Yapabilirim?</span>
                                     <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                                        Yeteneklerimi keşfet
+                                        Tüm özellikleri keşfet
                                     </p>
                                 </button>
                             </div>

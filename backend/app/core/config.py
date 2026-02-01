@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # AI APIs
     ANTHROPIC_API_KEY: Optional[str] = None
     FAL_KEY: Optional[str] = None
+    SERPAPI_KEY: Optional[str] = None  # Web search for images
     
     # Storage
     STORAGE_TYPE: str = "local"

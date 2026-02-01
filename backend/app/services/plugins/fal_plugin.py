@@ -554,6 +554,64 @@ class FalPlugin:
     # YARDIMCI ARAÇLAR
     # ===============================
     
+    async def upload_base64_image(
+        self,
+        base64_data: str,
+    ) -> dict:
+        """
+        Base64 encoded görseli fal.ai storage'a yükle.
+        
+        Bu metod, kullanıcının gönderdiği referans görselini
+        kalıcı bir URL'ye dönüştürür ve entity'de saklanabilir hale getirir.
+        
+        Args:
+            base64_data: Base64 encoded görsel verisi (data URI prefix olmadan)
+        
+        Returns:
+            dict: {"success": bool, "url": str}
+        """
+        import base64
+        import tempfile
+        import os as os_module
+        
+        try:
+            # Base64'ü decode et
+            image_bytes = base64.b64decode(base64_data)
+            
+            # Media type'ı belirle
+            if base64_data.startswith("iVBORw"):
+                extension = ".png"
+            elif base64_data.startswith("/9j/"):
+                extension = ".jpg"
+            elif base64_data.startswith("UklGR"):
+                extension = ".webp"
+            else:
+                extension = ".png"  # default
+            
+            # Geçici dosya oluştur
+            with tempfile.NamedTemporaryFile(suffix=extension, delete=False) as tmp_file:
+                tmp_file.write(image_bytes)
+                tmp_path = tmp_file.name
+            
+            try:
+                # fal.ai storage'a yükle
+                url = fal_client.upload_file(tmp_path)
+                
+                return {
+                    "success": True,
+                    "url": url
+                }
+            finally:
+                # Geçici dosyayı temizle
+                if os_module.path.exists(tmp_path):
+                    os_module.remove(tmp_path)
+                    
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
     async def remove_background(
         self,
         image_url: str,

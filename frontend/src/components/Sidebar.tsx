@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-    getEntities, deleteEntity, Entity, createSession, getSessions, deleteSession,
+    getEntities, deleteEntity, Entity, createSession, getSessions, deleteSession, updateSession,
     getCreativePlugins, createCreativePlugin, deleteCreativePlugin, CreativePluginData,
     getTrashItems, restoreTrashItem, permanentDeleteTrashItem, TrashItemData
 } from "@/lib/api";
@@ -25,7 +25,9 @@ import {
     User,
     Puzzle,
     Trash2,
-    Store
+    Store,
+    Pencil,
+    Grid3x3
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
@@ -36,6 +38,7 @@ import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
 import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePluginModal";
 import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
+import { GridGeneratorModal } from "./GridGeneratorModal";
 
 interface SidebarItem {
     id: string;
@@ -172,12 +175,13 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
 interface SidebarProps {
     activeProjectId?: string;
     onProjectChange?: (projectId: string) => void;
+    onProjectDelete?: () => void;  // Proje silindiğinde çağrılır
     sessionId?: string | null;
     refreshKey?: number;
     onSendPrompt?: (prompt: string) => void;
 }
 
-export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKey, onSendPrompt }: SidebarProps) {
+export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -185,9 +189,42 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
     const [newProjectOpen, setNewProjectOpen] = useState(false);
     const [adminOpen, setAdminOpen] = useState(false);
     const [trashOpen, setTrashOpen] = useState(false);
+    const [gridGeneratorOpen, setGridGeneratorOpen] = useState(false);
     const [projects, setProjects] = useState<{ id: string; name: string; active: boolean }[]>([]);
     const [isLoadingEntities, setIsLoadingEntities] = useState(false);
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+
+    // Proje ismi düzenleme state'leri
+    const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+    const [editingProjectName, setEditingProjectName] = useState("");
+    const editInputRef = useRef<HTMLInputElement>(null);
+
+    // Proje ismi düzenleme fonksiyonları
+    const startEditingProject = (projectId: string, currentName: string) => {
+        setEditingProjectId(projectId);
+        setEditingProjectName(currentName);
+        setTimeout(() => editInputRef.current?.focus(), 0);
+    };
+
+    const cancelEditingProject = () => {
+        setEditingProjectId(null);
+        setEditingProjectName("");
+    };
+
+    const saveProjectName = async (projectId: string) => {
+        const trimmedName = editingProjectName.trim();
+        if (trimmedName && trimmedName !== projects.find(p => p.id === projectId)?.name) {
+            try {
+                await updateSession(projectId, trimmedName);
+                setProjects(projects.map(p =>
+                    p.id === projectId ? { ...p, name: trimmedName } : p
+                ));
+            } catch (error) {
+                console.error('Proje adı güncellenemedi:', error);
+            }
+        }
+        cancelEditingProject();
+    };
 
     // Entity states - API'den gelecek
     const [characters, setCharacters] = useState<{ id: string; name: string }[]>([]);
@@ -406,9 +443,21 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
             itemId: id,
             itemName: proj.name,
             itemType: "proje",
-            onConfirm: () => {
-                moveToTrash(id, proj.name, "proje", proj);
-                setProjects(projects.filter(p => p.id !== id));
+            onConfirm: async () => {
+                try {
+                    // Backend'den session'ı sil
+                    await deleteSession(id);
+                    moveToTrash(id, proj.name, "proje", proj);
+                    const remainingProjects = projects.filter(p => p.id !== id);
+                    setProjects(remainingProjects);
+
+                    // Eğer aktif proje silindiyse, ana sayfayı bilgilendir
+                    if (proj.active || remainingProjects.length === 0) {
+                        onProjectDelete?.();
+                    }
+                } catch (error) {
+                    console.error('Proje silinemedi:', error);
+                }
             }
         });
     };
@@ -544,30 +593,82 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
                     </div>
 
                     <div className="max-h-40 overflow-y-auto">
-                        {projects.map((project) => (
-                            <div
-                                key={project.id}
-                                onClick={() => handleProjectClick(project.id)}
-                                className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg cursor-pointer transition-all duration-200 ${project.active
-                                    ? "bg-[var(--accent)] text-[var(--background)] font-medium"
-                                    : "hover:bg-[var(--card)]"
-                                    }`}
-                            >
-                                <span className="truncate">{project.name}</span>
-                                {!project.active && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            confirmDeleteProject(project.id);
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all"
-                                        title="Sil"
-                                    >
-                                        <Trash2 size={14} className="text-red-400" />
-                                    </button>
-                                )}
-                            </div>
-                        ))}
+                        {projects.map((project) => {
+                            const isEditing = editingProjectId === project.id;
+                            return (
+                                <div
+                                    key={project.id}
+                                    onClick={() => !isEditing && handleProjectClick(project.id)}
+                                    onDoubleClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditingProject(project.id, project.name);
+                                    }}
+                                    className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-all duration-200 ${project.active
+                                        ? "bg-[var(--accent)] text-[var(--background)] font-medium"
+                                        : "hover:bg-[var(--card)]"
+                                        } ${isEditing ? "" : "cursor-pointer"}`}
+                                >
+                                    {isEditing ? (
+                                        <input
+                                            ref={editInputRef}
+                                            type="text"
+                                            value={editingProjectName}
+                                            onChange={(e) => setEditingProjectName(e.target.value)}
+                                            onBlur={() => saveProjectName(project.id)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') saveProjectName(project.id);
+                                                if (e.key === 'Escape') cancelEditingProject();
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="flex-1 bg-transparent border-b outline-none text-sm"
+                                            style={{
+                                                borderColor: project.active ? "var(--background)" : "var(--accent)",
+                                                color: "inherit"
+                                            }}
+                                            autoFocus
+                                        />
+                                    ) : (
+                                        <span className="truncate flex-1">{project.name}</span>
+                                    )}
+
+                                    <div className="flex items-center gap-1">
+                                        {/* Edit Button */}
+                                        {!isEditing && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    startEditingProject(project.id, project.name);
+                                                }}
+                                                className={`p-1 rounded transition-all ${project.active
+                                                    ? "opacity-50 hover:opacity-100 hover:bg-white/20"
+                                                    : "opacity-0 group-hover:opacity-100 hover:bg-[var(--accent)]/20"
+                                                    }`}
+                                                title="Yeniden Adlandır"
+                                            >
+                                                <Pencil size={12} className={project.active ? "" : "text-[var(--accent)]"} />
+                                            </button>
+                                        )}
+
+                                        {/* Delete Button */}
+                                        {!isEditing && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    confirmDeleteProject(project.id);
+                                                }}
+                                                className={`p-1 rounded transition-all ${project.active
+                                                    ? "opacity-50 hover:opacity-100 hover:bg-red-500/30"
+                                                    : "opacity-0 group-hover:opacity-100 hover:bg-red-500/20"
+                                                    }`}
+                                                title="Sil"
+                                            >
+                                                <Trash2 size={14} className={project.active ? "text-red-200" : "text-red-400"} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     <button
@@ -641,6 +742,20 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
 
                 {/* Bottom section */}
                 <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
+                    {/* Grid Generator - Feature */}
+                    <button
+                        onClick={() => setGridGeneratorOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg mb-2 transition-all hover:shadow-lg hover:shadow-emerald-500/20"
+                        style={{
+                            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.15) 100%)",
+                            color: "#10b981",
+                            border: "1px solid rgba(16, 185, 129, 0.3)"
+                        }}
+                    >
+                        <Grid3x3 size={16} />
+                        <span>Grid Generator</span>
+                    </button>
+
                     {/* Marketplace - Prominent */}
                     <button
                         onClick={() => setMarketplaceOpen(true)}
@@ -796,6 +911,12 @@ export function Sidebar({ activeProjectId, onProjectChange, sessionId, refreshKe
                 onClose={() => setMarketplaceOpen(false)}
                 onInstall={(plugin) => setCreativePlugins([...creativePlugins, plugin])}
                 myPlugins={creativePlugins}
+            />
+
+            {/* Grid Generator Modal */}
+            <GridGeneratorModal
+                isOpen={gridGeneratorOpen}
+                onClose={() => setGridGeneratorOpen(false)}
             />
         </>
     );

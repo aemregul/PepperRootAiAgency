@@ -32,7 +32,7 @@ AGENT_TOOLS = [
     },
     {
         "name": "create_character",
-        "description": "Yeni bir karakter oluşturur ve hafızaya kaydeder. Kullanıcının verdiği fiziksel özellikleri (göz rengi, kaş rengi, saç stili vb.) dikkatlice yakala ve attributes'a kaydet. Karakter daha sonra @tag ile referans verilebilir.",
+        "description": "Yeni bir karakter oluşturur ve hafızaya kaydeder. ÖNEMLI: Kullanıcı bir görsel ile karakter oluşturmak istediğinde, MUTLAKA önce görseli bir URL'ye yükle (veya current_reference_image parametresini kullan) ve reference_image_url'e kaydet. Bu görseli sonraki isteklerde kullanabilirsin.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -43,6 +43,15 @@ AGENT_TOOLS = [
                 "description": {
                     "type": "string",
                     "description": "Karakterin detaylı görsel açıklaması (İngilizce). Tüm fiziksel özellikleri dahil et."
+                },
+                "reference_image_url": {
+                    "type": "string",
+                    "description": "Karakterin yüz/vücut referans görsel URL'si. KRITIK: Kullanıcı foto gönderip 'bunu kaydet' derse, bu URL'yi mutlaka doldur. Bu görsel daha sonra yüz tanıma için kullanılır."
+                },
+                "use_current_reference": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "True ise, kullanıcının gönderdiği referans görseli otomatik olarak bu karaktere bağla."
                 },
                 "attributes": {
                     "type": "object",
@@ -145,7 +154,7 @@ AGENT_TOOLS = [
             "properties": {
                 "tag": {
                     "type": "string",
-                    "description": "Entity'nin tag'i (örn: @character_emre, @location_orman)"
+                    "description": "Entity'nin tag'i (örn: @emre, @mutfak, @orman)"
                 }
             },
             "required": ["tag"]
@@ -173,7 +182,7 @@ AGENT_TOOLS = [
     
     {
         "name": "generate_video",
-        "description": "Video üretir. Görsel veya metinden video oluşturur. Kling 2.5 Turbo Pro kullanılır. Örnek: '@character_emre ormanda yürüyor videosu yap'",
+        "description": "Video üretir. Görsel veya metinden video oluşturur. Kling 2.5 Turbo Pro kullanılır. Örnek: '@emre ormanda yürüyor videosu yap'",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -253,6 +262,160 @@ AGENT_TOOLS = [
             "required": ["image_url"]
         }
     },
+    {
+        "name": "generate_grid",
+        "description": "3x3 grid görsel oluşturur. 9 farklı kamera açısı (angles) veya 9 hikaye paneli (storyboard) üretir. Verilen görselden veya @karakterden grid oluşturur. Panel extraction ve upscale özelliği var.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string",
+                    "description": "Kaynak görselin URL'si. @karakter tag'i kullanıldığında otomatik doldurulur."
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["angles", "storyboard"],
+                    "default": "angles",
+                    "description": "Grid tipi: 'angles' = 9 farklı kamera açısı, 'storyboard' = 9 hikaye paneli"
+                },
+                "aspect_ratio": {
+                    "type": "string",
+                    "enum": ["16:9", "9:16", "1:1"],
+                    "default": "16:9",
+                    "description": "Grid oranı"
+                },
+                "extract_panel": {
+                    "type": "integer",
+                    "enum": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    "description": "Opsiyonel: Grid oluşturulduktan sonra belirtilen paneli (1-9) upscale edip döndür"
+                },
+                "scale": {
+                    "type": "integer",
+                    "enum": [1, 2, 4],
+                    "default": 2,
+                    "description": "Panel extraction için upscale faktörü"
+                },
+                "custom_prompt": {
+                    "type": "string",
+                    "description": "Opsiyonel: Özel prompt. Varsayılan prompt yerine kullanılır."
+                }
+            },
+            "required": ["image_url"]
+        }
+    },
+    
+    # ===============================
+    # WEB ARAMA ARAÇLARI
+    # ===============================
+    
+    {
+        "name": "search_images",
+        "description": "İnternetten GÖRSEL arar. Marka/ürün fotoğrafları, referans görseller bulmak için kullan. Örnek: 'Samsung TV product photo', 'Nike shoes', 'luxury car interior'",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Aranacak terim (İngilizce önerilir)"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "enum": [3, 5, 10],
+                    "default": 5,
+                    "description": "Döndürülecek sonuç sayısı"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "search_web",
+        "description": "İnternette genel METİN araması yapar (DuckDuckGo). Bilgi, haber, makale bulmak için kullan. Güncel olaylar, ürün bilgileri, teknik detaylar için.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Aranacak terim veya soru"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "enum": [3, 5, 10],
+                    "default": 5,
+                    "description": "Döndürülecek sonuç sayısı"
+                },
+                "region": {
+                    "type": "string",
+                    "enum": ["tr-tr", "us-en", "uk-en", "de-de"],
+                    "default": "tr-tr",
+                    "description": "Arama bölgesi"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "search_videos",
+        "description": "İnternetten VİDEO arar. YouTube, Vimeo vb. kaynaklardan video bulmak için kullan. Referans video, örnek sahne bulmak için.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Aranacak terim"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "enum": [3, 5, 10],
+                    "default": 5,
+                    "description": "Döndürülecek sonuç sayısı"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "browse_url",
+        "description": "Belirtilen URL'ye gider ve sayfa içeriğini okur. Makale, haber, ürün sayfası vb. okumak için kullan. HTML'i temiz metne çevirir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "Okunacak web sayfasının URL'si"
+                },
+                "extract_images": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "True ise sayfadaki görselleri de listele"
+                }
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "fetch_web_image",
+        "description": "Web'den görsel indirir ve sisteme kaydeder. search_images sonucundaki URL'yi al, indir. Ardından edit_image veya generate_video ile kullanabilirsin.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string",
+                    "description": "İndirilecek görselin URL'si"
+                },
+                "save_as_entity": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "True ise görseli bir entity'ye referans olarak kaydet"
+                },
+                "entity_name": {
+                    "type": "string",
+                    "description": "save_as_entity=True ise entity adı"
+                }
+            },
+            "required": ["image_url"]
+        }
+    },
     
     # ===============================
     # AKILLI AGENT ARAÇLARI
@@ -266,7 +429,7 @@ AGENT_TOOLS = [
             "properties": {
                 "entity_tag": {
                     "type": "string",
-                    "description": "Belirli bir entity'ye ait olanları getir (örn: @character_johny). Opsiyonel."
+                    "description": "Belirli bir entity'ye ait olanları getir (örn: @emre, @mutfak). Opsiyonel."
                 },
                 "asset_type": {
                     "type": "string",
@@ -440,7 +603,7 @@ AGENT_TOOLS = [
             "properties": {
                 "entity_tag": {
                     "type": "string",
-                    "description": "Silinecek entity'nin tag'i (örn: @character_emre, @location_mutfak)"
+                    "description": "Silinecek entity'nin tag'i (örn: @emre, @mutfak)"
                 }
             },
             "required": ["entity_tag"]

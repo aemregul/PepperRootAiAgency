@@ -16,9 +16,11 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - Aksiyon alır (pasif değil, aktif)
 - Geçmiş assetleri BULUR ve KULLANIR ✅
 - "Dünkü video daha iyiydi" demek yerine → Dünkü videoyu GETİRİR ve sunar ✅
-- Hata durumunda alternatif yol dener, internetten veri çeker, editler
-- **YENİ:** Ürettiği görseli ANALIZ eder, kalite kontrolü yapar ✅
-- **YENİ:** Büyük işleri parçalara ayırır (roadmap) ✅
+- Hata durumunda alternatif yol dener, internetten veri çeker, editler ✅
+- Ürettiği görseli ANALIZ eder, kalite kontrolü yapar ✅
+- Büyük işleri parçalara ayırır (roadmap) ✅
+- **YENİ:** İnternette arama yapar, web sayfası okur ✅
+- **YENİ:** 3x3 Grid oluşturur (9 açı/storyboard) ✅
 
 ### @tag Sistemi (ÇOK ÖNEMLİ):
 ```
@@ -31,14 +33,14 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (30 Ocak 2026)
+## 📊 Genel Durum (1 Şubat 2026)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
 | Hafta 1: Altyapı | ✅ Tamamlandı | %100 |
 | Hafta 2: Agent + Entity + Referans + Video | ✅ Tamamlandı | %100 |
 | Hafta 3: Akıllı Agent + Plugin + Vision | ✅ Tamamlandı | %100 |
-| Hafta 4: Frontend + Entegrasyon | 🔄 Devam Ediyor | %60 |
+| Hafta 4: Frontend + Web Browsing + Grid | 🔄 Devam Ediyor | %80 |
 
 ---
 
@@ -106,6 +108,20 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - [x] Dark mode varsayılan
 - [x] Prompt çevirisi (tüm diller → İngilizce)
 - [x] Gelişmiş karakter özellikleri
+
+### Hafta 4: Web Browsing Agent (1 Şubat) ⭐ YENİ
+- [x] search_images - DuckDuckGo görsel arama
+- [x] search_web - Metin/bilgi arama
+- [x] search_videos - Video arama
+- [x] browse_url - Web sayfası okuma (BeautifulSoup)
+- [x] fetch_web_image - Görsel indirme ve kaydetme
+- [x] Akıllı fallback: search → fetch → edit → video
+
+### Hafta 4: Grid Generator (1 Şubat) ⭐ YENİ
+- [x] generate_grid tool
+- [x] 3x3 grid (9 kamera açısı veya storyboard)
+- [x] Panel extraction ve upscale
+- [x] @karakter referansı ile grid
 
 ### Öncelik 2: UI Entegrasyonu (Devam)
 - [ ] Characters/Locations gerçek veritabanına bağla
@@ -201,7 +217,7 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (30 Ocak 2026 - 19:55)
+## 🎯 SON DURUM (1 Şubat 2026 - 21:00)
 
 **Tamamlanan:**
 - ✅ Frontend: Next.js + Tailwind CSS
@@ -210,11 +226,14 @@ git add . && git commit -m "mesaj" && git push
 - ✅ Settings modal (tema toggle)
 - ✅ Dark mode varsayılan
 - ✅ Prompt çevirisi (tüm diller → İngilizce)
-- ✅ Gelişmiş karakter özellikleri (göz, kaş, saç vb.)
-- ✅ AI avatarı: 🫑 biber emojisi
+- ✅ Admin Panel (gelişmiş)
+- ✅ Grid Generator Modal
+- ✅ Web Browsing Agent (DuckDuckGo + BeautifulSoup)
+- ✅ Akıllı fallback zinciri (search → fetch → edit → video)
 
 **Sıradaki Adım:**
-UI butonlarını aktif etmeye devam + veritabanı entegrasyonu 🚀
+- Auth sistemi (Google OAuth)
+- Deploy (Railway + Vercel)
 
 ---
 

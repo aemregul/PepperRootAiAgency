@@ -41,6 +41,54 @@ YAPABİLECEKLERİN:
 6. GEÇMİŞ: get_past_assets, mark_favorite, undo_last
 7. ANALİZ: analyze_image, compare_images
 8. SİSTEM: get_system_state
+9. GRID: generate_grid (3x3 grid oluştur - 9 kamera açısı veya storyboard)
+10. WEB: search_images, search_web, search_videos, browse_url, fetch_web_image
+
+GRID KULLANIMI:
+- "Bu görselden grid yap" → generate_grid(image_url=..., mode="angles")
+- "@emre için 9 açı oluştur" → generate_grid(image_url=entity_ref, mode="angles")
+
+İNTERNET BAĞLANTISI (ÇOK ÖNEMLİ - Sen internete bağlı akıllı bir asistansın!):
+
+1. BİLGİ ARAMA:
+   - Güncel bilgi gerektiğinde → search_web(query="...")
+   - "Samsung'un son TV modeli ne?" → search_web → cevap ver
+   - Detaylı bilgi için → browse_url(url) ile sayfayı oku
+
+2. GÖRSEL BULMA:
+   - Marka/ürün görseli → search_images("Samsung TV product photo")
+   - Sonuçtan indir → fetch_web_image(image_url=result.image)
+   - Düzenle → edit_image ile arka plan değiştir
+
+3. VİDEO BULMA:
+   - Referans video → search_videos("luxury car commercial")
+   - İlham al, benzerini üret
+
+4. AKILLI FALLBACK ZİNCİRİ:
+   - Marka/ürün istendiğinde generate_image KULLANMA
+   - Önce search_images → fetch_web_image → edit_image → generate_video
+   
+5. GENEL KURAL:
+   - Bilmediğin şeyi ARAMA YAP, tahmin etme!
+   - Gerçek ürün → Web'den çek
+   - Hayali sahne → AI ile üret
+   - Hibrit → Web arka plan + AI karakter
+
+REFERANS GÖRSEL KULLANIMI (ÇOK ÖNEMLİ):
+- Kullanıcı bir FOTOĞRAF gönderdiyse ve "bunu kaydet", "Emre olarak kaydet", "bu kişiyi karakter yap" derse:
+  → create_character kullan VE use_current_reference=true yap
+  → Bu görsel kalıcı olarak kaydedilir ve daha sonra yüz referansı olarak kullanılır
+- Kayıtlı bir karakterin görselini değiştirmek için (örn: "gözlüğü kaldır"):
+  → Karakterin reference_image_url'sini al (get_entity ile)
+  → edit_image aracını kullan
+- @emre için görsel üretirken otomatik olarak kayıtlı referans görsel kullanılır
+
+TAG SİSTEMİ:
+- Tag'ler sadece isim içerir: @emre, @mutfak, @uzay_istasyonu
+- Entity tipi kayıt sırasında belirlenir (create_character veya create_location)
+- "Bu karakteri Emre olarak kaydet" → create_character, tag: @emre
+- "Bu mekanı Mutfak olarak kaydet" → create_location, tag: @mutfak
+- Aynı isimde birden fazla entity olamaz (örn: hem karakter hem mekan "emre" olamaz)
 
 DAVRANIŞ KURALLARI:
 - "Yeni proje aç" -> manage_project action=create
@@ -50,7 +98,6 @@ DAVRANIŞ KURALLARI:
 - "Çöpü göster" -> manage_trash action=list
 - "Bunu plugin yap" -> manage_plugin action=create
 - Türkçe yanıt ver, araç parametreleri İngilizce olabilir
-- @tag sistemi: @character_emre, @location_mutfak
 - Silme isteklerinde önce çöpe at (geri alınabilir)
 """
     
@@ -136,7 +183,8 @@ DAVRANIŞ KURALLARI:
             "response": "",
             "images": [],
             "entities_created": [],
-            "_resolved_entities": []  # İç kullanım için, @tag ile çözümlenen entity'ler
+            "_resolved_entities": [],  # İç kullanım için, @tag ile çözümlenen entity'ler
+            "_current_reference_image": reference_image  # Mevcut referans görsel (base64)
         }
         
         # @tag'leri çözümle ve result'a ekle
@@ -146,8 +194,10 @@ DAVRANIŞ KURALLARI:
         # Response'u işle - tool call loop
         await self._process_response(response, messages, result, session_id, db)
         
-        # İç kullanım alanını kaldır
+        # İç kullanım alanlarını kaldır
         del result["_resolved_entities"]
+        if "_current_reference_image" in result:
+            del result["_current_reference_image"]
         
         return result
     
@@ -165,10 +215,18 @@ DAVRANIŞ KURALLARI:
         
         context_parts = []
         for entity in entities:
+            ref_image_info = ""
+            if entity.reference_image_url:
+                ref_image_info = f"\n  ⚠️ REFERANS GÖRSEL VAR: {entity.reference_image_url}"
+                print(f"🔍 Entity {entity.tag} referans görsel bulundu: {entity.reference_image_url[:80]}...")
+            else:
+                print(f"⚠️ Entity {entity.tag} için referans görsel YOK")
+                
             context_parts.append(
                 f"- {entity.tag}: {entity.name} ({entity.entity_type})\n"
                 f"  Açıklama: {entity.description}\n"
                 f"  Özellikler: {json.dumps(entity.attributes, ensure_ascii=False)}"
+                f"{ref_image_info}"
             )
         
         return "\n".join(context_parts)
@@ -194,7 +252,8 @@ DAVRANIŞ KURALLARI:
                     block.input, 
                     session_id, 
                     db,
-                    resolved_entities=result.get("_resolved_entities", [])
+                    resolved_entities=result.get("_resolved_entities", []),
+                    current_reference_image=result.get("_current_reference_image")
                 )
                 
                 # Görsel üretildiyse ekle
@@ -245,7 +304,8 @@ DAVRANIŞ KURALLARI:
         tool_input: dict,
         session_id: uuid.UUID,
         db: AsyncSession,
-        resolved_entities: list = None
+        resolved_entities: list = None,
+        current_reference_image: str = None
     ) -> dict:
         """Araç çağrısını işle."""
         
@@ -256,7 +316,8 @@ DAVRANIŞ KURALLARI:
         
         elif tool_name == "create_character":
             return await self._create_entity(
-                db, session_id, "character", tool_input
+                db, session_id, "character", tool_input,
+                current_reference_image=current_reference_image
             )
         
         elif tool_name == "create_location":
@@ -282,6 +343,25 @@ DAVRANIŞ KURALLARI:
         
         elif tool_name == "remove_background":
             return await self._remove_background(tool_input)
+        
+        elif tool_name == "generate_grid":
+            return await self._generate_grid(db, session_id, tool_input, resolved_entities or [])
+        
+        # WEB ARAMA ARAÇLARI
+        elif tool_name == "search_images":
+            return await self._search_images(tool_input)
+        
+        elif tool_name == "search_web":
+            return await self._search_web(tool_input)
+        
+        elif tool_name == "search_videos":
+            return await self._search_videos(tool_input)
+        
+        elif tool_name == "browse_url":
+            return await self._browse_url(tool_input)
+        
+        elif tool_name == "fetch_web_image":
+            return await self._fetch_web_image(db, session_id, tool_input)
         
         # AKILLI AGENT ARAÇLARI
         elif tool_name == "get_past_assets":
@@ -361,11 +441,20 @@ DAVRANIŞ KURALLARI:
             entity_description = ""
             physical_attributes = {}
             
+            # Debug: resolved_entities kontrolü
+            print(f"🔍 _generate_image: resolved_entities = {len(resolved_entities) if resolved_entities else 0} adet")
+            
             if resolved_entities:
                 for entity in resolved_entities:
+                    print(f"   → Entity: {getattr(entity, 'tag', 'unknown')}, type: {type(entity)}")
+                    
                     # Referans görsel kontrolü
                     if hasattr(entity, 'reference_image_url') and entity.reference_image_url:
                         face_reference_url = entity.reference_image_url
+                        print(f"   ✅ Referans görsel BULUNDU: {face_reference_url[:80]}...")
+                    else:
+                        print(f"   ⚠️ Referans görsel YOK - hasattr: {hasattr(entity, 'reference_image_url')}, value: {getattr(entity, 'reference_image_url', 'N/A')}")
+                    
                     # Entity açıklamasını topla
                     if hasattr(entity, 'description') and entity.description:
                         entity_description += f"{entity.description}. "
@@ -386,6 +475,7 @@ DAVRANIŞ KURALLARI:
                 print(f"🎨 Karakter prompt zenginleştirildi: '{prompt[:80]}...'")
             
             # AKILLI SİSTEM: Referans görsel varsa
+            print(f"🎯 Referans görsel durumu: {face_reference_url is not None}")
             if face_reference_url:
                 # Akıllı üretim: Nano Banana → kontrol → Face Swap fallback
                 result = await self.fal_plugin.smart_generate_with_face(
@@ -483,17 +573,38 @@ DAVRANIŞ KURALLARI:
         db: AsyncSession, 
         session_id: uuid.UUID, 
         entity_type: str, 
-        params: dict
+        params: dict,
+        current_reference_image: str = None
     ) -> dict:
-        """Yeni entity oluştur."""
+        """
+        Yeni entity oluştur.
+        
+        Eğer use_current_reference=True ise veya reference_image_url verilmişse,
+        görseli fal.ai'ye yükleyip entity'ye kaydet.
+        """
         try:
+            reference_image_url = params.get("reference_image_url")
+            use_current_reference = params.get("use_current_reference", False)
+            
+            # Kullanıcı mevcut referans görselini kullanmak istiyorsa
+            if use_current_reference and current_reference_image and not reference_image_url:
+                # Base64 görseli fal.ai'ye yükle
+                try:
+                    upload_result = await self.fal_plugin.upload_base64_image(current_reference_image)
+                    if upload_result.get("success"):
+                        reference_image_url = upload_result.get("url")
+                        print(f"📸 Referans görsel yüklendi: {reference_image_url[:50]}...")
+                except Exception as upload_error:
+                    print(f"⚠️ Referans görsel yükleme hatası: {upload_error}")
+            
             entity = await entity_service.create_entity(
                 db=db,
                 session_id=session_id,
                 entity_type=entity_type,
                 name=params.get("name"),
                 description=params.get("description"),
-                attributes=params.get("attributes", {})
+                attributes=params.get("attributes", {}),
+                reference_image_url=reference_image_url
             )
             
             return {
@@ -504,8 +615,10 @@ DAVRANIŞ KURALLARI:
                     "tag": entity.tag,
                     "name": entity.name,
                     "entity_type": entity.entity_type,
-                    "description": entity.description
-                }
+                    "description": entity.description,
+                    "reference_image_url": reference_image_url
+                },
+                "has_reference_image": bool(reference_image_url)
             }
         
         except Exception as e:
@@ -1281,6 +1394,533 @@ DAVRANIŞ KURALLARI:
             return {"success": False, "error": f"Bilinmeyen action: {action}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    # ===============================
+    # WEB ARAMA METODLARI
+    # ===============================
+    
+    async def _search_images(self, params: dict) -> dict:
+        """
+        DuckDuckGo ile görsel arar.
+        """
+        try:
+            from duckduckgo_search import DDGS
+            
+            query = params.get("query")
+            num_results = params.get("num_results", 5)
+            
+            if not query:
+                return {"success": False, "error": "Arama terimi gerekli."}
+            
+            print(f"=== SEARCH IMAGES ===")
+            print(f"Query: {query}")
+            
+            results = []
+            with DDGS() as ddgs:
+                for r in ddgs.images(query, max_results=num_results):
+                    results.append({
+                        "title": r.get("title", ""),
+                        "thumbnail": r.get("thumbnail", ""),
+                        "image": r.get("image", ""),
+                        "source": r.get("source", ""),
+                        "url": r.get("url", "")
+                    })
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": results,
+                "count": len(results),
+                "message": f"'{query}' için {len(results)} görsel bulundu."
+            }
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    async def _search_web(self, params: dict) -> dict:
+        """
+        DuckDuckGo ile metin araması yapar.
+        """
+        try:
+            from duckduckgo_search import DDGS
+            
+            query = params.get("query")
+            num_results = params.get("num_results", 5)
+            region = params.get("region", "tr-tr")
+            
+            if not query:
+                return {"success": False, "error": "Arama terimi gerekli."}
+            
+            print(f"=== SEARCH WEB ===")
+            print(f"Query: {query}, Region: {region}")
+            
+            results = []
+            with DDGS() as ddgs:
+                for r in ddgs.text(query, region=region, max_results=num_results):
+                    results.append({
+                        "title": r.get("title", ""),
+                        "body": r.get("body", ""),
+                        "url": r.get("href", "")
+                    })
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": results,
+                "count": len(results),
+                "message": f"'{query}' için {len(results)} sonuç bulundu."
+            }
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    async def _search_videos(self, params: dict) -> dict:
+        """
+        DuckDuckGo ile video arar.
+        """
+        try:
+            from duckduckgo_search import DDGS
+            
+            query = params.get("query")
+            num_results = params.get("num_results", 5)
+            
+            if not query:
+                return {"success": False, "error": "Arama terimi gerekli."}
+            
+            print(f"=== SEARCH VIDEOS ===")
+            print(f"Query: {query}")
+            
+            results = []
+            with DDGS() as ddgs:
+                for r in ddgs.videos(query, max_results=num_results):
+                    results.append({
+                        "title": r.get("title", ""),
+                        "description": r.get("description", ""),
+                        "duration": r.get("duration", ""),
+                        "publisher": r.get("publisher", ""),
+                        "embed_url": r.get("embed_url", ""),
+                        "url": r.get("content", "")
+                    })
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": results,
+                "count": len(results),
+                "message": f"'{query}' için {len(results)} video bulundu."
+            }
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    async def _browse_url(self, params: dict) -> dict:
+        """
+        URL'ye gider ve sayfa içeriğini okur.
+        """
+        import httpx
+        from bs4 import BeautifulSoup
+        
+        try:
+            url = params.get("url")
+            extract_images = params.get("extract_images", False)
+            
+            if not url:
+                return {"success": False, "error": "URL gerekli."}
+            
+            print(f"=== BROWSE URL ===")
+            print(f"URL: {url}")
+            
+            # Sayfayı indir
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(
+                    url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    }
+                )
+                
+                if response.status_code != 200:
+                    return {"success": False, "error": f"Sayfa yüklenemedi: {response.status_code}"}
+                
+                html = response.text
+            
+            # HTML'i parse et
+            soup = BeautifulSoup(html, "lxml")
+            
+            # Script ve style taglarını kaldır
+            for script in soup(["script", "style", "nav", "header", "footer", "aside"]):
+                script.decompose()
+            
+            # Başlık
+            title = soup.title.string if soup.title else "Başlık yok"
+            
+            # Meta açıklama
+            meta_desc = ""
+            meta_tag = soup.find("meta", attrs={"name": "description"})
+            if meta_tag:
+                meta_desc = meta_tag.get("content", "")
+            
+            # Ana içerik - article veya main tag'ini ara
+            main_content = soup.find("article") or soup.find("main") or soup.find("body")
+            
+            # Metni çıkar
+            text = main_content.get_text(separator="\n", strip=True) if main_content else ""
+            
+            # Çok uzunsa kısalt
+            if len(text) > 5000:
+                text = text[:5000] + "...[kısaltıldı]"
+            
+            result = {
+                "success": True,
+                "url": url,
+                "title": title,
+                "description": meta_desc,
+                "content": text,
+                "content_length": len(text),
+                "message": f"'{title}' sayfası okundu."
+            }
+            
+            # Görselleri çıkar
+            if extract_images:
+                images = []
+                for img in soup.find_all("img", src=True)[:10]:
+                    src = img.get("src", "")
+                    # Relative URL'leri absolute yap
+                    if src.startswith("/"):
+                        from urllib.parse import urljoin
+                        src = urljoin(url, src)
+                    if src.startswith("http"):
+                        images.append({
+                            "src": src,
+                            "alt": img.get("alt", "")
+                        })
+                result["images"] = images
+                result["image_count"] = len(images)
+            
+            return result
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    async def _fetch_web_image(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """
+        Web'den görsel indirir ve sisteme kaydeder.
+        """
+        import httpx
+        import base64
+        import os
+        from datetime import datetime
+        
+        try:
+            image_url = params.get("image_url")
+            save_as_entity = params.get("save_as_entity", False)
+            entity_name = params.get("entity_name")
+            
+            if not image_url:
+                return {"success": False, "error": "Görsel URL'si gerekli."}
+            
+            print(f"=== FETCH WEB IMAGE ===")
+            print(f"URL: {image_url[:100]}...")
+            
+            # Görseli indir
+            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                response = await client.get(
+                    image_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    }
+                )
+                
+                if response.status_code != 200:
+                    return {"success": False, "error": f"Görsel indirilemedi: {response.status_code}"}
+                
+                # Content type kontrolü
+                content_type = response.headers.get("content-type", "")
+                if not content_type.startswith("image/"):
+                    return {"success": False, "error": f"Geçersiz içerik tipi: {content_type}"}
+                
+                image_data = response.content
+            
+            # Dosya uzantısını belirle
+            ext = "jpg"
+            if "png" in content_type:
+                ext = "png"
+            elif "gif" in content_type:
+                ext = "gif"
+            elif "webp" in content_type:
+                ext = "webp"
+            
+            # Dosyayı kaydet
+            upload_dir = settings.STORAGE_PATH
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            filename = f"web_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+            filepath = os.path.join(upload_dir, filename)
+            
+            with open(filepath, "wb") as f:
+                f.write(image_data)
+            
+            # URL oluştur (local için)
+            saved_url = f"http://localhost:8000/uploads/{filename}"
+            
+            result = {
+                "success": True,
+                "url": saved_url,
+                "original_url": image_url,
+                "filename": filename,
+                "size_bytes": len(image_data),
+                "message": f"Görsel başarıyla indirildi: {filename}"
+            }
+            
+            # Entity olarak kaydet
+            if save_as_entity and entity_name:
+                # Entity oluştur veya güncelle
+                entity = await entity_service.create_entity(
+                    db=db,
+                    session_id=session_id,
+                    entity_type="character",
+                    name=entity_name,
+                    description=f"Web'den indirilen görsel: {image_url[:50]}...",
+                    reference_image_url=saved_url
+                )
+                result["entity_id"] = str(entity.id)
+                result["entity_tag"] = f"@{entity_name.lower().replace(' ', '_')}"
+                result["message"] += f" Entity olarak kaydedildi: @{entity_name}"
+            
+            # Asset olarak kaydet
+            try:
+                from app.models.models import Asset
+                new_asset = Asset(
+                    session_id=session_id,
+                    asset_type="image",
+                    url=saved_url,
+                    prompt=f"Web'den indirildi: {image_url[:100]}",
+                    model_used="web_fetch"
+                )
+                db.add(new_asset)
+                await db.commit()
+                result["asset_id"] = str(new_asset.id)
+            except Exception as e:
+                print(f"Asset kayıt hatası: {e}")
+            
+            return result
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+
+
+    async def _generate_grid(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict,
+        resolved_entities: list = None
+    ) -> dict:
+        """
+        3x3 Grid oluşturma.
+        
+        Özellikler:
+        - 9 kamera açısı (angles) veya 9 hikaye paneli (storyboard)
+        - @karakter referansı ile otomatik görsel kullanımı
+        - Panel extraction ve upscale
+        """
+        import httpx
+        
+        try:
+            image_url = params.get("image_url")
+            mode = params.get("mode", "angles")
+            aspect_ratio = params.get("aspect_ratio", "16:9")
+            extract_panel = params.get("extract_panel")
+            scale = params.get("scale", 2)
+            custom_prompt = params.get("custom_prompt")
+            
+            # Entity referansından görsel al
+            if resolved_entities:
+                for entity in resolved_entities:
+                    if hasattr(entity, 'reference_image_url') and entity.reference_image_url:
+                        if not image_url:
+                            image_url = entity.reference_image_url
+                        break
+            
+            if not image_url:
+                return {"success": False, "error": "Görsel URL'si gerekli. Bir görsel gönder veya @karakter kullan."}
+            
+            # Grid prompt oluştur
+            if custom_prompt:
+                grid_prompt = custom_prompt
+            else:
+                grid_prompt = self._build_grid_prompt(mode)
+            
+            print(f"=== GRID GENERATION (Agent) ===")
+            print(f"Mode: {mode}, Aspect: {aspect_ratio}")
+            print(f"Image URL: {image_url[:100]}...")
+            
+            # Grid oluştur (Nano Banana Pro)
+            grid_image_url = None
+            
+            request_body = {
+                "prompt": grid_prompt,
+                "image_urls": [image_url],
+                "num_images": 1,
+                "aspect_ratio": aspect_ratio,
+                "output_format": "png",
+                "resolution": "2K",
+            }
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                try:
+                    response = await client.post(
+                        "https://fal.run/fal-ai/nano-banana-pro/edit",
+                        headers={
+                            "Authorization": f"Key {self.fal_plugin.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=request_body
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("images") and len(data["images"]) > 0:
+                            grid_image_url = data["images"][0]["url"]
+                except Exception as e:
+                    print(f"Nano Banana Pro failed: {e}")
+            
+            # Fallback: FLUX dev
+            if not grid_image_url:
+                if aspect_ratio == "16:9":
+                    image_size = {"width": 1920, "height": 1080}
+                elif aspect_ratio == "9:16":
+                    image_size = {"width": 1080, "height": 1920}
+                else:
+                    image_size = {"width": 1024, "height": 1024}
+                
+                flux_body = {
+                    "prompt": grid_prompt,
+                    "image_url": image_url,
+                    "strength": 0.75,
+                    "num_inference_steps": 28,
+                    "guidance_scale": 3.5,
+                    "image_size": image_size,
+                    "num_images": 1,
+                    "enable_safety_checker": False,
+                    "output_format": "png",
+                }
+                
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(
+                        "https://fal.run/fal-ai/flux/dev/image-to-image",
+                        headers={
+                            "Authorization": f"Key {self.fal_plugin.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=flux_body
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("images") and len(data["images"]) > 0:
+                            grid_image_url = data["images"][0]["url"]
+                    else:
+                        return {"success": False, "error": f"Grid oluşturulamadı: {response.text}"}
+            
+            if not grid_image_url:
+                return {"success": False, "error": "Grid oluşturulamadı."}
+            
+            result = {
+                "success": True,
+                "grid_image_url": grid_image_url,
+                "mode": mode,
+                "aspect_ratio": aspect_ratio,
+                "message": f"3x3 {mode} grid oluşturuldu!"
+            }
+            
+            # Panel extraction istendi mi?
+            if extract_panel and 1 <= extract_panel <= 9:
+                # Panel extraction için grid görselini indir ve crop et
+                # Bu client-side yapılıyor, URL'yi döndür
+                result["extract_panel"] = extract_panel
+                result["scale"] = scale
+                result["message"] += f" Panel #{extract_panel} seçildi ({scale}x upscale için hazır)."
+            
+            # Asset kaydet
+            try:
+                from app.models.models import Asset
+                new_asset = Asset(
+                    session_id=session_id,
+                    asset_type="image",
+                    url=grid_image_url,
+                    prompt=f"3x3 {mode} grid",
+                    model_used="nano-banana-pro"
+                )
+                db.add(new_asset)
+                await db.commit()
+                result["asset_id"] = str(new_asset.id)
+            except Exception as e:
+                print(f"Asset kayıt hatası: {e}")
+            
+            return result
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    def _build_grid_prompt(self, mode: str) -> str:
+        """Grid için prompt oluştur."""
+        if mode == "angles":
+            return """Create a seamless 3x3 grid of 9 cinematic camera angles showing the same subject.
+
+GRID REQUIREMENTS:
+- NO white borders or gaps between panels
+- Each panel edge-to-edge, flowing into the next
+- The SAME EXACT person in ALL 9 panels
+
+9 CAMERA ANGLES:
+1. WIDE SHOT - full body, environment visible
+2. MEDIUM WIDE - head to knees
+3. MEDIUM SHOT - waist up
+4. MEDIUM CLOSE-UP - chest and head
+5. CLOSE-UP - face fills frame
+6. THREE-QUARTER VIEW - face angled 45°
+7. LOW ANGLE - heroic
+8. HIGH ANGLE - looking down
+9. PROFILE - side view
+
+CRITICAL: Face must be clearly visible in ALL panels. Cinematic, photorealistic."""
+
+        elif mode == "storyboard":
+            return """Create a seamless 3x3 grid of 9 sequential storyboard panels.
+
+GRID REQUIREMENTS:
+- NO white borders or gaps between panels
+- Each panel edge-to-edge, flowing into the next
+- The SAME EXACT person in ALL 9 panels
+
+9 STORY BEATS:
+1. ESTABLISHING - calm moment, wide shot
+2. TENSION - notices something
+3. REACTION - close-up, concern
+4. ACTION BEGINS - starts moving
+5. PEAK ACTION - dynamic movement
+6. INTENSITY - extreme close-up
+7. CLIMAX - dramatic action
+8. RESOLUTION - conflict ending
+9. CONCLUSION - final emotion
+
+CRITICAL: Same character throughout. Cinematic storyboard quality."""
+
+        else:
+            return "Create a seamless 3x3 grid showing 9 variations. NO borders, NO gaps. Photorealistic, cinematic."
 
 
 # Singleton instance

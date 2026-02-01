@@ -112,6 +112,28 @@ async def get_session_assets(
     return result.scalars().all()
 
 
+@router.patch("/{session_id}", response_model=SessionResponse)
+async def update_session(
+    session_id: UUID,
+    session_data: SessionCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Oturum bilgilerini güncelle (rename)."""
+    result = await db.execute(
+        select(Session).where(Session.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Oturum bulunamadı")
+    
+    if session_data.title:
+        session.title = session_data.title
+    
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: UUID,
@@ -126,7 +148,7 @@ async def delete_session(
         raise HTTPException(status_code=404, detail="Oturum bulunamadı")
     
     session.is_active = False
-    await db.flush()
+    await db.commit()
 
 
 @router.delete("/assets/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
