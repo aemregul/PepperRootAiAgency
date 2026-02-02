@@ -103,16 +103,23 @@ async def login(
     result = await db.execute(select(User).where(User.email == request.email))
     user = result.scalar_one_or_none()
     
-    if not user or not user.hashed_password:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            detail="Bu email ile kayıtlı hesap bulunamadı"
+        )
+    
+    # Google OAuth ile kayıt olmuş ve şifresi yok
+    if not user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bu hesap Google ile oluşturulmuş. Lütfen 'Google ile Giriş Yap' butonunu kullanın."
         )
     
     if not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            detail="Şifre yanlış"
         )
     
     # Create token
