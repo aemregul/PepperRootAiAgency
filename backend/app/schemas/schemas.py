@@ -75,7 +75,8 @@ class EntityCreate(BaseModel):
 
 class EntityResponse(BaseModel):
     id: UUID
-    session_id: UUID
+    user_id: UUID
+    session_id: Optional[UUID] = None  # Artık opsiyonel
     entity_type: str
     name: str
     tag: str
