@@ -248,6 +248,32 @@ export async function deleteAsset(assetId: string): Promise<boolean> {
     }
 }
 
+// Save Asset to Wardrobe (creates a wardrobe entity from asset)
+export async function saveAssetToWardrobe(
+    sessionId: string,
+    assetUrl: string,
+    assetName?: string
+): Promise<Entity> {
+    const entityData = {
+        entity_type: 'wardrobe' as const,
+        name: assetName || `Wardrobe_${Date.now()}`,
+        description: 'Asset panelinden kaydedildi',
+        reference_image_url: assetUrl,
+    };
+
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/entities`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(entityData),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to save to wardrobe');
+    }
+
+    return response.json();
+}
+
 // ============== ADMIN APIs ==============
 
 // AI Models
