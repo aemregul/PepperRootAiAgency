@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.cache import cache
 from app.api.routes import sessions, chat, generate, entities, upload, plugins, admin, grid, auth, system
 from app.services.plugins.plugin_loader import initialize_plugins
 
@@ -17,6 +18,16 @@ async def lifespan(app: FastAPI):
     
     # Pluginleri yükle
     initialize_plugins()
+    
+    # Redis bağlantısı
+    if settings.USE_REDIS:
+        redis_connected = await cache.connect()
+        if redis_connected:
+            print("   ✅ Redis cache aktif")
+        else:
+            print("   ⚠️ Redis bağlanılamadı, cache devre dışı")
+    else:
+        print("   ℹ️ Redis cache devre dışı (USE_REDIS=false)")
     
     # Warm-up: API key kontrolü
     api_status = []
@@ -42,6 +53,11 @@ async def lifespan(app: FastAPI):
     print(f"✅ {settings.APP_NAME} hazır!")
     
     yield
+    
+    # Cleanup
+    if cache.is_connected:
+        await cache.disconnect()
+        print("   Redis bağlantısı kapatıldı")
     print(f"👋 {settings.APP_NAME} kapatılıyor...")
 
 
