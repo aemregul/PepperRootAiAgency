@@ -36,6 +36,11 @@ async def lifespan(app: FastAPI):
     else:
         api_status.append("❌ Anthropic (ANTHROPIC_API_KEY eksik)")
     
+    if settings.OPENAI_API_KEY:
+        api_status.append("✅ OpenAI (GPT-4)")
+    else:
+        api_status.append("⚠️ OpenAI (opsiyonel)")
+    
     if settings.FAL_KEY:
         api_status.append("✅ fal.ai")
     else:

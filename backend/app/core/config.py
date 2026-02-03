@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     
     # AI APIs
     ANTHROPIC_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None  # ChatGPT/GPT-4
     FAL_KEY: Optional[str] = None
     SERPAPI_KEY: Optional[str] = None  # Web search for images
     

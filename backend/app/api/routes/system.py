@@ -16,12 +16,14 @@ async def get_system_status():
         "version": settings.APP_VERSION,
         "api_keys": {
             "anthropic": bool(settings.ANTHROPIC_API_KEY),
+            "openai": bool(settings.OPENAI_API_KEY),
             "fal_ai": bool(settings.FAL_KEY),
             "serpapi": bool(settings.SERPAPI_KEY),
             "google_oauth": bool(settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET),
         },
         "features": {
-            "chat": bool(settings.ANTHROPIC_API_KEY),
+            "chat": bool(settings.ANTHROPIC_API_KEY or settings.OPENAI_API_KEY),
+            "gpt4": bool(settings.OPENAI_API_KEY),
             "image_generation": bool(settings.FAL_KEY),
             "video_generation": bool(settings.FAL_KEY),
             "web_search": bool(settings.SERPAPI_KEY),
