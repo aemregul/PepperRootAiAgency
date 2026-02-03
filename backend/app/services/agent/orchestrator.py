@@ -5,7 +5,7 @@ Kullanıcı mesajını alır, LLM'e gönderir, araç çağrılarını yönetir.
 import json
 import uuid
 from typing import Optional
-from anthropic import Anthropic
+from openai import OpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,9 +33,9 @@ class AgentOrchestrator:
     """Agent'ı yöneten ana sınıf."""
     
     def __init__(self):
-        self.client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         self.fal_plugin = FalPlugin()
-        self.model = "claude-sonnet-4-20250514"
+        self.model = "gpt-4o"
         
         self.system_prompt = """Sen Pepper Root AI Agency'nin AKILLI asistanısın.
 Sadece görsel üretmekle kalmaz, TÜM SİSTEME HAKİMSİN ve AKSİYON ALABİLİRSİN.
@@ -182,13 +182,13 @@ DAVRANIŞ KURALLARI:
                 {"role": "user", "content": user_message}
             ]
         
-        # Claude'a gönder
-        response = self.client.messages.create(
+        # GPT-4o'ya gönder
+        response = self.client.chat.completions.create(
             model=self.model,
             max_tokens=4096,
-            system=full_system_prompt,
+            messages=[{"role": "system", "content": full_system_prompt}] + messages,
             tools=AGENT_TOOLS,
-            messages=messages
+            tool_choice="auto"
         )
         
         # Sonucu işle
@@ -255,17 +255,24 @@ DAVRANIŞ KURALLARI:
         session_id: uuid.UUID,
         db: AsyncSession
     ):
-        """Claude response'unu işle, tool call varsa yürüt."""
+        """OpenAI GPT-4o response'unu işle, tool call varsa yürüt."""
         
-        for block in response.content:
-            if block.type == "text":
-                result["response"] += block.text
-            
-            elif block.type == "tool_use":
-                # Araç çağrısı var, işle
+        message = response.choices[0].message
+        
+        # Normal metin yanıtı
+        if message.content:
+            result["response"] += message.content
+        
+        # Tool calls varsa işle
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                tool_name = tool_call.function.name
+                tool_args = json.loads(tool_call.function.arguments)
+                
+                # Araç çağrısını yürüt
                 tool_result = await self._handle_tool_call(
-                    block.name, 
-                    block.input, 
+                    tool_name, 
+                    tool_args, 
                     session_id, 
                     db,
                     resolved_entities=result.get("_resolved_entities", []),
@@ -276,43 +283,42 @@ DAVRANIŞ KURALLARI:
                 if tool_result.get("success") and tool_result.get("image_url"):
                     result["images"].append({
                         "url": tool_result["image_url"],
-                        "prompt": block.input.get("prompt", "")
+                        "prompt": tool_args.get("prompt", "")
                     })
                 
                 # Entity oluşturulduysa ekle
                 if tool_result.get("success") and tool_result.get("entity"):
                     result["entities_created"].append(tool_result["entity"])
                 
-                # Araç sonucunu Claude'a gönder ve devam et
-                messages.append({"role": "assistant", "content": response.content})
+                # Tool sonucunu GPT-4o'ya gönder
                 messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(tool_result, ensure_ascii=False, default=str)
-                        }
-                    ]
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [tool_call.model_dump()]
                 })
-                
-                # Claude'dan devam yanıtı al
-                continue_response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    system=self.system_prompt,
-                    tools=AGENT_TOOLS,
-                    messages=messages
-                )
-                
-                # Recursive olarak devam et (nested tool calls için)
-                await self._process_response(
-                    continue_response, 
-                    messages, 
-                    result, 
-                    session_id, 
-                    db
-                )
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(tool_result, ensure_ascii=False, default=str)
+                })
+            
+            # Devam yanıtı al
+            continue_response = self.client.chat.completions.create(
+                model=self.model,
+                max_tokens=4096,
+                messages=[{"role": "system", "content": self.system_prompt}] + messages,
+                tools=AGENT_TOOLS,
+                tool_choice="auto"
+            )
+            
+            # Recursive olarak devam et (nested tool calls için)
+            await self._process_response(
+                continue_response, 
+                messages, 
+                result, 
+                session_id, 
+                db
+            )
     
     async def _handle_tool_call(
         self, 
