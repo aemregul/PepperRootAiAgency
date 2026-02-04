@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2, Trash2, X, ZoomIn, Shirt } from "lucide-react";
+import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2, Trash2, X, ZoomIn, Shirt, CheckSquare, Square } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe } from "@/lib/api";
+import { useToast } from "./ToastProvider";
 
 interface Asset {
     id: string;
@@ -68,6 +69,9 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const toast = useToast();
 
     // API'den asset'leri çek
     useEffect(() => {
@@ -113,7 +117,49 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         const success = await deleteAsset(assetId);
         if (success) {
             setAssets(prev => prev.filter(a => a.id !== assetId));
+            toast.success('Asset silindi');
+        } else {
+            toast.error('Silme başarısız');
         }
+    };
+
+    // Toggle selection for bulk operations
+    const toggleSelection = (assetId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(assetId)) {
+                newSet.delete(assetId);
+            } else {
+                newSet.add(assetId);
+            }
+            return newSet;
+        });
+    };
+
+    // Select/deselect all
+    const toggleSelectAll = () => {
+        if (selectedIds.size === displayAssets.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(displayAssets.map(a => a.id)));
+        }
+    };
+
+    // Bulk delete
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) return;
+
+        let successCount = 0;
+        for (const assetId of selectedIds) {
+            const success = await deleteAsset(assetId);
+            if (success) successCount++;
+        }
+
+        setAssets(prev => prev.filter(a => !selectedIds.has(a.id)));
+        setSelectedIds(new Set());
+        setIsSelectMode(false);
+        toast.success(`${successCount} asset silindi`);
     };
 
     // Drag start for chat drop
@@ -330,32 +376,76 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                     className="h-14 px-4 flex items-center justify-between border-b shrink-0"
                     style={{ borderColor: "var(--border)" }}
                 >
-                    <h2 className="font-medium">Media Assets</h2>
-                    <div className="flex items-center gap-1">
-                        {/* Favorites Filter */}
-                        <button
-                            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                            className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${showFavoritesOnly ? 'bg-yellow-500/20' : 'hover:bg-[var(--card)]'}`}
-                            title={showFavoritesOnly ? "Tümünü Göster" : "Sadece Favoriler"}
-                        >
-                            <Star size={16} fill={showFavoritesOnly ? "#eab308" : "none"} style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }} />
-                            {favoritesCount > 0 && (
-                                <span className="text-xs" style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }}>{favoritesCount}</span>
-                            )}
-                        </button>
-                        <button
-                            className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                            title="Refresh"
-                        >
-                            <RefreshCw size={16} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-                        <button
-                            onClick={onToggle}
-                            className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
+                    {isSelectMode ? (
+                        <>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{selectedIds.size} seçili</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={toggleSelectAll}
+                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors text-xs"
+                                    title={selectedIds.size === displayAssets.length ? "Seçimi Kaldır" : "Tümünü Seç"}
+                                >
+                                    {selectedIds.size === displayAssets.length ? <CheckSquare size={16} /> : <Square size={16} />}
+                                </button>
+                                <button
+                                    onClick={handleBulkDelete}
+                                    disabled={selectedIds.size === 0}
+                                    className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 transition-colors disabled:opacity-50"
+                                    title="Seçilenleri Sil"
+                                >
+                                    <Trash2 size={16} className="text-red-500" />
+                                </button>
+                                <button
+                                    onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
+                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
+                                    title="İptal"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <h2 className="font-medium">Media Assets</h2>
+                            <div className="flex items-center gap-1">
+                                {/* Select Mode Toggle */}
+                                {displayAssets.length > 0 && (
+                                    <button
+                                        onClick={() => setIsSelectMode(true)}
+                                        className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
+                                        title="Çoklu Seçim"
+                                    >
+                                        <CheckSquare size={16} style={{ color: "var(--foreground-muted)" }} />
+                                    </button>
+                                )}
+                                {/* Favorites Filter */}
+                                <button
+                                    onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                                    className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${showFavoritesOnly ? 'bg-yellow-500/20' : 'hover:bg-[var(--card)]'}`}
+                                    title={showFavoritesOnly ? "Tümünü Göster" : "Sadece Favoriler"}
+                                >
+                                    <Star size={16} fill={showFavoritesOnly ? "#eab308" : "none"} style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }} />
+                                    {favoritesCount > 0 && (
+                                        <span className="text-xs" style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }}>{favoritesCount}</span>
+                                    )}
+                                </button>
+                                <button
+                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
+                                    title="Refresh"
+                                >
+                                    <RefreshCw size={16} style={{ color: "var(--foreground-muted)" }} />
+                                </button>
+                                <button
+                                    onClick={onToggle}
+                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </header>
 
                 {/* Assets Grid */}

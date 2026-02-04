@@ -42,6 +42,7 @@ import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePl
 import { useToast } from "./ToastProvider";
 import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
 import { GridGeneratorModal } from "./GridGeneratorModal";
+import { useKeyboardShortcuts, SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
 
 interface SidebarItem {
     id: string;
@@ -200,6 +201,30 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [isLoadingEntities, setIsLoadingEntities] = useState(false);
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
     const [entitySearchQuery, setEntitySearchQuery] = useState("");
+
+    // Keyboard shortcuts
+    useKeyboardShortcuts({
+        shortcuts: [
+            { ...SHORTCUTS.SEARCH, action: () => setSearchOpen(true) },
+            { ...SHORTCUTS.NEW_PROJECT, action: () => setNewProjectOpen(true) },
+            { ...SHORTCUTS.SETTINGS, action: () => setSettingsOpen(true) },
+            { ...SHORTCUTS.GRID, action: () => setGridGeneratorOpen(true) },
+            { ...SHORTCUTS.ADMIN, action: () => setAdminOpen(true) },
+            {
+                ...SHORTCUTS.ESCAPE,
+                action: () => {
+                    // Close any open modal
+                    if (searchOpen) setSearchOpen(false);
+                    else if (settingsOpen) setSettingsOpen(false);
+                    else if (newProjectOpen) setNewProjectOpen(false);
+                    else if (adminOpen) setAdminOpen(false);
+                    else if (trashOpen) setTrashOpen(false);
+                    else if (gridGeneratorOpen) setGridGeneratorOpen(false);
+                    else if (userMenuOpen) setUserMenuOpen(false);
+                }
+            },
+        ],
+    });
 
     // Proje ismi düzenleme state'leri
     const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
