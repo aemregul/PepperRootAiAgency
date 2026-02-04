@@ -575,6 +575,10 @@ class FalPlugin:
         import os as os_module
         
         try:
+            # Data URI prefix'ini temizle (örn: "data:image/png;base64,...")
+            if "," in base64_data:
+                base64_data = base64_data.split(",", 1)[1]
+            
             # Base64'ü decode et
             image_bytes = base64.b64decode(base64_data)
             
