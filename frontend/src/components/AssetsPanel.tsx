@@ -192,6 +192,12 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
 
     // Download all assets
     const handleDownloadAll = async () => {
+        if (displayAssets.length === 0) {
+            toast.warning('İndirilecek asset yok');
+            return;
+        }
+
+        toast.info(`${displayAssets.length} asset indiriliyor...`);
         for (const asset of displayAssets) {
             try {
                 const response = await fetch(asset.url);
@@ -208,31 +214,41 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                 console.error('Download failed:', error);
             }
         }
+        toast.success('İndirme tamamlandı');
     };
 
     // Copy first asset URL to clipboard
     const handleCopyLink = async () => {
-        if (displayAssets.length > 0) {
-            try {
-                await navigator.clipboard.writeText(displayAssets[0].url);
-                alert('Link kopyalandı!');
-            } catch (error) {
-                console.error('Copy failed:', error);
-            }
+        if (displayAssets.length === 0) {
+            toast.warning('Kopyalanacak asset yok');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(displayAssets[0].url);
+            toast.success('Link kopyalandı!');
+        } catch (error) {
+            console.error('Copy failed:', error);
+            toast.error('Kopyalama başarısız');
         }
     };
 
     // Share via Web Share API
     const handleShare = async () => {
-        if (displayAssets.length > 0 && navigator.share) {
+        if (displayAssets.length === 0) {
+            toast.warning('Paylaşılacak asset yok');
+            return;
+        }
+
+        if (navigator.share) {
             try {
                 await navigator.share({
                     title: 'Pepper Root AI Agency - Generated Assets',
                     text: 'AI ile oluşturulmuş görseller',
                     url: displayAssets[0].url
                 });
+                toast.success('Paylaşıldı!');
             } catch (error) {
-                // User cancelled or share failed
+                // User cancelled
                 console.log('Share cancelled');
             }
         } else {
