@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, MoreHorizontal, Star, Loader2, Trash2, X, ZoomIn, Shirt, CheckSquare, Square } from "lucide-react";
+import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, Shirt, CheckSquare, Square } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
@@ -608,37 +608,29 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
 
                 {/* Bottom actions */}
                 <div
-                    className="p-3 border-t flex items-center justify-between"
+                    className="p-3 border-t flex items-center gap-1"
                     style={{ borderColor: "var(--border)" }}
                 >
-                    <div className="flex items-center gap-1">
-                        <button
-                            onClick={handleDownloadAll}
-                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                            title="Tümünü İndir"
-                        >
-                            <Download size={18} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-                        <button
-                            onClick={handleCopyLink}
-                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                            title="Link Kopyala"
-                        >
-                            <Copy size={18} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-                        <button
-                            onClick={handleShare}
-                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                            title="Paylaş"
-                        >
-                            <Globe size={18} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-                    </div>
                     <button
+                        onClick={handleDownloadAll}
                         className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Daha Fazla"
+                        title="Tümünü İndir"
                     >
-                        <MoreHorizontal size={18} style={{ color: "var(--foreground-muted)" }} />
+                        <Download size={18} style={{ color: "var(--foreground-muted)" }} />
+                    </button>
+                    <button
+                        onClick={handleCopyLink}
+                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                        title="Link Kopyala"
+                    >
+                        <Copy size={18} style={{ color: "var(--foreground-muted)" }} />
+                    </button>
+                    <button
+                        onClick={handleShare}
+                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                        title="Paylaş"
+                    >
+                        <Globe size={18} style={{ color: "var(--foreground-muted)" }} />
                     </button>
                 </div>
             </aside>
