@@ -10,8 +10,20 @@ function CallbackHandler() {
         const token = searchParams.get('token');
 
         if (token) {
-            // Save token from Google OAuth callback
-            localStorage.setItem('token', token);
+            // Check rememberMe preference (saved before OAuth redirect)
+            const rememberMe = localStorage.getItem('rememberMe') !== 'false'; // Default to true
+
+            // Clear any existing tokens
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+
+            // Save token to appropriate storage based on preference
+            if (rememberMe) {
+                localStorage.setItem('token', token);
+            } else {
+                sessionStorage.setItem('token', token);
+            }
+
             // Use window.location for full page reload to ensure AuthContext picks up the token
             window.location.href = '/app';
         } else {

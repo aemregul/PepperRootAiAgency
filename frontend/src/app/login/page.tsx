@@ -22,7 +22,7 @@ function FloatingOrb({ delay, size, color, position }: { delay: number; size: st
 
 export default function LoginPage() {
     const router = useRouter();
-    const { loginWithGoogle, user, isLoading: authLoading } = useAuth();
+    const { loginWithGoogle, user, isLoading: authLoading, rememberMe, setRememberMe } = useAuth();
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -143,6 +143,25 @@ export default function LoginPage() {
                                 </>
                             )}
                         </button>
+
+                        {/* Remember Me Checkbox */}
+                        <label className="flex items-center gap-3 mt-4 cursor-pointer group">
+                            <button
+                                type="button"
+                                onClick={() => setRememberMe(!rememberMe)}
+                                className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${rememberMe
+                                        ? 'bg-emerald-500 border-emerald-500'
+                                        : 'bg-gray-800/50 border-gray-600 hover:border-gray-500'
+                                    }`}
+                            >
+                                {rememberMe && (
+                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                )}
+                            </button>
+                            <span className="text-gray-400 text-sm group-hover:text-gray-300 transition-colors select-none">Hesabımı hatırla</span>
+                        </label>
 
                         {/* Privacy Note */}
                         <p className="text-gray-500 text-xs text-center mt-6">
