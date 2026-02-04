@@ -2182,13 +2182,13 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
         params: dict
     ) -> dict:
         """
-        Web'den marka hakkında araştırma yap.
+        AKILLI Web'den marka araştırması.
         
         İş Akışı:
         1. DuckDuckGo ile marka bilgilerini ara
-        2. Resmi web sitesini bul ve tara
-        3. Sosyal medya hesaplarını bul
-        4. Renk, font, slogan bilgilerini çıkart
+        2. Logo görselini ara ve indir
+        3. GPT-4o Vision ile logo analizi yap → RENKLER ÇIKAR
+        4. Sosyal medya hesaplarını bul
         5. (Opsiyonel) Marka olarak kaydet
         """
         try:
@@ -2206,53 +2206,164 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
                 "industry": "",
                 "tone": "",
                 "social_media": {},
+                "logo_url": None,
                 "research_notes": []
             }
             
-            # 1. Genel marka araması
             from duckduckgo_search import DDGS
+            import httpx
+            import base64
             
             with DDGS() as ddgs:
-                # Temel bilgi araması
+                # 1. Temel bilgi araması
                 search_results = list(ddgs.text(
                     f"{brand_name} brand company official",
                     max_results=5
                 ))
                 
                 if search_results:
-                    # İlk sonuçtan açıklama al
                     brand_info["description"] = search_results[0].get("body", "")
                     brand_info["website"] = search_results[0].get("href", "")
                     brand_info["research_notes"].append(f"Web aramasından {len(search_results)} sonuç bulundu")
                 
-                # Renk ve slogan araması
-                color_results = list(ddgs.text(
-                    f"{brand_name} brand colors hex code palette",
+                # 2. 🎨 LOGO GÖRSEL ARAŞTIRMASI - KRİTİK!
+                print(f"🔍 {brand_name} logosu aranıyor...")
+                logo_found = False
+                
+                try:
+                    # Logo görsellerini ara
+                    image_results = list(ddgs.images(
+                        f"{brand_name} logo official transparent",
+                        max_results=5
+                    ))
+                    
+                    if image_results:
+                        brand_info["research_notes"].append(f"Logo aramasında {len(image_results)} görsel bulundu")
+                        
+                        # En iyi logo adayını bul
+                        for img_result in image_results:
+                            image_url = img_result.get("image")
+                            if not image_url:
+                                continue
+                            
+                            print(f"   → Logo adayı: {image_url[:80]}...")
+                            
+                            try:
+                                # Logoyu indir
+                                async with httpx.AsyncClient(timeout=10.0) as client:
+                                    response = await client.get(image_url, follow_redirects=True)
+                                    if response.status_code == 200:
+                                        image_data = response.content
+                                        
+                                        # Base64'e çevir
+                                        image_base64 = base64.b64encode(image_data).decode('utf-8')
+                                        
+                                        # Content type belirle
+                                        content_type = response.headers.get("content-type", "image/png")
+                                        if "jpeg" in content_type or "jpg" in content_type:
+                                            media_type = "image/jpeg"
+                                        elif "png" in content_type:
+                                            media_type = "image/png"
+                                        elif "webp" in content_type:
+                                            media_type = "image/webp"
+                                        else:
+                                            media_type = "image/png"
+                                        
+                                        data_url = f"data:{media_type};base64,{image_base64}"
+                                        
+                                        # 3. 🧠 GPT-4o VISION İLE RENK ANALİZİ!
+                                        print(f"   🎨 Logo analiz ediliyor (GPT-4o Vision)...")
+                                        
+                                        analysis_response = self.client.chat.completions.create(
+                                            model="gpt-4o",
+                                            max_tokens=500,
+                                            messages=[
+                                                {
+                                                    "role": "system",
+                                                    "content": "Sen bir marka renk analisti sin. Verilen logo görselini analiz et ve marka renklerini çıkart. SADECE JSON formatında yanıt ver, başka hiçbir şey yazma."
+                                                },
+                                                {
+                                                    "role": "user",
+                                                    "content": [
+                                                        {
+                                                            "type": "image_url",
+                                                            "image_url": {"url": data_url, "detail": "high"}
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "text": f"""Bu {brand_name} markasının logosu. Analiz et ve şu bilgileri JSON olarak döndür:
+
+{{
+    "primary_color": "#HEX - ana renk",
+    "secondary_color": "#HEX - ikincil renk (varsa)",
+    "accent_colors": ["#HEX", "#HEX"] veya [],
+    "color_names": {{"primary": "renk adı türkçe", "secondary": "renk adı"}},
+    "logo_style": "minimalist/ornate/text-based/icon-based/combination",
+    "dominant_mood": "profesyonel/eğlenceli/lüks/enerji/güvenilir/yaratıcı"
+}}
+
+SADECE JSON döndür, başka açıklama yazma."""
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        )
+                                        
+                                        analysis_text = analysis_response.choices[0].message.content.strip()
+                                        
+                                        # JSON'u parse et
+                                        import json
+                                        import re
+                                        
+                                        # JSON bloğunu bul
+                                        json_match = re.search(r'\{[\s\S]*\}', analysis_text)
+                                        if json_match:
+                                            try:
+                                                color_data = json.loads(json_match.group())
+                                                brand_info["colors"] = color_data
+                                                brand_info["logo_url"] = image_url
+                                                logo_found = True
+                                                
+                                                primary = color_data.get("primary_color", "")
+                                                color_name = color_data.get("color_names", {}).get("primary", "")
+                                                brand_info["research_notes"].append(f"✅ Logo analizi başarılı! Ana renk: {color_name} ({primary})")
+                                                print(f"   ✅ Renkler bulundu: {primary} ({color_name})")
+                                                break  # İlk başarılı logoda dur
+                                            except json.JSONDecodeError:
+                                                print(f"   ⚠️ JSON parse hatası")
+                                                continue
+                                        
+                            except Exception as img_error:
+                                print(f"   ⚠️ Logo indirme/analiz hatası: {img_error}")
+                                continue
+                    else:
+                        brand_info["research_notes"].append("Logo görseli bulunamadı")
+                        
+                except Exception as logo_error:
+                    print(f"⚠️ Logo araştırma hatası: {logo_error}")
+                    brand_info["research_notes"].append(f"Logo araştırma hatası: {str(logo_error)}")
+                
+                # 4. Slogan araması
+                tagline_results = list(ddgs.text(
+                    f"{brand_name} slogan tagline",
                     max_results=3
                 ))
                 
-                if color_results:
-                    brand_info["research_notes"].append("Renk paleti bilgisi araştırıldı")
+                for result in tagline_results:
+                    body = result.get("body", "")
+                    title = result.get("title", "")
+                    if any(word in body.lower() for word in ["slogan", "tagline", "motto"]):
+                        # Slogan'ı çıkarmaya çalış
+                        brand_info["tagline"] = body[:150]
+                        brand_info["research_notes"].append(f"Slogan bulundu")
+                        break
                 
-                # Slogan araması
-                tagline_results = list(ddgs.text(
-                    f"{brand_name} slogan tagline",
-                    max_results=2
-                ))
-                
-                if tagline_results:
-                    for result in tagline_results:
-                        body = result.get("body", "")
-                        if "slogan" in body.lower() or "tagline" in body.lower():
-                            brand_info["research_notes"].append(f"Slogan bulundu: {body[:100]}")
-                            break
-                
-                # Detailed veya comprehensive için sosyal medya araştır
+                # 5. Sosyal medya araştırması
                 if research_depth in ["detailed", "comprehensive"]:
                     # Instagram
                     insta_results = list(ddgs.text(
                         f"{brand_name} official instagram",
-                        max_results=2
+                        max_results=3
                     ))
                     for result in insta_results:
                         href = result.get("href", "")
@@ -2263,7 +2374,7 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
                     # Twitter/X
                     twitter_results = list(ddgs.text(
                         f"{brand_name} official twitter",
-                        max_results=2
+                        max_results=3
                     ))
                     for result in twitter_results:
                         href = result.get("href", "")
@@ -2271,44 +2382,57 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
                             brand_info["social_media"]["twitter"] = href
                             break
                     
-                    brand_info["research_notes"].append("Sosyal medya hesapları araştırıldı")
-                
-                # Comprehensive için sektör ve hedef kitle araştır
-                if research_depth == "comprehensive":
-                    industry_results = list(ddgs.text(
-                        f"{brand_name} company industry sector target audience",
+                    # LinkedIn
+                    linkedin_results = list(ddgs.text(
+                        f"{brand_name} official linkedin company",
                         max_results=3
                     ))
+                    for result in linkedin_results:
+                        href = result.get("href", "")
+                        if "linkedin.com" in href:
+                            brand_info["social_media"]["linkedin"] = href
+                            break
                     
-                    if industry_results:
-                        brand_info["research_notes"].append("Sektör ve hedef kitle analiz edildi")
+                    brand_info["research_notes"].append(f"Sosyal medya: {len(brand_info['social_media'])} hesap bulundu")
             
             # Sonuç özeti
+            colors_summary = ""
+            if brand_info["colors"]:
+                primary = brand_info["colors"].get("primary_color", "")
+                color_name = brand_info["colors"].get("color_names", {}).get("primary", "")
+                if primary:
+                    colors_summary = f"\n🎨 Ana Renk: {color_name} ({primary})"
+                    if brand_info["colors"].get("secondary_color"):
+                        sec = brand_info["colors"]["secondary_color"]
+                        sec_name = brand_info["colors"].get("color_names", {}).get("secondary", "")
+                        colors_summary += f"\n🎨 İkincil: {sec_name} ({sec})"
+            
             result = {
                 "success": True,
                 "brand_info": brand_info,
                 "research_depth": research_depth,
-                "message": f"🔍 {brand_name} hakkında araştırma tamamlandı.\n"
-                          f"Website: {brand_info['website'] or 'Bulunamadı'}\n"
-                          f"Sosyal Medya: {len(brand_info['social_media'])} hesap bulundu\n"
-                          f"Notlar: {len(brand_info['research_notes'])} araştırma notu"
+                "logo_analyzed": logo_found,
+                "message": f"🔍 {brand_name} hakkında DETAYLI araştırma tamamlandı.\n"
+                          f"Website: {brand_info['website'] or 'Bulunamadı'}"
+                          f"{colors_summary}"
+                          f"\nSosyal Medya: {len(brand_info['social_media'])} hesap"
+                          f"\n📝 {len(brand_info['research_notes'])} araştırma notu"
             }
             
             # Kaydetme istendi mi?
             if should_save:
-                # Marka olarak kaydet
                 save_result = await self._create_brand(
                     db=db,
                     session_id=session_id,
                     params={
                         "name": brand_name,
                         "description": brand_info["description"],
-                        "logo_url": None,  # Logo URL ayrıca bulunabilir
+                        "logo_url": brand_info["logo_url"],
                         "attributes": {
                             "colors": brand_info["colors"],
                             "tagline": brand_info["tagline"],
                             "industry": brand_info["industry"],
-                            "tone": brand_info["tone"],
+                            "tone": brand_info["colors"].get("dominant_mood", ""),
                             "social_media": brand_info["social_media"],
                             "website": brand_info["website"]
                         }
@@ -2323,6 +2447,8 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
             return result
         
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {
                 "success": False,
                 "error": f"Marka araştırması başarısız: {str(e)}"
