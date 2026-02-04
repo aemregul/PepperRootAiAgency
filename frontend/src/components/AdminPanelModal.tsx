@@ -16,12 +16,11 @@ interface AdminPanelModalProps {
     onClose: () => void;
 }
 
-// Model distribution data (static for now)
+// Model distribution data (gerçek entegrasyonlara göre)
 const modelDistribution = [
-    { name: "Claude", value: 45, color: "#8b5cf6" },
-    { name: "fal.ai", value: 35, color: "#22c55e" },
+    { name: "GPT-4o", value: 50, color: "#22c55e" },
+    { name: "fal.ai", value: 35, color: "#8b5cf6" },
     { name: "Kling", value: 15, color: "#3b82f6" },
-    { name: "Diğer", value: 5, color: "#6b7280" },
 ];
 
 // Marketplace Plugins (static catalog)

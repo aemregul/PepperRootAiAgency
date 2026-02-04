@@ -114,14 +114,12 @@ async def list_ai_models(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(AIModel).order_by(AIModel.display_name))
     models = result.scalars().all()
     
-    # Eğer model yoksa varsayılanları ekle
+    # Eğer model yoksa varsayılanları ekle (sadece gerçekten entegre olanlar)
     if not models:
         default_models = [
-            AIModel(name="claude", display_name="Claude Sonnet 4", model_type="llm", provider="anthropic", description="Metin ve sohbet", icon="🧠", is_enabled=True),
-            AIModel(name="gpt4", display_name="GPT-4o", model_type="llm", provider="openai", description="OpenAI modeli", icon="💬", is_enabled=False),
-            AIModel(name="falai", display_name="fal.ai", model_type="image", provider="fal", description="Görsel üretimi", icon="🖼️", is_enabled=True),
-            AIModel(name="minimax", display_name="Minimax", model_type="video", provider="minimax", description="Video üretimi", icon="🎬", is_enabled=False),
-            AIModel(name="kling", display_name="Kling 2.5", model_type="video", provider="kling", description="Yüksek kalite video", icon="🎥", is_enabled=True),
+            AIModel(name="gpt4o", display_name="GPT-4o", model_type="llm", provider="openai", description="Metin ve sohbet - Ana LLM", icon="💬", is_enabled=True),
+            AIModel(name="falai", display_name="fal.ai", model_type="image", provider="fal", description="Görsel üretimi - Nano Banana Pro", icon="🖼️", is_enabled=True),
+            AIModel(name="kling", display_name="Kling 2.5", model_type="video", provider="kling", description="Video üretimi - Turbo Pro", icon="🎥", is_enabled=True),
         ]
         for model in default_models:
             db.add(model)
