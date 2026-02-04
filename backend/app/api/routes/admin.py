@@ -545,11 +545,77 @@ async def restore_trash_item(item_id: UUID, db: AsyncSession = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Öğe bulunamadı")
     
-    # TODO: original_data'yı kullanarak öğeyi geri oluştur
-    await db.delete(item)
-    await db.commit()
+    original_data = item.original_data or {}
+    item_type = item.item_type
+    restored_item = None
     
-    return {"success": True, "message": "Öğe geri yüklendi", "original_data": item.original_data}
+    try:
+        # Session (proje) geri yükleme
+        if item_type == "session":
+            from uuid import UUID as UUIDType
+            session_result = await db.execute(
+                select(Session).where(Session.id == UUIDType(item.item_id))
+            )
+            session = session_result.scalar_one_or_none()
+            if session:
+                session.is_active = True
+                restored_item = {"type": "session", "id": str(session.id), "title": session.title}
+            else:
+                # Session tamamen silinmişse yeniden oluştur
+                new_session = Session(
+                    id=UUIDType(item.item_id),
+                    user_id=UUIDType(original_data.get("user_id")) if original_data.get("user_id") else None,
+                    title=original_data.get("title", "Restored Project"),
+                    is_active=True
+                )
+                db.add(new_session)
+                restored_item = {"type": "session", "id": str(new_session.id), "title": new_session.title}
+        
+        # Entity (karakter, lokasyon, marka) geri yükleme
+        elif item_type in ["character", "location", "brand"]:
+            from app.models.models import Entity
+            new_entity = Entity(
+                user_id=item.user_id,
+                session_id=None,  # Session bağımsız olarak geri yükle
+                entity_type=original_data.get("entity_type", item_type),
+                name=item.item_name,
+                tag=original_data.get("tag", f"@{item.item_name.lower().replace(' ', '_')}"),
+                description=original_data.get("description"),
+                attributes=original_data.get("attributes", {}),
+                reference_image_url=original_data.get("reference_image_url")
+            )
+            db.add(new_entity)
+            await db.flush()
+            restored_item = {"type": item_type, "id": str(new_entity.id), "name": new_entity.name, "tag": new_entity.tag}
+        
+        # Asset geri yükleme
+        elif item_type == "asset":
+            from app.models.models import GeneratedAsset
+            from uuid import UUID as UUIDType
+            new_asset = GeneratedAsset(
+                session_id=UUIDType(original_data.get("session_id")) if original_data.get("session_id") else None,
+                asset_type=original_data.get("type", "image"),
+                url=original_data.get("url", ""),
+                prompt=original_data.get("prompt"),
+                model_name=original_data.get("model_name")
+            )
+            db.add(new_asset)
+            await db.flush()
+            restored_item = {"type": "asset", "id": str(new_asset.id), "url": new_asset.url}
+        
+        else:
+            # Bilinmeyen tip - sadece çöpten sil
+            restored_item = {"type": item_type, "data": original_data}
+        
+        # TrashItem'ı sil
+        await db.delete(item)
+        await db.commit()
+        
+        return {"success": True, "message": f"{item_type} başarıyla geri yüklendi!", "restored": restored_item}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Geri yükleme hatası: {str(e)}")
 
 
 @router.delete("/trash/{item_id}")
