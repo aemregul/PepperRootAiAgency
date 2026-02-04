@@ -8,7 +8,8 @@ import {
 } from "recharts";
 import {
     getAIModels, toggleAIModel, getInstalledPlugins, installPlugin, uninstallPlugin,
-    getUsageStats, getOverviewStats, AIModel, InstalledPlugin, UsageStats, OverviewStats
+    getUsageStats, getOverviewStats, getModelDistribution,
+    AIModel, InstalledPlugin, UsageStats, OverviewStats, ModelDistributionItem
 } from "@/lib/api";
 
 interface AdminPanelModalProps {
@@ -16,11 +17,11 @@ interface AdminPanelModalProps {
     onClose: () => void;
 }
 
-// Model distribution data (gerçek entegrasyonlara göre)
-const modelDistribution = [
-    { name: "GPT-4o", value: 50, color: "#22c55e" },
-    { name: "fal.ai", value: 35, color: "#8b5cf6" },
-    { name: "Kling", value: 15, color: "#3b82f6" },
+// Default model distribution (veri yokken)
+const defaultModelDistribution: ModelDistributionItem[] = [
+    { name: "GPT-4o", value: 0, color: "#22c55e" },
+    { name: "fal.ai", value: 0, color: "#8b5cf6" },
+    { name: "Kling", value: 0, color: "#3b82f6" },
 ];
 
 // Marketplace Plugins (static catalog)
@@ -41,6 +42,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
     const [installedPlugins, setInstalledPlugins] = useState<InstalledPlugin[]>([]);
     const [usageData, setUsageData] = useState<UsageStats[]>([]);
     const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null);
+    const [modelDistribution, setModelDistribution] = useState<ModelDistributionItem[]>(defaultModelDistribution);
     const [isLoading, setIsLoading] = useState(true);
 
     // UI states
@@ -54,17 +56,19 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
 
             setIsLoading(true);
             try {
-                const [modelsData, pluginsData, statsData, overviewData] = await Promise.all([
+                const [modelsData, pluginsData, statsData, overviewData, distributionData] = await Promise.all([
                     getAIModels(),
                     getInstalledPlugins(),
                     getUsageStats(7),
-                    getOverviewStats()
+                    getOverviewStats(),
+                    getModelDistribution()
                 ]);
 
                 setModels(modelsData);
                 setInstalledPlugins(pluginsData);
                 setUsageData(statsData);
                 setOverviewStats(overviewData);
+                setModelDistribution(distributionData.length > 0 ? distributionData : defaultModelDistribution);
             } catch (error) {
                 console.error('Admin panel veri yükleme hatası:', error);
             } finally {

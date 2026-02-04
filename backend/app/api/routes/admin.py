@@ -371,6 +371,74 @@ async def get_overview_stats(db: AsyncSession = Depends(get_db)):
     )
 
 
+class ModelDistributionItem(BaseModel):
+    name: str
+    value: int
+    color: str
+
+
+@router.get("/stats/model-distribution", response_model=list[ModelDistributionItem])
+async def get_model_distribution(db: AsyncSession = Depends(get_db)):
+    """Model kullanım dağılımı - Hangi model ne kadar kullanılmış."""
+    
+    # GeneratedAsset tablosundan model_name grupla
+    result = await db.execute(
+        select(
+            GeneratedAsset.model_name,
+            func.count(GeneratedAsset.id).label("count")
+        )
+        .where(GeneratedAsset.model_name.isnot(None))
+        .group_by(GeneratedAsset.model_name)
+    )
+    
+    model_counts = result.all()
+    
+    # Renk haritası
+    color_map = {
+        "nano-banana-pro": "#22c55e",      # Yeşil - Görsel
+        "nano_banana_with_face_swap": "#10b981",  # Koyu yeşil
+        "face-swap": "#8b5cf6",            # Mor
+        "kling-3.0-pro": "#3b82f6",        # Mavi - Video
+        "kling-2.5-turbo": "#60a5fa",      # Açık mavi
+        "flux-dev-img2img": "#f59e0b",     # Turuncu
+        "topaz": "#ec4899",                # Pembe
+        "bria-rmbg": "#6366f1",            # İndigo
+    }
+    
+    distribution = []
+    for model_name, count in model_counts:
+        # Model adını kısalt ve güzelleştir
+        display_name = model_name
+        if "nano-banana" in model_name.lower():
+            display_name = "Nano Banana"
+        elif "kling" in model_name.lower():
+            display_name = "Kling Video"
+        elif "face" in model_name.lower():
+            display_name = "Face Swap"
+        elif "flux" in model_name.lower():
+            display_name = "Flux"
+        elif "topaz" in model_name.lower():
+            display_name = "Topaz"
+        
+        color = color_map.get(model_name, "#6b7280")  # Default gray
+        
+        distribution.append(ModelDistributionItem(
+            name=display_name,
+            value=count,
+            color=color
+        ))
+    
+    # Veri yoksa default değerler
+    if not distribution:
+        distribution = [
+            ModelDistributionItem(name="GPT-4o", value=0, color="#22c55e"),
+            ModelDistributionItem(name="fal.ai", value=0, color="#8b5cf6"),
+            ModelDistributionItem(name="Kling", value=0, color="#3b82f6"),
+        ]
+    
+    return distribution
+
+
 # ============== CREATIVE PLUGINS ==============
 
 @router.get("/creative-plugins", response_model=list[CreativePluginResponse])

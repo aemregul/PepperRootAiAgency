@@ -400,6 +400,19 @@ export async function getOverviewStats(): Promise<OverviewStats> {
     return response.json();
 }
 
+// Model Distribution
+export interface ModelDistributionItem {
+    name: string;
+    value: number;
+    color: string;
+}
+
+export async function getModelDistribution(): Promise<ModelDistributionItem[]> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/stats/model-distribution`);
+    if (!response.ok) throw new Error('Failed to fetch model distribution');
+    return response.json();
+}
+
 // Creative Plugins
 export interface CreativePluginData {
     id: string;
