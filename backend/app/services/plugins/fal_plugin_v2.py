@@ -192,7 +192,7 @@ class FalPluginV2(PluginBase):
             return {"success": False, "error": str(e)}
     
     async def _generate_video(self, params: dict) -> dict:
-        """Kling 2.5 ile video üret."""
+        """Kling 3.0 Pro ile video üret."""
         prompt = params.get("prompt", "")
         image_url = params.get("image_url")  # Opsiyonel - image-to-video
         duration = params.get("duration", "5")  # 5 veya 10 saniye
@@ -208,8 +208,8 @@ class FalPluginV2(PluginBase):
                 arguments["image_url"] = image_url
             
             result = await fal_client.subscribe_async(
-                "fal-ai/kling-video/v2.5/turbo/image-to-video" if image_url 
-                else "fal-ai/kling-video/v2.5/turbo/text-to-video",
+                "fal-ai/kling-video/v3/pro/image-to-video" if image_url 
+                else "fal-ai/kling-video/v3/pro/text-to-video",
                 arguments=arguments,
                 with_logs=True,
             )
@@ -218,7 +218,7 @@ class FalPluginV2(PluginBase):
                 return {
                     "success": True,
                     "video_url": result["video"]["url"],
-                    "model": "kling-2.5-turbo",
+                    "model": "kling-3.0-pro",
                 }
             else:
                 return {"success": False, "error": "Video üretilemedi"}

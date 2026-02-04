@@ -177,12 +177,31 @@ FACE_CONSISTENCY_MODELS = [
 
 VIDEO_GENERATION_MODELS = [
     FalModel(
+        name="Kling 3.0 Pro (Image-to-Video)",
+        endpoint="fal-ai/kling-video/v3/pro/image-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.PRIMARY,
+        description="En yeni ve en iyi video modeli. Sinematik kalite, doğal hareket.",
+        best_for=["image_to_video", "cinematic", "professional", "high_quality"],
+        supports_reference=True,
+        estimated_cost=0.15
+    ),
+    FalModel(
+        name="Kling 3.0 Pro (Text-to-Video)",
+        endpoint="fal-ai/kling-video/v3/pro/text-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.PRIMARY,
+        description="Metinden video - dünya liderliği kalitesinde.",
+        best_for=["text_to_video", "animation", "creative"],
+        estimated_cost=0.15
+    ),
+    FalModel(
         name="Kling 2.5 Turbo Pro (Image-to-Video)",
         endpoint="fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
         category=ModelCategory.VIDEO_GENERATION,
-        priority=Priority.PRIMARY,
-        description="En iyi image-to-video, sinematik kalite.",
-        best_for=["image_to_video", "cinematic", "professional"],
+        priority=Priority.ALTERNATIVE,
+        description="Hızlı image-to-video, dengeli kalite/hız.",
+        best_for=["fast_video", "turbo"],
         supports_reference=True,
         estimated_cost=0.10
     ),
@@ -190,17 +209,17 @@ VIDEO_GENERATION_MODELS = [
         name="Kling 2.5 Turbo Pro (Text-to-Video)",
         endpoint="fal-ai/kling-video/v2.5-turbo/pro/text-to-video",
         category=ModelCategory.VIDEO_GENERATION,
-        priority=Priority.PRIMARY,
-        description="Metinden video üretimi, yüksek kalite.",
-        best_for=["text_to_video", "animation"],
+        priority=Priority.ALTERNATIVE,
+        description="Hızlı metinden video üretimi.",
+        best_for=["fast_text_to_video"],
         estimated_cost=0.10
     ),
     FalModel(
         name="Veo 3.1 (Image-to-Video)",
         endpoint="fal-ai/veo3.1/image-to-video",
         category=ModelCategory.VIDEO_GENERATION,
-        priority=Priority.ALTERNATIVE,
-        description="Google DeepMind'ın en yeni video modeli.",
+        priority=Priority.SPECIALIZED,
+        description="Google DeepMind'ın video modeli.",
         best_for=["image_to_video", "high_fidelity"],
         supports_reference=True,
         estimated_cost=0.12

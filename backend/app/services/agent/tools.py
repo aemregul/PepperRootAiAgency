@@ -100,7 +100,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_video",
-        "description": "Video üretir. Kling 2.5 Turbo Pro kullanılır.",
+        "description": "Video üretir. Kling 3.0 Pro kullanılır.",
         "input_schema": {
             "type": "object",
             "properties": {

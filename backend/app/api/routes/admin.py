@@ -121,7 +121,7 @@ async def list_ai_models(db: AsyncSession = Depends(get_db)):
         default_models = [
             AIModel(name="gpt4o", display_name="GPT-4o", model_type="llm", provider="openai", description="Metin ve sohbet - Ana LLM", icon="💬", is_enabled=True),
             AIModel(name="falai", display_name="fal.ai", model_type="image", provider="fal", description="Görsel üretimi - Nano Banana Pro", icon="🖼️", is_enabled=True),
-            AIModel(name="kling", display_name="Kling 2.5", model_type="video", provider="kling", description="Video üretimi - Turbo Pro", icon="🎥", is_enabled=True),
+            AIModel(name="kling", display_name="Kling 3.0 Pro", model_type="video", provider="kling", description="Video üretimi - En iyi kalite", icon="🎥", is_enabled=True),
         ]
         for model in default_models:
             db.add(model)
