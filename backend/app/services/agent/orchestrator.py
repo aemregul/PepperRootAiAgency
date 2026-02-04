@@ -160,7 +160,7 @@ DAVRANIŞ KURALLARI:
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         if reference_image:
             # Detect media type from base64 data
-            media_type = "image/jpeg"  # default
+            media_type = "image/png"
             if reference_image.startswith("iVBORw"):
                 media_type = "image/png"
             elif reference_image.startswith("/9j/"):
@@ -170,14 +170,16 @@ DAVRANIŞ KURALLARI:
             elif reference_image.startswith("UklGR"):
                 media_type = "image/webp"
             
-            # Claude vision API format
+            # OpenAI Vision API format (GPT-4o)
+            # data URL formatında: data:image/png;base64,...
+            data_url = f"data:{media_type};base64,{reference_image}"
+            
             user_content = [
                 {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type,
-                        "data": reference_image
+                    "type": "image_url",
+                    "image_url": {
+                        "url": data_url,
+                        "detail": "auto"
                     }
                 },
                 {
