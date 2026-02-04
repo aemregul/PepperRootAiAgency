@@ -55,12 +55,34 @@ async def _process_chat(
     await db.flush()
     await db.refresh(user_message)
     
-    # Agent ile yanıt al
+    # ÖNCEKİ MESAJLARI ÇEK - conversation_history oluştur
+    # ChatGPT gibi tüm sohbet geçmişini hatırlaması için gerekli!
+    from sqlalchemy import asc
+    previous_messages_result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session.id)
+        .where(Message.id != user_message.id)  # Yeni mesaj hariç
+        .order_by(asc(Message.created_at))  # Kronolojik sıra
+    )
+    previous_messages = previous_messages_result.scalars().all()
+    
+    # OpenAI formatına çevir
+    conversation_history = []
+    for msg in previous_messages:
+        conversation_history.append({
+            "role": msg.role,  # "user" veya "assistant"
+            "content": msg.content
+        })
+    
+    print(f"📜 Conversation history: {len(conversation_history)} mesaj yüklendi (session: {session.id})")
+    
+    # Agent ile yanıt al - ARTIK CONVERSATION_HISTORY İLE!
     try:
         agent_result = await agent.process_message(
             user_message=actual_message,
             session_id=session.id,
             db=db,
+            conversation_history=conversation_history,  # 🔑 KRİTİK: Sohbet geçmişi
             reference_image=reference_image_base64
         )
     except Exception as e:
