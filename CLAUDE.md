@@ -27,13 +27,19 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 @johny = KARAKTER
   ├── Yüz → Referans FOTOĞRAF'tan (Nano Banana + Face Swap)
   ├── Tutarlılık → Her üretimde AYNI yüz
-  ├── Video → Kling 2.5 Turbo Pro ile
+  ├── Video → Kling 3.0 Pro ile
   └── Referans → reference_image_url alanında saklanır
+
+@nike = MARKA ⭐ YENİ
+  ├── Renkler → primary/secondary/accent
+  ├── Slogan → "Just Do It" vb.
+  ├── Sosyal Medya → Instagram, Twitter
+  └── research_brand ile web'den otomatik tara
 ```
 
 ---
 
-## 📊 Genel Durum (4 Şubat 2026 - 21:30)
+## 📊 Genel Durum (4 Şubat 2026 - 22:15)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -253,21 +259,19 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (4 Şubat 2026 - 21:30)
+## 🎯 SON DURUM (4 Şubat 2026 - 22:15)
 
-**Bugün Tamamlanan (4 Şubat):**
+**Bugün Tamamlanan (4 Şubat Akşam):**
+- ✅ **Kling 3.0 Pro** video entegrasyonu (en yeni model)
+- ✅ **Kullanım İstatistikleri Takibi** (stats_service.py)
+- ✅ **Admin Panel Analitik** - gerçek model dağılımı
+- ✅ **Web Search** - DuckDuckGo (API key gerektirmez)
+- ✅ **Marka Sistemi** - create_brand, research_brand
+
+**Bugün Tamamlanan (Öğlen):**
 - ✅ Admin Panel gerçek veri bağlantısı
-  - Mock data kaldırıldı (563→50 çağrı, 404→5 görsel, 111→0 video)
-  - AI Modeller sadece entegre olanlar: GPT-4o, fal.ai, Kling 2.5
-  - Claude ve Minimax kaldırıldı
-- ✅ Landing page dinamik butonlar (Giriş/Uygulamaya Git)
-- ✅ Login sayfası: Sadece Google OAuth
+- ✅ Landing page dinamik butonlar
 - ✅ "Hesabımı hatırla" checkbox
-
-**Önceden Tamamlanan (3 Şubat):**
-- ✅ OpenAI GPT-4o entegrasyonu (Primary LLM)
-- ✅ Redis Cache sistemi (~100x performans)
-- ✅ Global Wardrobe (cross-session entity)
 
 **Sıradaki Adım:**
 - Deploy (Railway + Vercel)
@@ -278,11 +282,13 @@ git add . && git commit -m "mesaj" && git push
 ## ✅ SON COMMITLER
 
 ```
+b66e956 - feat: Add brand entity system with web research
+6314185 - feat: Enable web search with DuckDuckGo
+04d939f - feat: Dynamic model distribution in Admin Panel
+2027685 - feat: Add usage statistics tracking
+d015e48 - feat: Upgrade to Kling 3.0 Pro video model
 c3eac33 - fix: Admin panel now shows real database stats
 4b030e2 - fix: Admin panel shows only real integrated AI models
-3077ff0 - feat: Auto-redirect logged-in users to /app
-67e6600 - fix: Landing page dynamic buttons
-5af3148 - refactor: Switch from Claude to GPT-4o
 ```
 
 
