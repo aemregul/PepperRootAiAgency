@@ -11,117 +11,43 @@ interface PluginMarketplaceModalProps {
     myPlugins: CreativePlugin[];
 }
 
-// Community creative plugins - zengin çeşitlilik
+// Community creative plugins - gerçekçi verilerle
 const communityPlugins: CreativePlugin[] = [
-    // === GÖRSEL PAKETLER ===
+    // === EN POPÜLERler (ESKİ + YÜKSEK İNDİRME) ===
     {
         id: "comm1",
-        name: "Cinematic Portrait Pack",
-        description: "Hollywood tarzı portre çekimleri için hazır ayarlar. Dramatic lighting ve bokeh efektleri.",
-        author: "StudioPro",
+        name: "Digital Art Fantasy",
+        description: "Fantastik dijital sanat. Ejderhalar, büyücüler, efsanevi dünyalar.",
+        author: "FantasyArt",
         isPublic: true,
         config: {
-            character: { id: "variable", name: "Değişken", isVariable: true },
-            location: { id: "studio", name: "Professional Studio", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Close-up", "Medium Shot", "Over Shoulder"],
-            style: "Cinematic",
-            promptTemplate: "professional portrait, dramatic lighting, shallow depth of field, {character}"
+            character: { id: "variable", name: "Karakter", isVariable: true },
+            location: { id: "fantasy", name: "Fantasy World", settings: "" },
+            timeOfDay: "Magical",
+            cameraAngles: ["Epic Wide", "Character Portrait", "Action Scene"],
+            style: "Fantasy Art",
+            promptTemplate: "digital fantasy art, epic, magical, detailed, {character}"
         },
-        createdAt: new Date("2026-01-15"),
-        downloads: 1250,
+        createdAt: new Date("2025-10-15"), // ESKİ
+        downloads: 4500, // ÇOK YÜKSEK
         rating: 4.9
     },
     {
-        id: "comm2",
-        name: "E-Commerce Product Shots",
-        description: "Online mağaza için ürün fotoğrafları. Beyaz arka plan, soft shadows.",
-        author: "ShopVisuals",
+        id: "social1",
+        name: "Instagram Influencer Pack",
+        description: "Instagram için estetik içerik. Lifestyle, selfie, flat lay kompozisyonlar.",
+        author: "InstaCreator",
         isPublic: true,
         config: {
-            character: { id: "variable", name: "Ürün", isVariable: true },
-            location: { id: "whitebg", name: "White Background", settings: "" },
-            timeOfDay: "Studio Light",
-            cameraAngles: ["Front View", "45 Degree", "Top Down"],
-            style: "Commercial",
-            promptTemplate: "product photography, white background, soft shadows, professional lighting"
+            character: { id: "variable", name: "Influencer", isVariable: true },
+            location: { id: "aesthetic", name: "Aesthetic Space", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Instagram", "Selfie Style", "Flat Lay"],
+            style: "Instagram",
+            promptTemplate: "instagram aesthetic, lifestyle, vibrant, trendy, {character}"
         },
-        createdAt: new Date("2026-01-20"),
-        downloads: 890,
-        rating: 4.7
-    },
-    {
-        id: "comm3",
-        name: "Urban Street Style",
-        description: "Sokak modası çekimleri için şehir ortamları ve doğal ışık.",
-        author: "StreetVision",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Değişken", isVariable: true },
-            location: { id: "urban", name: "Urban Street", settings: "" },
-            timeOfDay: "Afternoon",
-            cameraAngles: ["Wide Shot", "Medium Shot", "Dutch Angle"],
-            style: "Editorial",
-            promptTemplate: "street fashion photography, urban environment, natural light, {character}"
-        },
-        createdAt: new Date("2026-01-25"),
-        downloads: 720,
-        rating: 4.6
-    },
-    {
-        id: "comm4",
-        name: "Food Photography Pro",
-        description: "Yemek fotoğrafçılığı için profesyonel ayarlar.",
-        author: "FoodieShots",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Yemek", isVariable: true },
-            location: { id: "restaurant", name: "Restaurant Table", settings: "" },
-            timeOfDay: "Warm Light",
-            cameraAngles: ["Top Down", "45 Degree", "Close-up"],
-            style: "Warm Tones",
-            promptTemplate: "food photography, appetizing, warm tones, shallow depth of field"
-        },
-        createdAt: new Date("2026-01-28"),
-        downloads: 560,
-        rating: 4.8
-    },
-    {
-        id: "comm5",
-        name: "Minimalist Interior",
-        description: "İç mekan tasarımı ve mimari fotoğraflar için minimalist yaklaşım.",
-        author: "ArchViz",
-        isPublic: true,
-        config: {
-            character: { id: "none", name: "Yok", isVariable: false },
-            location: { id: "interior", name: "Modern Interior", settings: "" },
-            timeOfDay: "Natural Light",
-            cameraAngles: ["Wide Shot", "Corner View", "Detail Shot"],
-            style: "Minimalist",
-            promptTemplate: "interior photography, minimalist design, natural light, clean lines"
-        },
-        createdAt: new Date("2026-01-29"),
-        downloads: 340,
-        rating: 4.5
-    },
-
-    // === VİDEO & ANİMASYON PAKETLER ===
-    {
-        id: "video1",
-        name: "Video Reklam Paketi",
-        description: "Sosyal medya video reklamları için hazır şablonlar. Instagram Reels, TikTok, YouTube Shorts.",
-        author: "AdCreative",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Ürün/Kişi", isVariable: true },
-            location: { id: "studio", name: "Clean Studio", settings: "" },
-            timeOfDay: "Bright",
-            cameraAngles: ["Product Hero", "Lifestyle", "Call to Action"],
-            style: "Commercial Video",
-            promptTemplate: "video advertisement, dynamic movement, product showcase, engaging, {character}"
-        },
-        createdAt: new Date("2026-02-01"),
-        downloads: 2100,
+        createdAt: new Date("2025-11-01"), // ESKİ
+        downloads: 4200, // YÜKSEK
         rating: 4.9
     },
     {
@@ -134,70 +60,110 @@ const communityPlugins: CreativePlugin[] = [
             character: { id: "variable", name: "Karakter", isVariable: true },
             location: { id: "fantasy", name: "Anime World", settings: "" },
             timeOfDay: "Sunset",
-            cameraAngles: ["Portrait", "Action Pose", "Emotional"],
+            cameraAngles: ["Anime", "Portrait", "Action Pose"],
             style: "Anime",
             promptTemplate: "anime style, detailed, vibrant colors, studio ghibli inspired, {character}"
         },
-        createdAt: new Date("2026-02-02"),
-        downloads: 3450,
+        createdAt: new Date("2025-09-20"), // ÇOK ESKİ
+        downloads: 3450, // YÜKSEK
         rating: 4.8
     },
+
+    // === EN İYİ PUANLILAR (YÜKSEK RATING) ===
     {
-        id: "video3",
-        name: "Music Video Aesthetics",
-        description: "Müzik videoları için sinematik görüntüler. Neon, retro, futuristik tema.",
-        author: "MVProductions",
+        id: "sector4",
+        name: "Game Character Design",
+        description: "Video oyun karakterleri için konsept sanatı.",
+        author: "GameArtist",
         isPublic: true,
         config: {
-            character: { id: "variable", name: "Artist", isVariable: true },
-            location: { id: "neon", name: "Neon City", settings: "" },
-            timeOfDay: "Night",
-            cameraAngles: ["Wide Cinematic", "Close Portrait", "Dutch Angle"],
-            style: "Music Video",
-            promptTemplate: "music video aesthetic, neon lights, cinematic, dramatic composition, {character}"
+            character: { id: "variable", name: "Karakter", isVariable: true },
+            location: { id: "game", name: "Game Environment", settings: "" },
+            timeOfDay: "Dramatic",
+            cameraAngles: ["Game Art", "Character Sheet", "Action Pose"],
+            style: "Game Art",
+            promptTemplate: "game character design, concept art, detailed, {character}"
         },
-        createdAt: new Date("2026-02-03"),
-        downloads: 1890,
-        rating: 4.7
+        createdAt: new Date("2025-12-01"),
+        downloads: 3200,
+        rating: 4.9 // EN YÜKSEK
+    },
+    {
+        id: "special1",
+        name: "Wedding Photography",
+        description: "Düğün fotoğrafçılığı için romantik ve duygusal anlar.",
+        author: "WeddingMoments",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Çift", isVariable: true },
+            location: { id: "wedding", name: "Wedding Venue", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Romantic", "Couple Portrait", "Candid Moment"],
+            style: "Romantic",
+            promptTemplate: "wedding photography, romantic, emotional, {character}"
+        },
+        createdAt: new Date("2025-08-22"),
+        downloads: 2100,
+        rating: 4.9 // EN YÜKSEK
     },
 
-    // === SOSYAL MEDYA PAKETLER ===
+    // === YENİ EKLENENler (YENİ TARİH + AZ İNDİRME) ===
     {
-        id: "social1",
-        name: "Instagram Influencer Pack",
-        description: "Instagram için estetik içerik. Lifestyle, selfie, flat lay kompozisyonlar.",
-        author: "InstaCreator",
+        id: "new1",
+        name: "AI Portrait Studio",
+        description: "Yapay zeka destekli profesyonel portre stüdyosu. Headshot, CV fotoğrafları.",
+        author: "AIPortrait",
         isPublic: true,
         config: {
-            character: { id: "variable", name: "Influencer", isVariable: true },
-            location: { id: "aesthetic", name: "Aesthetic Space", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Selfie Style", "Flat Lay", "Mirror Shot"],
-            style: "Instagram",
-            promptTemplate: "instagram aesthetic, lifestyle, vibrant, trendy, influencer style, {character}"
+            character: { id: "variable", name: "Kişi", isVariable: true },
+            location: { id: "studio", name: "Professional Studio", settings: "" },
+            timeOfDay: "Studio",
+            cameraAngles: ["Headshot", "Professional", "LinkedIn"],
+            style: "Professional",
+            promptTemplate: "professional headshot, clean background, confident, {character}"
         },
-        createdAt: new Date("2026-02-01"),
-        downloads: 4200,
-        rating: 4.9
+        createdAt: new Date("2026-02-04"), // DÜN EKLENDİ
+        downloads: 45, // ÇOK AZ
+        rating: 4.5
     },
     {
-        id: "social2",
-        name: "LinkedIn Professional",
-        description: "Profesyonel profil ve kurumsal içerik için iş dünyası görselleri.",
-        author: "CorpMedia",
+        id: "new2",
+        name: "Cyberpunk 2077 Style",
+        description: "Neon ışıklar, fütüristik şehir, cyberpunk estetiği.",
+        author: "NeonDreams",
         isPublic: true,
         config: {
-            character: { id: "variable", name: "Professional", isVariable: true },
-            location: { id: "office", name: "Modern Office", settings: "" },
-            timeOfDay: "Day",
-            cameraAngles: ["Headshot", "Working Shot", "Team Meeting"],
-            style: "Corporate",
-            promptTemplate: "professional business portrait, corporate, clean, confident, {character}"
+            character: { id: "variable", name: "Karakter", isVariable: true },
+            location: { id: "cyberpunk", name: "Neon City", settings: "" },
+            timeOfDay: "Night",
+            cameraAngles: ["Cyberpunk", "Neon Portrait", "Street Scene"],
+            style: "Cyberpunk",
+            promptTemplate: "cyberpunk aesthetic, neon lights, futuristic, {character}"
         },
-        createdAt: new Date("2026-01-30"),
-        downloads: 1560,
+        createdAt: new Date("2026-02-03"), // 2 GÜN ÖNCE
+        downloads: 128,
+        rating: 4.7
+    },
+    {
+        id: "new3",
+        name: "Vintage Film Look",
+        description: "80'ler ve 90'lar film estetiği. Grain, fade, nostaljik renkler.",
+        author: "RetroLens",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Kişi", isVariable: true },
+            location: { id: "vintage", name: "Retro Setting", settings: "" },
+            timeOfDay: "Warm",
+            cameraAngles: ["Vintage", "Film Look", "Nostalgic"],
+            style: "Vintage",
+            promptTemplate: "vintage film aesthetic, 80s style, grain, nostalgic, {character}"
+        },
+        createdAt: new Date("2026-02-02"), // 3 GÜN ÖNCE
+        downloads: 256,
         rating: 4.6
     },
+
+    // === ORTA SEVİYE (KARMA VERİLER) ===
     {
         id: "social3",
         name: "YouTube Thumbnail Pro",
@@ -208,51 +174,49 @@ const communityPlugins: CreativePlugin[] = [
             character: { id: "variable", name: "Creator", isVariable: true },
             location: { id: "colorful", name: "Vibrant Background", settings: "" },
             timeOfDay: "Bright",
-            cameraAngles: ["Face Reaction", "Dramatic", "Action"],
+            cameraAngles: ["YouTube", "Face Reaction", "Dramatic"],
             style: "YouTube",
-            promptTemplate: "youtube thumbnail, expressive, bold colors, eye-catching, dramatic, {character}"
+            promptTemplate: "youtube thumbnail, expressive, bold colors, eye-catching, {character}"
         },
-        createdAt: new Date("2026-02-02"),
+        createdAt: new Date("2025-12-15"),
         downloads: 2890,
         rating: 4.8
     },
-
-    // === SEKTÖREL PAKETLER ===
     {
-        id: "sector1",
-        name: "Real Estate Showcase",
-        description: "Gayrimenkul ilanları için profesyonel mülk fotoğrafları ve 3D turlar.",
-        author: "PropertyViz",
+        id: "video1",
+        name: "Video Reklam Paketi",
+        description: "Sosyal medya video reklamları için hazır şablonlar.",
+        author: "AdCreative",
         isPublic: true,
         config: {
-            character: { id: "none", name: "Yok", isVariable: false },
-            location: { id: "property", name: "Luxury Property", settings: "" },
-            timeOfDay: "Twilight",
-            cameraAngles: ["Exterior Wide", "Interior Panorama", "Aerial View"],
-            style: "Real Estate",
-            promptTemplate: "real estate photography, luxury home, professional, inviting, architectural beauty"
+            character: { id: "variable", name: "Ürün", isVariable: true },
+            location: { id: "studio", name: "Clean Studio", settings: "" },
+            timeOfDay: "Bright",
+            cameraAngles: ["Commercial", "Product Hero", "Lifestyle"],
+            style: "Commercial Video",
+            promptTemplate: "video advertisement, product showcase, engaging, {character}"
         },
-        createdAt: new Date("2026-01-28"),
-        downloads: 980,
+        createdAt: new Date("2025-11-20"),
+        downloads: 2100,
         rating: 4.7
     },
     {
-        id: "sector2",
-        name: "Automotive Photography",
-        description: "Otomobil ve araç fotoğrafçılığı. Showroom kalitesinde çekimler.",
-        author: "AutoShots",
+        id: "comm2",
+        name: "E-Commerce Product Shots",
+        description: "Online mağaza için ürün fotoğrafları. Beyaz arka plan, soft shadows.",
+        author: "ShopVisuals",
         isPublic: true,
         config: {
-            character: { id: "variable", name: "Araç", isVariable: true },
-            location: { id: "showroom", name: "Car Showroom", settings: "" },
-            timeOfDay: "Studio",
-            cameraAngles: ["Front 3/4", "Side Profile", "Interior"],
-            style: "Automotive",
-            promptTemplate: "automotive photography, showroom quality, sleek, professional lighting, {character}"
+            character: { id: "variable", name: "Ürün", isVariable: true },
+            location: { id: "whitebg", name: "White Background", settings: "" },
+            timeOfDay: "Studio Light",
+            cameraAngles: ["E-Commerce", "Front View", "45 Degree"],
+            style: "Commercial",
+            promptTemplate: "product photography, white background, professional lighting"
         },
-        createdAt: new Date("2026-01-25"),
-        downloads: 670,
-        rating: 4.6
+        createdAt: new Date("2025-10-20"),
+        downloads: 1890,
+        rating: 4.7
     },
     {
         id: "sector3",
@@ -264,49 +228,49 @@ const communityPlugins: CreativePlugin[] = [
             character: { id: "variable", name: "Model", isVariable: true },
             location: { id: "studio", name: "Fashion Studio", settings: "" },
             timeOfDay: "Soft Light",
-            cameraAngles: ["Full Body", "Three Quarter", "Detail Close-up"],
+            cameraAngles: ["Fashion", "Full Body", "Detail Close-up"],
             style: "Fashion Editorial",
-            promptTemplate: "fashion photography, editorial, high fashion, stylish, {character}"
+            promptTemplate: "fashion photography, editorial, high fashion, {character}"
         },
-        createdAt: new Date("2026-02-01"),
+        createdAt: new Date("2025-12-01"),
         downloads: 1340,
         rating: 4.8
     },
 
-    // === ÖZEL DURUMLAR ===
+    // === DÜŞÜK PUANLILAR ===
     {
-        id: "special1",
-        name: "Wedding Photography",
-        description: "Düğün fotoğrafçılığı için romantik ve duygusal anlar.",
-        author: "WeddingMoments",
+        id: "sector2",
+        name: "NFT Collection Art",
+        description: "NFT koleksiyonları için unique dijital sanat eserleri.",
+        author: "NFTCreator",
         isPublic: true,
         config: {
-            character: { id: "variable", name: "Çift", isVariable: true },
-            location: { id: "wedding", name: "Wedding Venue", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Couple Portrait", "Candid Moment", "Detail Shot"],
-            style: "Romantic",
-            promptTemplate: "wedding photography, romantic, emotional, beautiful couple, {character}"
+            character: { id: "variable", name: "NFT", isVariable: true },
+            location: { id: "abstract", name: "Abstract Space", settings: "" },
+            timeOfDay: "Colorful",
+            cameraAngles: ["NFT Style", "Abstract", "Unique"],
+            style: "NFT Art",
+            promptTemplate: "nft art, unique, digital collectible, vibrant, {character}"
         },
-        createdAt: new Date("2026-01-22"),
-        downloads: 2100,
-        rating: 4.9
+        createdAt: new Date("2025-11-10"),
+        downloads: 3100,
+        rating: 4.7
     },
     {
         id: "special2",
         name: "Sports Action Shots",
-        description: "Spor ve aksiyon fotoğrafçılığı. Dinamik hareketler, donmuş anlar.",
+        description: "Spor ve aksiyon fotoğrafçılığı. Dinamik hareketler.",
         author: "ActionFreeze",
         isPublic: true,
         config: {
             character: { id: "variable", name: "Sporcu", isVariable: true },
             location: { id: "sports", name: "Sports Arena", settings: "" },
             timeOfDay: "Day",
-            cameraAngles: ["Action Freeze", "Wide Arena", "Close Intensity"],
+            cameraAngles: ["Sports", "Action Freeze", "Wide Arena"],
             style: "Sports",
-            promptTemplate: "sports photography, action, dynamic, powerful, athletic, {character}"
+            promptTemplate: "sports photography, action, dynamic, powerful, {character}"
         },
-        createdAt: new Date("2026-01-18"),
+        createdAt: new Date("2025-09-18"),
         downloads: 890,
         rating: 4.7
     },
