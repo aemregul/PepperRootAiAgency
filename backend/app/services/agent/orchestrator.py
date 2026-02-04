@@ -14,6 +14,7 @@ from app.services.agent.tools import AGENT_TOOLS
 from app.services.plugins.fal_plugin import FalPlugin
 from app.services.entity_service import entity_service
 from app.services.asset_service import asset_service
+from app.services.stats_service import StatsService
 from app.services.prompt_translator import translate_to_english, enhance_character_prompt
 from app.models.models import Session as SessionModel
 
@@ -355,7 +356,7 @@ DAVRANIŞ KURALLARI:
         
         # YENİ ARAÇLAR
         elif tool_name == "generate_video":
-            return await self._generate_video(tool_input, resolved_entities or [])
+            return await self._generate_video(db, session_id, tool_input, resolved_entities or [])
         
         elif tool_name == "edit_image":
             return await self._edit_image(tool_input)
@@ -529,6 +530,10 @@ DAVRANIŞ KURALLARI:
                         entity_ids=entity_ids
                     )
                     
+                    # 📊 İstatistik kaydet
+                    user_id = await get_user_id_from_session(db, session_id)
+                    await StatsService.track_image_generation(db, user_id, method)
+                    
                     return {
                         "success": True,
                         "image_url": image_url,
@@ -570,6 +575,10 @@ DAVRANIŞ KURALLARI:
                         },
                         entity_ids=entity_ids
                     )
+                    
+                    # 📊 İstatistik kaydet
+                    user_id = await get_user_id_from_session(db, session_id)
+                    await StatsService.track_image_generation(db, user_id, "nano-banana-pro")
                     
                     return {
                         "success": True,
@@ -729,7 +738,7 @@ DAVRANIŞ KURALLARI:
     # YENİ ARAÇ METODLARI
     # ===============================
     
-    async def _generate_video(self, params: dict, resolved_entities: list = None) -> dict:
+    async def _generate_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict, resolved_entities: list = None) -> dict:
         """
         Video üret (text-to-video veya image-to-video).
         
@@ -752,6 +761,7 @@ DAVRANIŞ KURALLARI:
             if not image_url and resolved_entities:
                 # Önce görsel üret
                 image_result = await self._generate_image(
+                    db, session_id,
                     {"prompt": prompt, "aspect_ratio": aspect_ratio.replace(":", ":")},
                     resolved_entities
                 )
@@ -767,10 +777,15 @@ DAVRANIŞ KURALLARI:
             )
             
             if result.get("success"):
+                # 📊 İstatistik kaydet
+                user_id = await get_user_id_from_session(db, session_id)
+                model_name = result.get("model", "kling-3.0-pro")
+                await StatsService.track_video_generation(db, user_id, model_name)
+                
                 return {
                     "success": True,
                     "video_url": result.get("video_url"),
-                    "model": result.get("model"),
+                    "model": model_name,
                     "message": f"Video başarıyla üretildi ({duration}s).",
                     "agent_decision": "Image-to-video" if image_url else "Text-to-video"
                 }
