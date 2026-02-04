@@ -145,7 +145,7 @@ export default function LoginPage() {
                         </button>
 
                         {/* Remember Me Checkbox */}
-                        <label className="flex items-center gap-3 mt-4 cursor-pointer group">
+                        <label className="flex items-center justify-center gap-3 mt-4 cursor-pointer group">
                             <button
                                 type="button"
                                 onClick={() => setRememberMe(!rememberMe)}

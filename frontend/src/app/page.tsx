@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { ArrowRight, Sparkles, Video, Image, Wand2, Globe, Zap, Shield, Play, Star, Users, Layers, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Floating orb component for animated background
 function FloatingOrb({ delay, size, color, position }: { delay: number; size: string; color: string; position: { top: string; left: string } }) {
@@ -287,14 +289,41 @@ function DemoModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
 }
 
 export default function LandingPage() {
+    const router = useRouter();
+    const { user, isLoading } = useAuth();
     const [scrollY, setScrollY] = useState(0);
     const [isDemoOpen, setIsDemoOpen] = useState(false);
+
+    // Auto-redirect to /app if already logged in
+    useEffect(() => {
+        if (user && !isLoading) {
+            router.push('/app');
+        }
+    }, [user, isLoading, router]);
 
     useEffect(() => {
         const handleScroll = () => setScrollY(window.scrollY);
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // Show loading while checking auth
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+            </div>
+        );
+    }
+
+    // If logged in, show nothing while redirecting
+    if (user) {
+        return null;
+    }
 
     return (
         <div className="min-h-screen bg-[#0a0a0f] overflow-hidden">
