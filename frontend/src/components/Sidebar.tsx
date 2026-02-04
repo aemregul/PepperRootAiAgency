@@ -39,6 +39,7 @@ import { AdminPanelModal } from "./AdminPanelModal";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
 import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePluginModal";
+import { useToast } from "./ToastProvider";
 import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
 import { GridGeneratorModal } from "./GridGeneratorModal";
 
@@ -186,6 +187,7 @@ interface SidebarProps {
 export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
     const { user, logout } = useAuth();
+    const toast = useToast();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -197,6 +199,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [projects, setProjects] = useState<{ id: string; name: string; active: boolean }[]>([]);
     const [isLoadingEntities, setIsLoadingEntities] = useState(false);
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+    const [entitySearchQuery, setEntitySearchQuery] = useState("");
 
     // Proje ismi düzenleme state'leri
     const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -235,6 +238,17 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
     const [wardrobe, setWardrobe] = useState<{ id: string; name: string }[]>([]);
     const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>([]);
+
+    // Filtrelenmiş entity'ler (arama için)
+    const filteredCharacters = characters.filter(c =>
+        c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())
+    );
+    const filteredLocations = locations.filter(l =>
+        l.name.toLowerCase().includes(entitySearchQuery.toLowerCase())
+    );
+    const filteredWardrobe = wardrobe.filter(w =>
+        w.name.toLowerCase().includes(entitySearchQuery.toLowerCase())
+    );
 
     // Backend'den projeleri yükle
     useEffect(() => {
@@ -396,8 +410,9 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 if (success) {
                     moveToTrash(id, char.name, "karakter", char);
                     setCharacters(characters.filter(c => c.id !== id));
+                    toast.success(`"${char.name}" çöp kutusuna taşındı`);
                 } else {
-                    console.error('Entity silinemedi');
+                    toast.error('Karakter silinemedi');
                 }
             }
         });
@@ -416,6 +431,9 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 if (success) {
                     moveToTrash(id, loc.name, "lokasyon", loc);
                     setLocations(locations.filter(l => l.id !== id));
+                    toast.success(`"${loc.name}" çöp kutusuna taşındı`);
+                } else {
+                    toast.error('Lokasyon silinemedi');
                 }
             }
         });
@@ -434,6 +452,9 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 if (success) {
                     moveToTrash(id, item.name, "wardrobe", item);
                     setWardrobe(wardrobe.filter(w => w.id !== id));
+                    toast.success(`"${item.name}" çöp kutusuna taşındı`);
+                } else {
+                    toast.error('Kıyamet silinemedi');
                 }
             }
         });
@@ -454,6 +475,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     moveToTrash(id, proj.name, "proje", proj);
                     const remainingProjects = projects.filter(p => p.id !== id);
                     setProjects(remainingProjects);
+                    toast.success(`"${proj.name}" çöp kutusuna taşındı`);
 
                     // Eğer aktif proje silindiyse, ana sayfayı bilgilendir
                     if (proj.active || remainingProjects.length === 0) {
@@ -461,6 +483,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     }
                 } catch (error) {
                     console.error('Proje silinemedi:', error);
+                    toast.error('Proje silinemedi');
                 }
             }
         });
@@ -537,8 +560,10 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
 
             // Çöp kutusundan kaldır
             setTrashItems(trashItems.filter(t => t.id !== item.id));
+            toast.success(`"${item.name}" başarıyla geri yüklendi`);
         } catch (error) {
             console.error('Geri yükleme hatası:', error);
+            toast.error('Geri yükleme başarısız oldu');
         }
     };
 
@@ -547,8 +572,10 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
         try {
             await permanentDeleteTrashItem(id);
             setTrashItems(trashItems.filter(t => t.id !== id));
+            toast.success('Kalıcı olarak silindi');
         } catch (error) {
             console.error('Kalıcı silme hatası:', error);
+            toast.error('Kalıcı silme başarısız oldu');
         }
     };
 
@@ -734,11 +761,34 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
 
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto px-2 py-2">
+                    {/* Entity Arama */}
+                    <div className="mb-3 px-1">
+                        <div className="relative">
+                            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
+                            <input
+                                type="text"
+                                placeholder="Entity ara..."
+                                value={entitySearchQuery}
+                                onChange={(e) => setEntitySearchQuery(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-[var(--card)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] transition-all"
+                                style={{ color: "var(--foreground)" }}
+                            />
+                            {entitySearchQuery && (
+                                <button
+                                    onClick={() => setEntitySearchQuery("")}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Characters */}
                     <CollapsibleSection
                         title="Characters"
                         icon={<Users size={16} />}
-                        items={characters}
+                        items={filteredCharacters}
                         defaultOpen={true}
                         onDelete={confirmDeleteCharacter}
                     />
@@ -747,7 +797,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     <CollapsibleSection
                         title="Locations"
                         icon={<MapPin size={16} />}
-                        items={locations}
+                        items={filteredLocations}
                         defaultOpen={true}
                         onDelete={confirmDeleteLocation}
                     />
@@ -756,40 +806,43 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     <CollapsibleSection
                         title="Wardrobe"
                         icon={<Shirt size={16} />}
-                        items={wardrobe}
+                        items={filteredWardrobe}
                         defaultOpen={false}
                         onDelete={confirmDeleteWardrobe}
                     />
 
-                    {/* Creative Plugins Section */}
-                    <div className="mt-2">
-                        <div className="flex items-center justify-between px-2 py-1.5">
-                            <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                                <Puzzle size={14} />
-                                <span>Creative Plugins</span>
+                    {/* Creative Plugins Section - sadece plugin varsa göster */}
+                    {creativePlugins.length > 0 && (
+                        <div className="mt-2">
+                            <div className="flex items-center justify-between px-2 py-1.5">
+                                <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                                    <Puzzle size={14} />
+                                    <span>Creative Plugins</span>
+                                    <span className="text-xs opacity-60">({creativePlugins.length})</span>
+                                </div>
+                            </div>
+                            <div className="space-y-0.5">
+                                {creativePlugins.map((plugin) => (
+                                    <div
+                                        key={plugin.id}
+                                        onClick={() => { setSelectedPlugin(plugin); setPluginDetailOpen(true); }}
+                                        className="flex items-center justify-between px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors group"
+                                        style={{ color: "var(--foreground-muted)" }}
+                                    >
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: plugin.isPublic ? "#8b5cf6" : "var(--accent)" }} />
+                                            <span className="truncate">{plugin.name}</span>
+                                        </div>
+                                        {plugin.isPublic && (
+                                            <span className="text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
+                                                Paylaşıldı
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                        <div className="space-y-0.5">
-                            {creativePlugins.map((plugin) => (
-                                <div
-                                    key={plugin.id}
-                                    onClick={() => { setSelectedPlugin(plugin); setPluginDetailOpen(true); }}
-                                    className="flex items-center justify-between px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors group"
-                                    style={{ color: "var(--foreground-muted)" }}
-                                >
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: plugin.isPublic ? "#8b5cf6" : "var(--accent)" }} />
-                                        <span className="truncate">{plugin.name}</span>
-                                    </div>
-                                    {plugin.isPublic && (
-                                        <span className="text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
-                                            Paylaşıldı
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Bottom section */}
