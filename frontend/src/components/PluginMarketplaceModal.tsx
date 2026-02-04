@@ -11,8 +11,9 @@ interface PluginMarketplaceModalProps {
     myPlugins: CreativePlugin[];
 }
 
-// Mock community plugins
+// Community creative plugins - zengin çeşitlilik
 const communityPlugins: CreativePlugin[] = [
+    // === GÖRSEL PAKETLER ===
     {
         id: "comm1",
         name: "Cinematic Portrait Pack",
@@ -102,6 +103,324 @@ const communityPlugins: CreativePlugin[] = [
         createdAt: new Date("2026-01-29"),
         downloads: 340,
         rating: 4.5
+    },
+
+    // === VİDEO & ANİMASYON PAKETLER ===
+    {
+        id: "video1",
+        name: "Video Reklam Paketi",
+        description: "Sosyal medya video reklamları için hazır şablonlar. Instagram Reels, TikTok, YouTube Shorts.",
+        author: "AdCreative",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Ürün/Kişi", isVariable: true },
+            location: { id: "studio", name: "Clean Studio", settings: "" },
+            timeOfDay: "Bright",
+            cameraAngles: ["Product Hero", "Lifestyle", "Call to Action"],
+            style: "Commercial Video",
+            promptTemplate: "video advertisement, dynamic movement, product showcase, engaging, {character}"
+        },
+        createdAt: new Date("2026-02-01"),
+        downloads: 2100,
+        rating: 4.9
+    },
+    {
+        id: "video2",
+        name: "Anime & Manga Style",
+        description: "Anime tarzı karakter ve sahne üretimi. Studio Ghibli, Makoto Shinkai stilleri.",
+        author: "AnimeArtist",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Karakter", isVariable: true },
+            location: { id: "fantasy", name: "Anime World", settings: "" },
+            timeOfDay: "Sunset",
+            cameraAngles: ["Portrait", "Action Pose", "Emotional"],
+            style: "Anime",
+            promptTemplate: "anime style, detailed, vibrant colors, studio ghibli inspired, {character}"
+        },
+        createdAt: new Date("2026-02-02"),
+        downloads: 3450,
+        rating: 4.8
+    },
+    {
+        id: "video3",
+        name: "Music Video Aesthetics",
+        description: "Müzik videoları için sinematik görüntüler. Neon, retro, futuristik tema.",
+        author: "MVProductions",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Artist", isVariable: true },
+            location: { id: "neon", name: "Neon City", settings: "" },
+            timeOfDay: "Night",
+            cameraAngles: ["Wide Cinematic", "Close Portrait", "Dutch Angle"],
+            style: "Music Video",
+            promptTemplate: "music video aesthetic, neon lights, cinematic, dramatic composition, {character}"
+        },
+        createdAt: new Date("2026-02-03"),
+        downloads: 1890,
+        rating: 4.7
+    },
+
+    // === SOSYAL MEDYA PAKETLER ===
+    {
+        id: "social1",
+        name: "Instagram Influencer Pack",
+        description: "Instagram için estetik içerik. Lifestyle, selfie, flat lay kompozisyonlar.",
+        author: "InstaCreator",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Influencer", isVariable: true },
+            location: { id: "aesthetic", name: "Aesthetic Space", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Selfie Style", "Flat Lay", "Mirror Shot"],
+            style: "Instagram",
+            promptTemplate: "instagram aesthetic, lifestyle, vibrant, trendy, influencer style, {character}"
+        },
+        createdAt: new Date("2026-02-01"),
+        downloads: 4200,
+        rating: 4.9
+    },
+    {
+        id: "social2",
+        name: "LinkedIn Professional",
+        description: "Profesyonel profil ve kurumsal içerik için iş dünyası görselleri.",
+        author: "CorpMedia",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Professional", isVariable: true },
+            location: { id: "office", name: "Modern Office", settings: "" },
+            timeOfDay: "Day",
+            cameraAngles: ["Headshot", "Working Shot", "Team Meeting"],
+            style: "Corporate",
+            promptTemplate: "professional business portrait, corporate, clean, confident, {character}"
+        },
+        createdAt: new Date("2026-01-30"),
+        downloads: 1560,
+        rating: 4.6
+    },
+    {
+        id: "social3",
+        name: "YouTube Thumbnail Pro",
+        description: "Yüksek CTR için dikkat çekici YouTube thumbnail tasarımları.",
+        author: "ThumbnailKing",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Creator", isVariable: true },
+            location: { id: "colorful", name: "Vibrant Background", settings: "" },
+            timeOfDay: "Bright",
+            cameraAngles: ["Face Reaction", "Dramatic", "Action"],
+            style: "YouTube",
+            promptTemplate: "youtube thumbnail, expressive, bold colors, eye-catching, dramatic, {character}"
+        },
+        createdAt: new Date("2026-02-02"),
+        downloads: 2890,
+        rating: 4.8
+    },
+
+    // === SEKTÖREL PAKETLER ===
+    {
+        id: "sector1",
+        name: "Real Estate Showcase",
+        description: "Gayrimenkul ilanları için profesyonel mülk fotoğrafları ve 3D turlar.",
+        author: "PropertyViz",
+        isPublic: true,
+        config: {
+            character: { id: "none", name: "Yok", isVariable: false },
+            location: { id: "property", name: "Luxury Property", settings: "" },
+            timeOfDay: "Twilight",
+            cameraAngles: ["Exterior Wide", "Interior Panorama", "Aerial View"],
+            style: "Real Estate",
+            promptTemplate: "real estate photography, luxury home, professional, inviting, architectural beauty"
+        },
+        createdAt: new Date("2026-01-28"),
+        downloads: 980,
+        rating: 4.7
+    },
+    {
+        id: "sector2",
+        name: "Automotive Photography",
+        description: "Otomobil ve araç fotoğrafçılığı. Showroom kalitesinde çekimler.",
+        author: "AutoShots",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Araç", isVariable: true },
+            location: { id: "showroom", name: "Car Showroom", settings: "" },
+            timeOfDay: "Studio",
+            cameraAngles: ["Front 3/4", "Side Profile", "Interior"],
+            style: "Automotive",
+            promptTemplate: "automotive photography, showroom quality, sleek, professional lighting, {character}"
+        },
+        createdAt: new Date("2026-01-25"),
+        downloads: 670,
+        rating: 4.6
+    },
+    {
+        id: "sector3",
+        name: "Fashion Lookbook",
+        description: "Moda markaları için lookbook ve katalog çekimleri.",
+        author: "FashionForward",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Model", isVariable: true },
+            location: { id: "studio", name: "Fashion Studio", settings: "" },
+            timeOfDay: "Soft Light",
+            cameraAngles: ["Full Body", "Three Quarter", "Detail Close-up"],
+            style: "Fashion Editorial",
+            promptTemplate: "fashion photography, editorial, high fashion, stylish, {character}"
+        },
+        createdAt: new Date("2026-02-01"),
+        downloads: 1340,
+        rating: 4.8
+    },
+
+    // === ÖZEL DURUMLAR ===
+    {
+        id: "special1",
+        name: "Wedding Photography",
+        description: "Düğün fotoğrafçılığı için romantik ve duygusal anlar.",
+        author: "WeddingMoments",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Çift", isVariable: true },
+            location: { id: "wedding", name: "Wedding Venue", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Couple Portrait", "Candid Moment", "Detail Shot"],
+            style: "Romantic",
+            promptTemplate: "wedding photography, romantic, emotional, beautiful couple, {character}"
+        },
+        createdAt: new Date("2026-01-22"),
+        downloads: 2100,
+        rating: 4.9
+    },
+    {
+        id: "special2",
+        name: "Sports Action Shots",
+        description: "Spor ve aksiyon fotoğrafçılığı. Dinamik hareketler, donmuş anlar.",
+        author: "ActionFreeze",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Sporcu", isVariable: true },
+            location: { id: "sports", name: "Sports Arena", settings: "" },
+            timeOfDay: "Day",
+            cameraAngles: ["Action Freeze", "Wide Arena", "Close Intensity"],
+            style: "Sports",
+            promptTemplate: "sports photography, action, dynamic, powerful, athletic, {character}"
+        },
+        createdAt: new Date("2026-01-18"),
+        downloads: 890,
+        rating: 4.7
+    },
+    {
+        id: "special3",
+        name: "Podcast Cover Art",
+        description: "Podcast kapak görselleri ve sosyal medya tanıtımları.",
+        author: "PodcastPro",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Host", isVariable: true },
+            location: { id: "studio", name: "Podcast Studio", settings: "" },
+            timeOfDay: "Moody",
+            cameraAngles: ["Portrait", "Microphone Shot", "Graphic Style"],
+            style: "Podcast",
+            promptTemplate: "podcast cover art, professional, engaging, personal brand, {character}"
+        },
+        createdAt: new Date("2026-02-03"),
+        downloads: 560,
+        rating: 4.5
+    },
+
+    // === 3D & TECH ===
+    {
+        id: "tech1",
+        name: "3D Product Render",
+        description: "Ürün için fotorealistik 3D renderlar. Stüdyo kalitesinde.",
+        author: "3DStudio",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Ürün", isVariable: true },
+            location: { id: "3dstudio", name: "3D Studio", settings: "" },
+            timeOfDay: "Studio",
+            cameraAngles: ["Hero Shot", "Exploded View", "Material Detail"],
+            style: "3D Render",
+            promptTemplate: "3d product render, photorealistic, studio lighting, professional, {character}"
+        },
+        createdAt: new Date("2026-02-04"),
+        downloads: 1120,
+        rating: 4.8
+    },
+    {
+        id: "tech2",
+        name: "Tech Startup Visuals",
+        description: "Teknoloji startup'ları için modern ve futuristik görseller.",
+        author: "TechVision",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Tech Product", isVariable: true },
+            location: { id: "futuristic", name: "Futuristic Lab", settings: "" },
+            timeOfDay: "Blue Hour",
+            cameraAngles: ["Product Feature", "In Use", "Abstract Tech"],
+            style: "Tech",
+            promptTemplate: "technology, futuristic, innovative, clean design, startup, {character}"
+        },
+        createdAt: new Date("2026-02-04"),
+        downloads: 780,
+        rating: 4.6
+    },
+
+    // === SANAT & YARATICI ===
+    {
+        id: "art1",
+        name: "Digital Art Fantasy",
+        description: "Fantastik dijital sanat. Ejderhalar, büyücüler, efsanevi dünyalar.",
+        author: "FantasyArt",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Karakter", isVariable: true },
+            location: { id: "fantasy", name: "Fantasy Realm", settings: "" },
+            timeOfDay: "Mystical",
+            cameraAngles: ["Epic Wide", "Character Portrait", "Battle Scene"],
+            style: "Fantasy Art",
+            promptTemplate: "digital fantasy art, epic, magical, detailed, dramatic lighting, {character}"
+        },
+        createdAt: new Date("2026-01-20"),
+        downloads: 4500,
+        rating: 4.9
+    },
+    {
+        id: "art2",
+        name: "Watercolor Illustration",
+        description: "Sulu boya tarzı illüstrasyonlar. Yumuşak, organik, sanatsal.",
+        author: "WatercolorArt",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Konu", isVariable: true },
+            location: { id: "nature", name: "Nature Scene", settings: "" },
+            timeOfDay: "Soft",
+            cameraAngles: ["Portrait", "Landscape", "Still Life"],
+            style: "Watercolor",
+            promptTemplate: "watercolor illustration, soft colors, artistic, organic texture, {character}"
+        },
+        createdAt: new Date("2026-01-15"),
+        downloads: 1230,
+        rating: 4.7
+    },
+    {
+        id: "art3",
+        name: "Retro 80s Synthwave",
+        description: "80'ler retro synthwave estetiği. Neon, grid, güneş batımı.",
+        author: "RetroWave",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Element", isVariable: true },
+            location: { id: "retro", name: "Synthwave City", settings: "" },
+            timeOfDay: "Sunset",
+            cameraAngles: ["Wide Horizon", "Neon Portrait", "Car Chase"],
+            style: "Synthwave",
+            promptTemplate: "synthwave aesthetic, 80s retro, neon colors, grid, sunset, {character}"
+        },
+        createdAt: new Date("2026-02-02"),
+        downloads: 2340,
+        rating: 4.8
     }
 ];
 
@@ -253,8 +572,8 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                                     onClick={() => handleInstall(plugin)}
                                     disabled={isInstalled(plugin.id)}
                                     className={`w-full py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${isInstalled(plugin.id)
-                                            ? "bg-green-500/20 text-green-500 cursor-default"
-                                            : "hover:opacity-90"
+                                        ? "bg-green-500/20 text-green-500 cursor-default"
+                                        : "hover:opacity-90"
                                         }`}
                                     style={!isInstalled(plugin.id) ? { background: "var(--accent)", color: "var(--background)" } : {}}
                                 >
