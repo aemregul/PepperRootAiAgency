@@ -96,6 +96,10 @@ REFERANS GÖRSEL KULLANIMI (ÇOK ÖNEMLİ):
   → Karakterin reference_image_url'sini al (get_entity ile)
   → edit_image aracını kullan
 - @emre için görsel üretirken otomatik olarak kayıtlı referans görsel kullanılır
+- GÖRSEL GÖSTERME: "Emre'nin görselini göster", "Karakterin fotoğrafı nerde?" gibi isteklerde:
+  → get_entity(tag="@emre") kullan
+  → Sonuçtaki reference_image_url'i yanıtına EKLE: ![Karakter Görseli](URL)
+  → Markdown formatında görsel göster, böylece chat'te görünür
 
 TAG SİSTEMİ:
 - Tag'ler sadece isim içerir: @emre, @mutfak, @uzay_istasyonu, @nike
@@ -701,8 +705,10 @@ DAVRANIŞ KURALLARI:
                         "name": entity.name,
                         "entity_type": entity.entity_type,
                         "description": entity.description,
-                        "attributes": entity.attributes
-                    }
+                        "attributes": entity.attributes,
+                        "reference_image_url": entity.reference_image_url
+                    },
+                    "has_reference_image": bool(entity.reference_image_url)
                 }
             else:
                 return {
@@ -739,7 +745,9 @@ DAVRANIŞ KURALLARI:
                         "tag": e.tag,
                         "name": e.name,
                         "entity_type": e.entity_type,
-                        "description": e.description[:100] + "..." if e.description and len(e.description) > 100 else e.description
+                        "description": e.description[:100] + "..." if e.description and len(e.description) > 100 else e.description,
+                        "reference_image_url": e.reference_image_url,
+                        "has_image": bool(e.reference_image_url)
                     }
                     for e in entities
                 ],
