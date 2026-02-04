@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { ArrowRight, Sparkles, Video, Image, Wand2, Globe, Zap, Shield, Play, Star, Users, Layers, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Floating orb component for animated background
@@ -289,17 +288,9 @@ function DemoModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
 }
 
 export default function LandingPage() {
-    const router = useRouter();
     const { user, isLoading } = useAuth();
     const [scrollY, setScrollY] = useState(0);
     const [isDemoOpen, setIsDemoOpen] = useState(false);
-
-    // Auto-redirect to /app if already logged in
-    useEffect(() => {
-        if (user && !isLoading) {
-            router.push('/app');
-        }
-    }, [user, isLoading, router]);
 
     useEffect(() => {
         const handleScroll = () => setScrollY(window.scrollY);
@@ -307,7 +298,7 @@ export default function LandingPage() {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // Show loading while checking auth
+    // Show loading while checking auth (brief moment)
     if (isLoading) {
         return (
             <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -318,11 +309,6 @@ export default function LandingPage() {
                 </div>
             </div>
         );
-    }
-
-    // If logged in, show nothing while redirecting
-    if (user) {
-        return null;
     }
 
     return (
@@ -370,10 +356,10 @@ export default function LandingPage() {
                         <a href="#stats" className="text-gray-400 hover:text-white transition-colors text-sm">Rakamlar</a>
                     </div>
                     <Link
-                        href="/login"
+                        href={user ? "/app" : "/login"}
                         className="relative group bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white px-6 py-2.5 rounded-full font-medium transition-all text-sm overflow-hidden"
                     >
-                        <span className="relative z-10">Giriş Yap</span>
+                        <span className="relative z-10">{user ? "Uygulamaya Git" : "Giriş Yap"}</span>
                         <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
                 </div>
@@ -421,10 +407,10 @@ export default function LandingPage() {
                             {/* CTA Buttons */}
                             <div className="flex flex-wrap items-center gap-4 mb-12 animate-slideUp" style={{ animationDelay: '200ms' }}>
                                 <Link
-                                    href="/login"
+                                    href={user ? "/app" : "/login"}
                                     className="group relative inline-flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white px-8 py-4 rounded-2xl font-medium text-lg transition-all hover:scale-105 shadow-lg shadow-emerald-500/25 overflow-hidden"
                                 >
-                                    <span className="relative z-10">Ücretsiz Dene</span>
+                                    <span className="relative z-10">{user ? "Uygulamaya Git" : "Ücretsiz Dene"}</span>
                                     <ArrowRight size={20} className="relative z-10 group-hover:translate-x-1 transition-transform" />
                                     <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </Link>
