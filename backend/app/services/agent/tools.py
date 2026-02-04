@@ -86,13 +86,13 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "list_entities",
-        "description": "Bu oturumdaki tüm kayıtlı karakterleri ve mekanları listeler.",
+        "description": "Bu oturumdaki tüm kayıtlı karakterleri, mekanları ve markaları listeler.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "entity_type": {
                     "type": "string",
-                    "enum": ["character", "location", "all"],
+                    "enum": ["character", "location", "brand", "all"],
                     "description": "Listelenecek entity tipi"
                 }
             }
@@ -170,6 +170,63 @@ AGENT_TOOLS_ANTHROPIC = [
                 "description": {"type": "string", "description": "Kıyafet açıklaması"}
             },
             "required": ["action"]
+        }
+    },
+    {
+        "name": "create_brand",
+        "description": "Yeni bir marka oluşturur ve hafızaya kaydeder. Kullanıcı marka bilgilerini verdiğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Markanın adı (örn: Nike, Apple)"},
+                "description": {"type": "string", "description": "Markanın kısa açıklaması ve kimliği"},
+                "logo_url": {"type": "string", "description": "Logo görseli URL'si (opsiyonel)"},
+                "attributes": {
+                    "type": "object",
+                    "description": "Marka özellikleri",
+                    "properties": {
+                        "colors": {
+                            "type": "object",
+                            "properties": {
+                                "primary": {"type": "string", "description": "Ana renk (hex kodu)"},
+                                "secondary": {"type": "string", "description": "İkincil renk"},
+                                "accent": {"type": "string", "description": "Vurgu rengi"}
+                            }
+                        },
+                        "tagline": {"type": "string", "description": "Slogan (örn: Just Do It)"},
+                        "industry": {"type": "string", "description": "Sektör (örn: Spor Giyim, Teknoloji)"},
+                        "tone": {"type": "string", "description": "Marka tonu (örn: Dinamik, Lüks, Samimi)"},
+                        "target_audience": {"type": "string", "description": "Hedef kitle"},
+                        "fonts": {"type": "array", "items": {"type": "string"}, "description": "Kullanılan fontlar"},
+                        "social_media": {
+                            "type": "object",
+                            "properties": {
+                                "instagram": {"type": "string"},
+                                "twitter": {"type": "string"},
+                                "website": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            },
+            "required": ["name", "description"]
+        }
+    },
+    {
+        "name": "research_brand",
+        "description": "Web'den bir marka hakkında araştırma yapar ve bilgileri çıkartır. Sosyal medya hesaplarını, renk paletini, içerik stilini analiz eder. Araştırma sonuçlarını kaydetmek için save=true kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "brand_name": {"type": "string", "description": "Araştırılacak markanın adı"},
+                "research_depth": {
+                    "type": "string",
+                    "enum": ["basic", "detailed", "comprehensive"],
+                    "description": "basic: sadece temel bilgiler, detailed: sosyal medya dahil, comprehensive: içerik analizi dahil"
+                },
+                "save": {"type": "boolean", "description": "Araştırma sonucunu marka olarak kaydet"}
+            },
+            "required": ["brand_name"]
         }
     }
 ]

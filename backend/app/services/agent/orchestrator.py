@@ -98,11 +98,20 @@ REFERANS GÖRSEL KULLANIMI (ÇOK ÖNEMLİ):
 - @emre için görsel üretirken otomatik olarak kayıtlı referans görsel kullanılır
 
 TAG SİSTEMİ:
-- Tag'ler sadece isim içerir: @emre, @mutfak, @uzay_istasyonu
-- Entity tipi kayıt sırasında belirlenir (create_character veya create_location)
+- Tag'ler sadece isim içerir: @emre, @mutfak, @uzay_istasyonu, @nike
+- Entity tipi kayıt sırasında belirlenir (create_character, create_location veya create_brand)
 - "Bu karakteri Emre olarak kaydet" → create_character, tag: @emre
 - "Bu mekanı Mutfak olarak kaydet" → create_location, tag: @mutfak
-- Aynı isimde birden fazla entity olamaz (örn: hem karakter hem mekan "emre" olamaz)
+- "Nike markasını kaydet" → create_brand, tag: @nike
+- Aynı isimde birden fazla entity olamaz
+
+MARKA SİSTEMİ (ÇOK ÖNEMLİ):
+- Manuel tanımlama: "Nike'ı kaydet - siyah/beyaz, Just Do It sloganı" → create_brand
+- Web araştırması: "Apple'ı web'den tara ve kaydet" → research_brand(save=true)
+- Araştırma derinlikleri: basic / detailed / comprehensive
+- @marka kullanıldığında: Renkleri, sloganı, tonunu üretimde kullan
+- "@nike için Instagram reklamı" → Marka renklerini, stilini otomatik uygula
+- PROAKTİF OL: Marka içeriği üretirken otomatik olarak marka bilgilerini uygula
 
 DAVRANIŞ KURALLARI:
 - "Yeni proje aç" -> manage_project action=create
@@ -111,6 +120,7 @@ DAVRANIŞ KURALLARI:
 - "Emre'yi sil" -> delete_entity
 - "Çöpü göster" -> manage_trash action=list
 - "Bunu plugin yap" -> manage_plugin action=create
+- "Nike'ı araştır" -> research_brand
 - Türkçe yanıt ver, araç parametreleri İngilizce olabilir
 - Silme isteklerinde önce çöpe at (geri alınabilir)
 """
@@ -428,6 +438,12 @@ DAVRANIŞ KURALLARI:
         
         elif tool_name == "manage_wardrobe":
             return await self._manage_wardrobe(db, session_id, tool_input)
+        
+        elif tool_name == "create_brand":
+            return await self._create_brand(db, session_id, tool_input)
+        
+        elif tool_name == "research_brand":
+            return await self._research_brand(db, session_id, tool_input)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
@@ -1966,7 +1982,220 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
 
         else:
             return "Create a seamless 3x3 grid showing 9 variations. NO borders, NO gaps. Photorealistic, cinematic."
+    
+    # ===============================
+    # MARKA YÖNETİM METODLARI
+    # ===============================
+    
+    async def _create_brand(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict
+    ) -> dict:
+        """
+        Marka entity'si oluştur.
+        
+        Kullanıcı manuel olarak marka bilgilerini verdiğinde veya
+        research_brand sonucu kaydedildiğinde kullanılır.
+        """
+        try:
+            name = params.get("name")
+            description = params.get("description", "")
+            logo_url = params.get("logo_url")
+            attributes = params.get("attributes", {})
+            
+            # Session'dan user_id al
+            user_id = await get_user_id_from_session(db, session_id)
+            
+            # Entity service ile brand entity oluştur
+            entity = await entity_service.create_entity(
+                db=db,
+                user_id=user_id,
+                entity_type="brand",
+                name=name,
+                description=description,
+                attributes=attributes,
+                reference_image_url=logo_url,
+                session_id=session_id
+            )
+            
+            return {
+                "success": True,
+                "message": f"✅ Marka '{name}' başarıyla kaydedildi! Tag: {entity.tag}",
+                "brand": {
+                    "id": str(entity.id),
+                    "tag": entity.tag,
+                    "name": entity.name,
+                    "description": entity.description,
+                    "logo_url": logo_url,
+                    "colors": attributes.get("colors", {}),
+                    "tagline": attributes.get("tagline", ""),
+                    "industry": attributes.get("industry", ""),
+                    "tone": attributes.get("tone", "")
+                }
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Marka oluşturulamadı: {str(e)}"
+            }
+    
+    async def _research_brand(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict
+    ) -> dict:
+        """
+        Web'den marka hakkında araştırma yap.
+        
+        İş Akışı:
+        1. DuckDuckGo ile marka bilgilerini ara
+        2. Resmi web sitesini bul ve tara
+        3. Sosyal medya hesaplarını bul
+        4. Renk, font, slogan bilgilerini çıkart
+        5. (Opsiyonel) Marka olarak kaydet
+        """
+        try:
+            brand_name = params.get("brand_name")
+            research_depth = params.get("research_depth", "detailed")
+            should_save = params.get("save", False)
+            
+            # Sonuç tutacak
+            brand_info = {
+                "name": brand_name,
+                "description": "",
+                "website": None,
+                "colors": {},
+                "tagline": "",
+                "industry": "",
+                "tone": "",
+                "social_media": {},
+                "research_notes": []
+            }
+            
+            # 1. Genel marka araması
+            from duckduckgo_search import DDGS
+            
+            with DDGS() as ddgs:
+                # Temel bilgi araması
+                search_results = list(ddgs.text(
+                    f"{brand_name} brand company official",
+                    max_results=5
+                ))
+                
+                if search_results:
+                    # İlk sonuçtan açıklama al
+                    brand_info["description"] = search_results[0].get("body", "")
+                    brand_info["website"] = search_results[0].get("href", "")
+                    brand_info["research_notes"].append(f"Web aramasından {len(search_results)} sonuç bulundu")
+                
+                # Renk ve slogan araması
+                color_results = list(ddgs.text(
+                    f"{brand_name} brand colors hex code palette",
+                    max_results=3
+                ))
+                
+                if color_results:
+                    brand_info["research_notes"].append("Renk paleti bilgisi araştırıldı")
+                
+                # Slogan araması
+                tagline_results = list(ddgs.text(
+                    f"{brand_name} slogan tagline",
+                    max_results=2
+                ))
+                
+                if tagline_results:
+                    for result in tagline_results:
+                        body = result.get("body", "")
+                        if "slogan" in body.lower() or "tagline" in body.lower():
+                            brand_info["research_notes"].append(f"Slogan bulundu: {body[:100]}")
+                            break
+                
+                # Detailed veya comprehensive için sosyal medya araştır
+                if research_depth in ["detailed", "comprehensive"]:
+                    # Instagram
+                    insta_results = list(ddgs.text(
+                        f"{brand_name} official instagram",
+                        max_results=2
+                    ))
+                    for result in insta_results:
+                        href = result.get("href", "")
+                        if "instagram.com" in href:
+                            brand_info["social_media"]["instagram"] = href
+                            break
+                    
+                    # Twitter/X
+                    twitter_results = list(ddgs.text(
+                        f"{brand_name} official twitter",
+                        max_results=2
+                    ))
+                    for result in twitter_results:
+                        href = result.get("href", "")
+                        if "twitter.com" in href or "x.com" in href:
+                            brand_info["social_media"]["twitter"] = href
+                            break
+                    
+                    brand_info["research_notes"].append("Sosyal medya hesapları araştırıldı")
+                
+                # Comprehensive için sektör ve hedef kitle araştır
+                if research_depth == "comprehensive":
+                    industry_results = list(ddgs.text(
+                        f"{brand_name} company industry sector target audience",
+                        max_results=3
+                    ))
+                    
+                    if industry_results:
+                        brand_info["research_notes"].append("Sektör ve hedef kitle analiz edildi")
+            
+            # Sonuç özeti
+            result = {
+                "success": True,
+                "brand_info": brand_info,
+                "research_depth": research_depth,
+                "message": f"🔍 {brand_name} hakkında araştırma tamamlandı.\n"
+                          f"Website: {brand_info['website'] or 'Bulunamadı'}\n"
+                          f"Sosyal Medya: {len(brand_info['social_media'])} hesap bulundu\n"
+                          f"Notlar: {len(brand_info['research_notes'])} araştırma notu"
+            }
+            
+            # Kaydetme istendi mi?
+            if should_save:
+                # Marka olarak kaydet
+                save_result = await self._create_brand(
+                    db=db,
+                    session_id=session_id,
+                    params={
+                        "name": brand_name,
+                        "description": brand_info["description"],
+                        "logo_url": None,  # Logo URL ayrıca bulunabilir
+                        "attributes": {
+                            "colors": brand_info["colors"],
+                            "tagline": brand_info["tagline"],
+                            "industry": brand_info["industry"],
+                            "tone": brand_info["tone"],
+                            "social_media": brand_info["social_media"],
+                            "website": brand_info["website"]
+                        }
+                    }
+                )
+                
+                if save_result.get("success"):
+                    result["saved"] = True
+                    result["brand_tag"] = save_result.get("brand", {}).get("tag")
+                    result["message"] += f"\n✅ Marka kaydedildi: {result['brand_tag']}"
+            
+            return result
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Marka araştırması başarısız: {str(e)}"
+            }
 
 
 # Singleton instance
 agent = AgentOrchestrator()
+
