@@ -6,7 +6,7 @@ import { X, Trash2, RotateCcw, Clock, AlertCircle, CheckSquare, Square, Trash } 
 export interface TrashItem {
     id: string;
     name: string;
-    type: "proje" | "karakter" | "lokasyon" | "wardrobe" | "plugin";
+    type: "proje" | "karakter" | "lokasyon" | "wardrobe" | "plugin" | "marka";
     deletedAt: Date;
     originalData: any;
 }
@@ -45,7 +45,8 @@ function getTypeLabel(type: TrashItem["type"]): string {
         karakter: "Karakter",
         lokasyon: "Lokasyon",
         wardrobe: "Kıyafet",
-        plugin: "Plugin"
+        plugin: "Plugin",
+        marka: "Marka"
     };
     return labels[type];
 }
@@ -56,7 +57,8 @@ function getTypeColor(type: TrashItem["type"]): string {
         karakter: "#8b5cf6",
         lokasyon: "#3b82f6",
         wardrobe: "#f59e0b",
-        plugin: "#ec4899"
+        plugin: "#ec4899",
+        marka: "#06b6d4"
     };
     return colors[type];
 }
@@ -74,8 +76,25 @@ export function TrashModal({
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
     const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<TrashItem["type"] | "all">("all");
 
     if (!isOpen) return null;
+
+    // Filtreleme
+    const filteredItems = activeFilter === "all"
+        ? items
+        : items.filter(item => item.type === activeFilter);
+
+    // Kategori sayıları
+    const categoryCounts = {
+        all: items.length,
+        proje: items.filter(i => i.type === "proje").length,
+        karakter: items.filter(i => i.type === "karakter").length,
+        lokasyon: items.filter(i => i.type === "lokasyon").length,
+        wardrobe: items.filter(i => i.type === "wardrobe").length,
+        plugin: items.filter(i => i.type === "plugin").length,
+        marka: items.filter(i => i.type === "marka").length,
+    };
 
     const toggleSelection = (id: string) => {
         if (selectedIds.includes(id)) {
@@ -86,10 +105,10 @@ export function TrashModal({
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.length === items.length) {
+        if (selectedIds.length === filteredItems.length) {
             setSelectedIds([]);
         } else {
-            setSelectedIds(items.map(i => i.id));
+            setSelectedIds(filteredItems.map(i => i.id));
         }
     };
 
@@ -154,6 +173,58 @@ export function TrashModal({
                         <X size={20} />
                     </button>
                 </div>
+
+                {/* Category Tabs */}
+                {items.length > 0 && (
+                    <div
+                        className="flex gap-2 px-4 py-3 overflow-x-auto border-b"
+                        style={{ borderColor: "var(--border)", background: "var(--background)" }}
+                    >
+                        {[
+                            { key: "all" as const, label: "Tümü", color: "#6b7280" },
+                            { key: "proje" as const, label: "Projeler", color: "#22c55e" },
+                            { key: "karakter" as const, label: "Karakterler", color: "#8b5cf6" },
+                            { key: "lokasyon" as const, label: "Lokasyonlar", color: "#3b82f6" },
+                            { key: "wardrobe" as const, label: "Kıyafetler", color: "#f59e0b" },
+                            { key: "plugin" as const, label: "Pluginler", color: "#ec4899" },
+                            { key: "marka" as const, label: "Markalar", color: "#06b6d4" },
+                        ].map(cat => {
+                            const count = categoryCounts[cat.key];
+                            if (cat.key !== "all" && count === 0) return null;
+                            return (
+                                <button
+                                    key={cat.key}
+                                    onClick={() => {
+                                        setActiveFilter(cat.key);
+                                        setSelectedIds([]);
+                                    }}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-all ${activeFilter === cat.key
+                                        ? "ring-2 ring-offset-1 ring-offset-transparent"
+                                        : "opacity-70 hover:opacity-100"
+                                        }`}
+                                    style={{
+                                        background: activeFilter === cat.key ? `${cat.color}20` : "var(--card)",
+                                        color: activeFilter === cat.key ? cat.color : "inherit",
+                                        borderColor: activeFilter === cat.key ? cat.color : "transparent",
+                                        borderWidth: "2px"
+                                    }}
+                                >
+                                    <span
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ background: cat.color }}
+                                    />
+                                    {cat.label}
+                                    <span
+                                        className="px-1.5 py-0.5 rounded text-xs"
+                                        style={{ background: "var(--background)" }}
+                                    >
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
                 {/* Toolbar - Select All & Bulk Actions */}
                 {items.length > 0 && (
@@ -244,7 +315,7 @@ export function TrashModal({
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {items.map((item) => (
+                            {filteredItems.map((item) => (
                                 <div
                                     key={item.id}
                                     className={`flex items-center justify-between p-3 rounded-xl transition-all ${selectedIds.includes(item.id) ? "ring-2 ring-[var(--accent)]" : ""
