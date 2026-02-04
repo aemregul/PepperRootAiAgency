@@ -33,7 +33,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (3 Şubat 2026 - 20:50)
+## 📊 Genel Durum (4 Şubat 2026 - 13:46)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -149,12 +149,16 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - [x] Cross-session entity persistence
 - [x] Entity CASCADE delete fix (proje silinince entity kalır)
 
-### ✅ Login/Auth İyileştirmeleri (3 Şubat)
+### ✅ Login/Auth İyileştirmeleri (3-4 Şubat)
 - [x] Password visibility toggle (Eye/EyeOff)
 - [x] Double-click bug fix
 - [x] OAuth error handling iyileştirmesi
 - [x] System status endpoint (/api/v1/system/status)
 - [x] Backend warm-up (lifespan handler)
+- [x] Login sayfası sadeleştirildi - Sadece Google OAuth (4 Şubat)
+- [x] Header buton birleştirildi (Giriş Yap + Ücretsiz Başla → tek "Giriş Yap")
+- [x] OAuth callback Suspense boundary eklendi
+- [x] "Ana Sayfaya Dön" linki eklendi
 
 ### Öncelik: Deploy (Sırada)
 - [ ] Railway backend deploy
