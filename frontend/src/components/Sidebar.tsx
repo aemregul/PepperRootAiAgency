@@ -943,8 +943,33 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 plugin={selectedPlugin}
                 onDelete={(id) => setCreativePlugins(creativePlugins.filter(p => p.id !== id))}
                 onUse={(plugin) => {
-                    // TODO: Chat'e plugin config'i uygula
-                    console.log("Plugin kullanılıyor:", plugin);
+                    // Plugin config'ini chat'e gönder
+                    if (onSendPrompt && plugin.config) {
+                        const parts: string[] = [];
+
+                        // Style varsa ekle
+                        if (plugin.config.style) {
+                            parts.push(`Stil: ${plugin.config.style}`);
+                        }
+
+                        // Camera angles varsa ekle
+                        if (plugin.config.cameraAngles && plugin.config.cameraAngles.length > 0) {
+                            parts.push(`Açılar: ${plugin.config.cameraAngles.join(", ")}`);
+                        }
+
+                        // Time of day varsa ekle
+                        if (plugin.config.timeOfDay) {
+                            parts.push(`Zaman: ${plugin.config.timeOfDay}`);
+                        }
+
+                        // PromptTemplate varsa kullan
+                        const prompt = plugin.config.promptTemplate
+                            ? `[${plugin.name}] ${plugin.config.promptTemplate}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`
+                            : `[${plugin.name}] ${parts.join(", ")} tarzında görsel üret`;
+
+                        onSendPrompt(prompt);
+                    }
+                    setPluginDetailOpen(false);
                 }}
             />
 
