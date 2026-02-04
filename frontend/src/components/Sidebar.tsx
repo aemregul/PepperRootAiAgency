@@ -469,25 +469,52 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     // Restore from trash - backend'e bağlı
     const handleRestore = async (item: TrashItem) => {
         try {
-            await restoreTrashItem(item.id);
-            // UI güncelle
-            switch (item.type) {
-                case "karakter":
-                    setCharacters([...characters, item.originalData]);
-                    break;
-                case "lokasyon":
-                    setLocations([...locations, item.originalData]);
-                    break;
-                case "wardrobe":
-                    setWardrobe([...wardrobe, item.originalData]);
-                    break;
-                case "proje":
-                    setProjects([...projects, item.originalData]);
-                    break;
-                case "plugin":
-                    setCreativePlugins([...creativePlugins, item.originalData]);
-                    break;
+            const result = await restoreTrashItem(item.id);
+
+            if (result.success && result.restored) {
+                const restored = result.restored;
+
+                // UI güncelle - backend'den dönen verilerle
+                switch (item.type) {
+                    case "karakter":
+                        setCharacters([...characters, {
+                            id: restored.id,
+                            name: restored.name || item.name
+                        }]);
+                        break;
+                    case "lokasyon":
+                        setLocations([...locations, {
+                            id: restored.id,
+                            name: restored.name || item.name
+                        }]);
+                        break;
+                    case "wardrobe":
+                        setWardrobe([...wardrobe, {
+                            id: restored.id,
+                            name: restored.name || item.name
+                        }]);
+                        break;
+                    case "proje":
+                        setProjects([...projects, {
+                            id: restored.id,
+                            name: restored.title || item.name,
+                            active: false
+                        }]);
+                        break;
+                    case "plugin":
+                        // Plugin restore için ek veri gerekebilir
+                        break;
+                    case "marka":
+                        // Marka da karakter gibi entity
+                        setCharacters([...characters, {
+                            id: restored.id,
+                            name: restored.name || item.name
+                        }]);
+                        break;
+                }
             }
+
+            // Çöp kutusundan kaldır
             setTrashItems(trashItems.filter(t => t.id !== item.id));
         } catch (error) {
             console.error('Geri yükleme hatası:', error);

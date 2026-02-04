@@ -477,7 +477,18 @@ export async function getTrashItems(): Promise<TrashItemData[]> {
     return response.json();
 }
 
-export async function restoreTrashItem(itemId: string): Promise<{ success: boolean; original_data: unknown }> {
+export async function restoreTrashItem(itemId: string): Promise<{
+    success: boolean;
+    message: string;
+    restored?: {
+        type: string;
+        id: string;
+        title?: string;
+        name?: string;
+        tag?: string;
+        url?: string;
+    }
+}> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/trash/${itemId}/restore`, {
         method: 'POST',
     });
