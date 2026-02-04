@@ -160,6 +160,8 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - [x] OAuth callback Suspense boundary eklendi
 - [x] "Ana Sayfaya Dön" linki eklendi
 
+- [x] "Hesabımı hatırla" checkbox (localStorage vs sessionStorage) (4 Şubat)
+
 ### Öncelik: Deploy (Sırada)
 - [ ] Railway backend deploy
 - [ ] Vercel frontend deploy
