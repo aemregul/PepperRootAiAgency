@@ -149,7 +149,9 @@ async def delete_session(
     session_id: UUID,
     db: AsyncSession = Depends(get_db)
 ):
-    """Oturumu sil (soft delete)."""
+    """Oturumu çöp kutusuna taşı (soft delete)."""
+    from datetime import datetime, timedelta
+    
     result = await db.execute(
         select(Session).where(Session.id == session_id)
     )
@@ -157,6 +159,32 @@ async def delete_session(
     if not session:
         raise HTTPException(status_code=404, detail="Oturum bulunamadı")
     
+    # Önce bu session'a bağlı TrashItem'ların session_id'sini NULL yap
+    # Böylece session silinince çöp kutusundaki item'lar kaybolmaz
+    existing_trash_items = await db.execute(
+        select(TrashItem).where(TrashItem.session_id == session_id)
+    )
+    for trash_item in existing_trash_items.scalars().all():
+        trash_item.session_id = None
+    
+    # Session'ı çöp kutusuna ekle
+    trash_item = TrashItem(
+        user_id=session.user_id,
+        item_type="session",
+        item_id=str(session.id),
+        item_name=session.title or "Untitled Project",
+        original_data={
+            "title": session.title,
+            "user_id": str(session.user_id) if session.user_id else None,
+            "metadata": session.metadata_,
+            "created_at": session.created_at.isoformat() if session.created_at else None
+        },
+        session_id=None,  # Session kendisi silindiği için NULL
+        expires_at=datetime.now() + timedelta(days=3)
+    )
+    db.add(trash_item)
+    
+    # Session'ı soft delete yap
     session.is_active = False
     await db.commit()
 

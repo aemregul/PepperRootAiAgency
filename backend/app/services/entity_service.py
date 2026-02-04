@@ -181,15 +181,37 @@ class EntityService:
         entity_id: uuid.UUID
     ) -> bool:
         """
-        Entity sil.
+        Entity'yi çöp kutusuna taşı.
         
         Returns:
             Silme başarılı mı
         """
+        from datetime import datetime, timedelta
+        from app.models.models import TrashItem
+        
         entity = await self.get_by_id(db, entity_id)
         if not entity:
             return False
         
+        # Çöp kutusuna ekle
+        trash_item = TrashItem(
+            user_id=entity.user_id,
+            session_id=None,  # Entity bağımsız olduğu için NULL
+            item_type=entity.entity_type,  # character, location, brand, etc.
+            item_id=str(entity.id),
+            item_name=entity.name,
+            original_data={
+                "tag": entity.tag,
+                "description": entity.description,
+                "attributes": entity.attributes,
+                "reference_image_url": entity.reference_image_url,
+                "entity_type": entity.entity_type
+            },
+            expires_at=datetime.now() + timedelta(days=3)
+        )
+        db.add(trash_item)
+        
+        # Entity'yi sil
         await db.delete(entity)
         await db.commit()
         
