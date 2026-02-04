@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-export default function AuthCallbackPage() {
-    const router = useRouter();
+function CallbackHandler() {
     const searchParams = useSearchParams();
 
     useEffect(() => {
@@ -13,19 +12,41 @@ export default function AuthCallbackPage() {
         if (token) {
             // Save token from Google OAuth callback
             localStorage.setItem('token', token);
-            router.push('/app');
+            // Use window.location for full page reload to ensure AuthContext picks up the token
+            window.location.href = '/app';
         } else {
             // No token, redirect to login
-            router.push('/login');
+            window.location.href = '/login';
         }
-    }, [searchParams, router]);
+    }, [searchParams]);
 
     return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
             <div className="text-center">
                 <div className="text-5xl mb-4 animate-pulse">🫑</div>
                 <p className="text-gray-400">Giriş yapılıyor...</p>
+                <div className="flex items-center justify-center gap-2 mt-4">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
             </div>
         </div>
     );
 }
+
+export default function AuthCallbackPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-5xl mb-4 animate-pulse">🫑</div>
+                    <p className="text-gray-400">Yükleniyor...</p>
+                </div>
+            </div>
+        }>
+            <CallbackHandler />
+        </Suspense>
+    );
+}
+
