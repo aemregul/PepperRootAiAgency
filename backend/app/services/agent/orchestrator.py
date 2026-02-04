@@ -532,7 +532,7 @@ DAVRANIŞ KURALLARI:
                     image_url = result.get("image_url")
                     
                     # 📦 Asset'i veritabanına kaydet
-                    entity_ids = [e.get("id") for e in resolved_entities if e.get("id")] if resolved_entities else None
+                    entity_ids = [str(getattr(e, 'id', None)) for e in resolved_entities if getattr(e, 'id', None)] if resolved_entities else None
                     await asset_service.save_asset(
                         db=db,
                         session_id=session_id,
@@ -578,7 +578,7 @@ DAVRANIŞ KURALLARI:
                     image_url = result.get("image_url")
                     
                     # 📦 Asset'i veritabanına kaydet
-                    entity_ids = [e.get("id") for e in resolved_entities if e.get("id")] if resolved_entities else None
+                    entity_ids = [str(getattr(e, 'id', None)) for e in resolved_entities if getattr(e, 'id', None)] if resolved_entities else None
                     await asset_service.save_asset(
                         db=db,
                         session_id=session_id,
