@@ -390,6 +390,8 @@ export interface OverviewStats {
     total_assets: number;
     total_messages: number;
     active_models: number;
+    total_images: number;
+    total_videos: number;
 }
 
 export async function getOverviewStats(): Promise<OverviewStats> {

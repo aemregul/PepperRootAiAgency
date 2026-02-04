@@ -104,6 +104,8 @@ class OverviewStats(BaseModel):
     total_assets: int
     total_messages: int
     active_models: int
+    total_images: int = 0
+    total_videos: int = 0
 
 
 # ============== AI MODELS ==============
@@ -321,16 +323,18 @@ async def get_usage_stats(days: int = 7, db: AsyncSession = Depends(get_db)):
     )
     stats = result.scalars().all()
     
-    # Mock data if empty
+    # Eğer veritabanında veri yoksa, son 7 gün için sıfır değerlerle döndür
     if not stats:
+        day_names = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
+        today = datetime.now()
         return [
-            UsageStatsResponse(date="Pzt", api_calls=45, images_generated=32, videos_generated=8),
-            UsageStatsResponse(date="Sal", api_calls=62, images_generated=48, videos_generated=12),
-            UsageStatsResponse(date="Çar", api_calls=78, images_generated=55, videos_generated=15),
-            UsageStatsResponse(date="Per", api_calls=95, images_generated=72, videos_generated=18),
-            UsageStatsResponse(date="Cum", api_calls=120, images_generated=85, videos_generated=22),
-            UsageStatsResponse(date="Cmt", api_calls=88, images_generated=60, videos_generated=20),
-            UsageStatsResponse(date="Paz", api_calls=75, images_generated=52, videos_generated=16),
+            UsageStatsResponse(
+                date=day_names[(today - timedelta(days=6-i)).weekday()],
+                api_calls=0,
+                images_generated=0,
+                videos_generated=0
+            )
+            for i in range(7)
         ]
     
     return [UsageStatsResponse(
@@ -349,11 +353,21 @@ async def get_overview_stats(db: AsyncSession = Depends(get_db)):
     messages_count = await db.execute(select(func.count(Message.id)))
     models_count = await db.execute(select(func.count(AIModel.id)).where(AIModel.is_enabled == True))
     
+    # Görsel ve video sayılarını ayrı ayrı hesapla
+    images_count = await db.execute(
+        select(func.count(GeneratedAsset.id)).where(GeneratedAsset.asset_type == "image")
+    )
+    videos_count = await db.execute(
+        select(func.count(GeneratedAsset.id)).where(GeneratedAsset.asset_type == "video")
+    )
+    
     return OverviewStats(
         total_sessions=sessions_count.scalar() or 0,
         total_assets=assets_count.scalar() or 0,
         total_messages=messages_count.scalar() or 0,
-        active_models=models_count.scalar() or 0
+        active_models=models_count.scalar() or 0,
+        total_images=images_count.scalar() or 0,
+        total_videos=videos_count.scalar() or 0
     )
 
 

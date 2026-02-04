@@ -219,10 +219,10 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                                     {/* Stats Grid */}
                                     <div className="grid grid-cols-4 gap-3">
                                         {[
-                                            { label: "Toplam Çağrı", value: totalCalls || overviewStats?.total_messages || 0, icon: Zap, color: "#22c55e" },
-                                            { label: "Görseller", value: totalImages || overviewStats?.total_assets || 0, icon: PieChartIcon, color: "#8b5cf6" },
-                                            { label: "Videolar", value: totalVideos, icon: TrendingUp, color: "#3b82f6" },
-                                            { label: "Aktif Model", value: models.filter(m => m.is_enabled).length, icon: Activity, color: "#f59e0b" },
+                                            { label: "Toplam Çağrı", value: overviewStats?.total_messages || 0, icon: Zap, color: "#22c55e" },
+                                            { label: "Görseller", value: overviewStats?.total_images || 0, icon: PieChartIcon, color: "#8b5cf6" },
+                                            { label: "Videolar", value: overviewStats?.total_videos || 0, icon: TrendingUp, color: "#3b82f6" },
+                                            { label: "Aktif Model", value: overviewStats?.active_models || 0, icon: Activity, color: "#f59e0b" },
                                         ].map((stat) => (
                                             <div
                                                 key={stat.label}
