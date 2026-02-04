@@ -26,7 +26,7 @@ async def get_system_status():
             "gpt4": bool(settings.OPENAI_API_KEY),
             "image_generation": bool(settings.FAL_KEY),
             "video_generation": bool(settings.FAL_KEY),
-            "web_search": bool(settings.SERPAPI_KEY),
+            "web_search": True,  # DuckDuckGo - API key gerektirmez, her zaman aktif
             "google_login": bool(settings.GOOGLE_CLIENT_ID),
             "redis_cache": settings.USE_REDIS and bool(settings.REDIS_URL),
         }
