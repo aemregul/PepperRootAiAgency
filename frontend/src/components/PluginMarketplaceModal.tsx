@@ -1061,17 +1061,17 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
 
                 {/* Plugin Grid */}
                 <div className="p-4 overflow-y-auto max-h-[calc(85vh-180px)]">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 items-stretch">
                         {sortedPlugins.map((plugin) => (
                             <div
                                 key={plugin.id}
-                                className="p-4 rounded-xl transition-all hover:shadow-lg"
+                                className="p-4 rounded-xl transition-all hover:shadow-lg flex flex-col h-full"
                                 style={{ background: "var(--background)", border: "1px solid var(--border)" }}
                             >
                                 {/* Header */}
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
-                                        <h3 className="font-semibold">{plugin.name}</h3>
+                                        <h3 className="font-semibold text-sm">{plugin.name}</h3>
                                         <div className="flex items-center gap-2 text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
                                             <span className="flex items-center gap-1">
                                                 <Users size={10} /> {plugin.author}
@@ -1089,7 +1089,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                                 </div>
 
                                 {/* Description */}
-                                <p className="text-xs mb-3 line-clamp-2" style={{ color: "var(--foreground-muted)" }}>
+                                <p className="text-xs mb-3 line-clamp-2 flex-grow" style={{ color: "var(--foreground-muted)" }}>
                                     {plugin.description}
                                 </p>
 
@@ -1111,7 +1111,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                                 <button
                                     onClick={() => handleInstall(plugin)}
                                     disabled={isInstalled(plugin.id)}
-                                    className={`w-full py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${isInstalled(plugin.id)
+                                    className={`w-full py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 mt-auto ${isInstalled(plugin.id)
                                         ? "bg-green-500/20 text-green-500 cursor-default"
                                         : "hover:opacity-90"
                                         }`}
