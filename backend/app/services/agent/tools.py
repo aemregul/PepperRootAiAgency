@@ -228,6 +228,48 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["brand_name"]
         }
+    },
+    {
+        "name": "generate_grid",
+        "description": "3x3 grid oluşturur. 9 farklı kamera açısı (angles) veya 9 hikaye paneli (storyboard) üretir. @karakter referansı ile otomatik görsel kullanır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {"type": "string", "description": "Referans görsel URL'si (entity tag varsa otomatik alınır)"},
+                "mode": {
+                    "type": "string",
+                    "enum": ["angles", "storyboard"],
+                    "description": "Grid modu: angles (9 kamera açısı) veya storyboard (9 hikaye paneli)"
+                },
+                "aspect_ratio": {
+                    "type": "string",
+                    "enum": ["16:9", "9:16", "1:1"],
+                    "description": "Grid görselinin en-boy oranı"
+                },
+                "custom_prompt": {"type": "string", "description": "Özel grid promptu (opsiyonel)"}
+            }
+        }
+    },
+    {
+        "name": "use_grid_panel",
+        "description": "Oluşturulmuş grid'den belirli bir paneli seçip işlem yapar. Panel numarası 1-9 arası (3x3: üst-sol=1, alt-sağ=9).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "panel_number": {
+                    "type": "integer",
+                    "description": "Seçilecek panel numarası (1-9). Grid düzeni: 1|2|3 / 4|5|6 / 7|8|9"
+                },
+                "action": {
+                    "type": "string",
+                    "enum": ["video", "upscale", "download", "edit"],
+                    "description": "Panele uygulanacak işlem: video üret, upscale et, indir veya düzenle"
+                },
+                "video_prompt": {"type": "string", "description": "Video için hareket/animasyon açıklaması (action=video ise)"},
+                "edit_prompt": {"type": "string", "description": "Düzenleme promptu (action=edit ise)"}
+            },
+            "required": ["panel_number", "action"]
+        }
     }
 ]
 

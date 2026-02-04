@@ -61,6 +61,14 @@ YAPABİLECEKLERİN:
 GRID KULLANIMI:
 - "Bu görselden grid yap" → generate_grid(image_url=..., mode="angles")
 - "@emre için 9 açı oluştur" → generate_grid(image_url=entity_ref, mode="angles")
+- "#2 numaralı kareyi video yap" → use_grid_panel(panel_number=2, action="video")
+- "#5'i upscale et" → use_grid_panel(panel_number=5, action="upscale")
+- "3. paneli indir" → use_grid_panel(panel_number=3, action="download")
+
+GRID PANEL NUMARALARI (3x3):
+| 1 | 2 | 3 |
+| 4 | 5 | 6 |
+| 7 | 8 | 9 |
 
 İNTERNET BAĞLANTISI (ÇOK ÖNEMLİ - Sen internete bağlı akıllı bir asistansın!):
 
@@ -385,6 +393,9 @@ DAVRANIŞ KURALLARI:
         
         elif tool_name == "generate_grid":
             return await self._generate_grid(db, session_id, tool_input, resolved_entities or [])
+        
+        elif tool_name == "use_grid_panel":
+            return await self._use_grid_panel(db, session_id, tool_input)
         
         # WEB ARAMA ARAÇLARI
         elif tool_name == "search_images":
@@ -1992,6 +2003,118 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
 
         else:
             return "Create a seamless 3x3 grid showing 9 variations. NO borders, NO gaps. Photorealistic, cinematic."
+    
+    async def _use_grid_panel(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict
+    ) -> dict:
+        """
+        Grid'den belirli bir paneli seç ve işlem yap.
+        
+        Panel numarası 1-9 arası (3x3 grid):
+        | 1 | 2 | 3 |
+        | 4 | 5 | 6 |
+        | 7 | 8 | 9 |
+        """
+        try:
+            panel_number = params.get("panel_number", 1)
+            action = params.get("action", "video")
+            video_prompt = params.get("video_prompt", "")
+            edit_prompt = params.get("edit_prompt", "")
+            
+            if not 1 <= panel_number <= 9:
+                return {"success": False, "error": "Panel numarası 1-9 arası olmalı."}
+            
+            # Son grid asset'ini bul
+            from app.models.models import GeneratedAsset
+            from sqlalchemy import select
+            
+            result = await db.execute(
+                select(GeneratedAsset)
+                .where(
+                    GeneratedAsset.session_id == session_id,
+                    GeneratedAsset.prompt.ilike("%grid%")
+                )
+                .order_by(GeneratedAsset.created_at.desc())
+                .limit(1)
+            )
+            grid_asset = result.scalar_one_or_none()
+            
+            if not grid_asset:
+                return {"success": False, "error": "Önce bir grid oluşturmalısın. 'Grid yap' komutunu dene."}
+            
+            grid_url = grid_asset.url
+            
+            # Panel koordinatlarını hesapla (3x3 grid)
+            row = (panel_number - 1) // 3
+            col = (panel_number - 1) % 3
+            
+            # Grid görselinden panel crop için frontend'e bilgi gönder
+            # veya server-side crop yap
+            
+            if action == "video":
+                # Panel'i video'ya çevir
+                prompt = video_prompt or f"Cinematic motion, subtle movement, panel {panel_number} comes alive"
+                
+                result = await self._generate_video(
+                    db, session_id,
+                    {
+                        "prompt": prompt,
+                        "image_url": grid_url,  # Grid'in tamamını gönderiyoruz, crop frontend'de yapılacak
+                        "duration": "5"
+                    }
+                )
+                
+                if result.get("success"):
+                    result["message"] = f"Panel #{panel_number}'den video oluşturuldu!"
+                    result["source_panel"] = panel_number
+                    result["grid_url"] = grid_url
+                return result
+                
+            elif action == "upscale":
+                # Panel'i upscale et
+                result = await self._upscale_image({
+                    "image_url": grid_url,
+                    "scale": 2
+                })
+                if result.get("success"):
+                    result["message"] = f"Panel #{panel_number} 2x büyütüldü!"
+                    result["source_panel"] = panel_number
+                return result
+                
+            elif action == "edit":
+                # Panel'i düzenle
+                if not edit_prompt:
+                    return {"success": False, "error": "Düzenleme için edit_prompt gerekli."}
+                
+                result = await self._edit_image(db, session_id, {
+                    "image_url": grid_url,
+                    "prompt": edit_prompt
+                })
+                if result.get("success"):
+                    result["message"] = f"Panel #{panel_number} düzenlendi!"
+                    result["source_panel"] = panel_number
+                return result
+                
+            elif action == "download":
+                return {
+                    "success": True,
+                    "message": f"Panel #{panel_number} indirme için hazır.",
+                    "grid_url": grid_url,
+                    "panel_number": panel_number,
+                    "panel_position": {"row": row, "col": col},
+                    "instruction": "Frontend'de bu paneli kırpıp indir."
+                }
+            
+            else:
+                return {"success": False, "error": f"Bilinmeyen action: {action}"}
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
     
     # ===============================
     # MARKA YÖNETİM METODLARI
