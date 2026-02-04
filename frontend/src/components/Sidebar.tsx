@@ -28,7 +28,8 @@ import {
     Store,
     Pencil,
     Grid3x3,
-    LogOut
+    LogOut,
+    Tag
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/contexts/AuthContext";
@@ -262,6 +263,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [characters, setCharacters] = useState<{ id: string; name: string }[]>([]);
     const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
     const [wardrobe, setWardrobe] = useState<{ id: string; name: string }[]>([]);
+    const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
     const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>([]);
 
     // Filtrelenmiş entity'ler (arama için)
@@ -273,6 +275,9 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     );
     const filteredWardrobe = wardrobe.filter(w =>
         w.name.toLowerCase().includes(entitySearchQuery.toLowerCase())
+    );
+    const filteredBrands = brands.filter(b =>
+        b.name.toLowerCase().includes(entitySearchQuery.toLowerCase())
     );
 
     // Backend'den projeleri yükle
@@ -344,16 +349,21 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 const ward = entities
                     .filter((e: Entity) => e.entity_type === 'wardrobe')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
+                const brandList = entities
+                    .filter((e: Entity) => e.entity_type === 'brand')
+                    .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
 
                 setCharacters(chars);
                 setLocations(locs);
                 setWardrobe(ward);
+                setBrands(brandList);
             } catch (error) {
                 console.error('Entity yükleme hatası:', error);
                 // Hata durumunda boş göster
                 setCharacters([]);
                 setLocations([]);
                 setWardrobe([]);
+                setBrands([]);
             } finally {
                 setIsLoadingEntities(false);
             }
@@ -480,6 +490,27 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     toast.success(`"${item.name}" çöp kutusuna taşındı`);
                 } else {
                     toast.error('Kıyamet silinemedi');
+                }
+            }
+        });
+    };
+
+    const confirmDeleteBrand = (id: string) => {
+        const item = brands.find(b => b.id === id);
+        if (!item) return;
+        setDeleteConfirm({
+            isOpen: true,
+            itemId: id,
+            itemName: item.name,
+            itemType: "brand",
+            onConfirm: async () => {
+                const success = await deleteEntity(id);
+                if (success) {
+                    moveToTrash(id, item.name, "brand", item);
+                    setBrands(brands.filter(b => b.id !== id));
+                    toast.success(`"${item.name}" çöp kutusuna taşındı`);
+                } else {
+                    toast.error('Marka silinemedi');
                 }
             }
         });
@@ -834,6 +865,15 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         items={filteredWardrobe}
                         defaultOpen={false}
                         onDelete={confirmDeleteWardrobe}
+                    />
+
+                    {/* Brands */}
+                    <CollapsibleSection
+                        title="Brands"
+                        icon={<Tag size={16} />}
+                        items={filteredBrands}
+                        defaultOpen={false}
+                        onDelete={confirmDeleteBrand}
                     />
 
                     {/* Creative Plugins Section - sadece plugin varsa göster */}

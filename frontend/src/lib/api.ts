@@ -22,7 +22,7 @@ export interface Session {
 export interface Entity {
     id: string;
     session_id: string;
-    entity_type: 'character' | 'location' | 'wardrobe';
+    entity_type: 'character' | 'location' | 'wardrobe' | 'brand';
     name: string;
     tag: string;
     description?: string;
