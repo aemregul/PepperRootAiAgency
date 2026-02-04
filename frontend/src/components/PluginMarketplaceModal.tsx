@@ -421,6 +421,546 @@ const communityPlugins: CreativePlugin[] = [
         createdAt: new Date("2026-02-02"),
         downloads: 2340,
         rating: 4.8
+    },
+
+    // === EĞİTİM & KURUMSAL ===
+    {
+        id: "edu1",
+        name: "E-Learning Course Visuals",
+        description: "Online kurslar için eğitici görseller ve illüstrasyonlar.",
+        author: "EduDesign",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Konu", isVariable: true },
+            location: { id: "classroom", name: "Digital Classroom", settings: "" },
+            timeOfDay: "Bright",
+            cameraAngles: ["Infographic", "Diagram", "Character Explain"],
+            style: "Educational",
+            promptTemplate: "educational illustration, clean, informative, friendly, modern design, {character}"
+        },
+        createdAt: new Date("2026-02-03"),
+        downloads: 890,
+        rating: 4.6
+    },
+    {
+        id: "edu2",
+        name: "Children's Book Illustration",
+        description: "Çocuk kitapları için sevimli ve eğlenceli illüstrasyonlar.",
+        author: "KidsArt",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Karakter", isVariable: true },
+            location: { id: "fantasy", name: "Magical World", settings: "" },
+            timeOfDay: "Colorful",
+            cameraAngles: ["Character Focus", "Scene Wide", "Action Moment"],
+            style: "Children's Book",
+            promptTemplate: "children's book illustration, cute, colorful, whimsical, friendly, {character}"
+        },
+        createdAt: new Date("2026-01-28"),
+        downloads: 1560,
+        rating: 4.9
+    },
+
+    // === SAĞLIK & WELLNESS ===
+    {
+        id: "health1",
+        name: "Medical & Healthcare",
+        description: "Sağlık sektörü için profesyonel tıbbi görseller.",
+        author: "MedVisuals",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Tıbbi Konu", isVariable: true },
+            location: { id: "hospital", name: "Medical Facility", settings: "" },
+            timeOfDay: "Clean Light",
+            cameraAngles: ["Clinical", "Caring", "Professional"],
+            style: "Medical",
+            promptTemplate: "medical photography, healthcare, professional, clean, trustworthy, {character}"
+        },
+        createdAt: new Date("2026-01-25"),
+        downloads: 670,
+        rating: 4.5
+    },
+    {
+        id: "health2",
+        name: "Yoga & Meditation",
+        description: "Yoga ve meditasyon için huzurlu, zen görseller.",
+        author: "ZenStudio",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Pose", isVariable: true },
+            location: { id: "zen", name: "Peaceful Space", settings: "" },
+            timeOfDay: "Soft Morning",
+            cameraAngles: ["Full Body Flow", "Close Focus", "Environment"],
+            style: "Zen",
+            promptTemplate: "yoga photography, peaceful, serene, natural light, mindfulness, {character}"
+        },
+        createdAt: new Date("2026-02-01"),
+        downloads: 1120,
+        rating: 4.8
+    },
+
+    // === FİNANS & İŞ ===
+    {
+        id: "finance1",
+        name: "Fintech & Banking",
+        description: "Fintech ve bankacılık için modern, güvenilir görseller.",
+        author: "FinanceViz",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Finansal Konsept", isVariable: true },
+            location: { id: "modern", name: "Modern Office", settings: "" },
+            timeOfDay: "Professional",
+            cameraAngles: ["Data Visualization", "App Interface", "Trust Shot"],
+            style: "Fintech",
+            promptTemplate: "fintech design, modern, trustworthy, clean, professional, digital banking, {character}"
+        },
+        createdAt: new Date("2026-01-30"),
+        downloads: 780,
+        rating: 4.6
+    },
+    {
+        id: "finance2",
+        name: "Crypto & Blockchain",
+        description: "Kripto para ve blockchain projeleri için futuristik görseller.",
+        author: "CryptoArt",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Crypto Element", isVariable: true },
+            location: { id: "digital", name: "Digital Space", settings: "" },
+            timeOfDay: "Neon",
+            cameraAngles: ["Abstract", "Network Visual", "Coin Hero"],
+            style: "Crypto",
+            promptTemplate: "cryptocurrency design, blockchain, futuristic, neon, digital, {character}"
+        },
+        createdAt: new Date("2026-02-02"),
+        downloads: 1890,
+        rating: 4.7
+    },
+
+    // === OYUN & ENTERTAİNMENT ===
+    {
+        id: "game1",
+        name: "Game Character Design",
+        description: "Video oyun karakterleri için konsept sanatı.",
+        author: "GameArtist",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Karakter", isVariable: true },
+            location: { id: "game", name: "Game World", settings: "" },
+            timeOfDay: "Dramatic",
+            cameraAngles: ["Character Sheet", "Action Pose", "Portrait"],
+            style: "Game Art",
+            promptTemplate: "game character design, detailed, dynamic, concept art, {character}"
+        },
+        createdAt: new Date("2026-01-22"),
+        downloads: 3200,
+        rating: 4.9
+    },
+    {
+        id: "game2",
+        name: "Mobile Game UI",
+        description: "Mobil oyunlar için renkli ve eğlenceli UI elementleri.",
+        author: "MobileGameUI",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "UI Element", isVariable: true },
+            location: { id: "game", name: "Game Interface", settings: "" },
+            timeOfDay: "Vibrant",
+            cameraAngles: ["Button", "Icon", "Screen Layout"],
+            style: "Game UI",
+            promptTemplate: "mobile game UI, colorful, playful, engaging, cartoon style, {character}"
+        },
+        createdAt: new Date("2026-02-01"),
+        downloads: 1450,
+        rating: 4.7
+    },
+
+    // === SEYAHAT & TURİZM ===
+    {
+        id: "travel1",
+        name: "Travel Photography",
+        description: "Seyahat ve turizm için etkileyici destinasyon fotoğrafları.",
+        author: "Wanderlust",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Destinasyon", isVariable: true },
+            location: { id: "travel", name: "Exotic Location", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Landscape Wide", "Detail Shot", "Human Element"],
+            style: "Travel",
+            promptTemplate: "travel photography, wanderlust, beautiful destination, inspiring, {character}"
+        },
+        createdAt: new Date("2026-01-20"),
+        downloads: 2100,
+        rating: 4.8
+    },
+    {
+        id: "travel2",
+        name: "Hotel & Resort Marketing",
+        description: "Otel ve resort tanıtımı için lüks konaklama görselleri.",
+        author: "HospitalityPro",
+        isPublic: true,
+        config: {
+            character: { id: "none", name: "Yok", isVariable: false },
+            location: { id: "hotel", name: "Luxury Resort", settings: "" },
+            timeOfDay: "Warm Afternoon",
+            cameraAngles: ["Room Interior", "Pool View", "Dining Experience"],
+            style: "Hospitality",
+            promptTemplate: "luxury hotel photography, elegant, inviting, high-end resort, relaxing atmosphere"
+        },
+        createdAt: new Date("2026-01-28"),
+        downloads: 760,
+        rating: 4.6
+    },
+
+    // === BEBEK & AİLE ===
+    {
+        id: "family1",
+        name: "Newborn & Baby Photos",
+        description: "Yeni doğan ve bebek fotoğrafçılığı için yumuşak tonlar.",
+        author: "BabyMoments",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Bebek", isVariable: true },
+            location: { id: "nursery", name: "Cozy Nursery", settings: "" },
+            timeOfDay: "Soft Natural",
+            cameraAngles: ["Close-up", "With Parent", "Sleeping"],
+            style: "Newborn",
+            promptTemplate: "newborn photography, soft, gentle, warm tones, precious moments, {character}"
+        },
+        createdAt: new Date("2026-01-18"),
+        downloads: 1340,
+        rating: 4.9
+    },
+    {
+        id: "family2",
+        name: "Family Portrait Sessions",
+        description: "Aile portreleri için doğal ve samimi anlar.",
+        author: "FamilyFirst",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Aile", isVariable: true },
+            location: { id: "outdoor", name: "Natural Setting", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Group Portrait", "Candid Moment", "Playful"],
+            style: "Family",
+            promptTemplate: "family photography, warm, loving, natural, candid moments, {character}"
+        },
+        createdAt: new Date("2026-01-25"),
+        downloads: 980,
+        rating: 4.7
+    },
+
+    // === EVCİL HAYVAN ===
+    {
+        id: "pet1",
+        name: "Pet Photography Pro",
+        description: "Evcil hayvan fotoğrafçılığı için eğlenceli ve sevimli kareler.",
+        author: "PetLens",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Evcil Hayvan", isVariable: true },
+            location: { id: "studio", name: "Pet Studio", settings: "" },
+            timeOfDay: "Bright",
+            cameraAngles: ["Portrait", "Action", "Funny Moment"],
+            style: "Pet",
+            promptTemplate: "pet photography, adorable, playful, expressive, {character}"
+        },
+        createdAt: new Date("2026-02-01"),
+        downloads: 2200,
+        rating: 4.9
+    },
+
+    // === KOZMETİK & GÜZELLİK ===
+    {
+        id: "beauty1",
+        name: "Beauty & Cosmetics",
+        description: "Kozmetik ürünleri ve güzellik içerikleri için glamour çekimler.",
+        author: "GlamourShots",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Ürün/Model", isVariable: true },
+            location: { id: "beauty", name: "Beauty Studio", settings: "" },
+            timeOfDay: "Soft Light",
+            cameraAngles: ["Product Close-up", "Application Shot", "Model Portrait"],
+            style: "Beauty",
+            promptTemplate: "beauty photography, glamorous, elegant, cosmetics, flawless, {character}"
+        },
+        createdAt: new Date("2026-01-30"),
+        downloads: 1670,
+        rating: 4.8
+    },
+    {
+        id: "beauty2",
+        name: "Skincare & Wellness",
+        description: "Cilt bakımı ve wellness markaları için doğal görseller.",
+        author: "SkinGlow",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Ürün", isVariable: true },
+            location: { id: "spa", name: "Spa Environment", settings: "" },
+            timeOfDay: "Natural",
+            cameraAngles: ["Product Hero", "Texture Detail", "Lifestyle"],
+            style: "Skincare",
+            promptTemplate: "skincare photography, natural, clean, fresh, wellness, organic feel, {character}"
+        },
+        createdAt: new Date("2026-02-02"),
+        downloads: 890,
+        rating: 4.6
+    },
+
+    // === FİTNESS & SPOR ===
+    {
+        id: "fitness1",
+        name: "Gym & Fitness Marketing",
+        description: "Spor salonları ve fitness markaları için enerjik görseller.",
+        author: "FitMedia",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Sporcu", isVariable: true },
+            location: { id: "gym", name: "Modern Gym", settings: "" },
+            timeOfDay: "Dramatic",
+            cameraAngles: ["Action Shot", "Equipment Focus", "Motivation"],
+            style: "Fitness",
+            promptTemplate: "fitness photography, powerful, energetic, motivational, athletic, {character}"
+        },
+        createdAt: new Date("2026-01-28"),
+        downloads: 1450,
+        rating: 4.7
+    },
+
+    // === MİMARİ ===
+    {
+        id: "arch1",
+        name: "Architectural Visualization",
+        description: "Mimari projeler için fotorealistik 3D görselleştirmeler.",
+        author: "ArchRender",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Bina", isVariable: true },
+            location: { id: "exterior", name: "Urban Context", settings: "" },
+            timeOfDay: "Blue Hour",
+            cameraAngles: ["Exterior Hero", "Interior Space", "Detail"],
+            style: "Architectural",
+            promptTemplate: "architectural visualization, photorealistic, modern design, {character}"
+        },
+        createdAt: new Date("2026-02-03"),
+        downloads: 1120,
+        rating: 4.8
+    },
+
+    // === MÜZİK ===
+    {
+        id: "music1",
+        name: "Album Cover Art",
+        description: "Albüm kapakları için yaratıcı ve dikkat çekici tasarımlar.",
+        author: "AlbumArtist",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Artist/Tema", isVariable: true },
+            location: { id: "abstract", name: "Abstract Space", settings: "" },
+            timeOfDay: "Artistic",
+            cameraAngles: ["Square Format", "Visual Metaphor", "Typography Ready"],
+            style: "Album Art",
+            promptTemplate: "album cover art, creative, eye-catching, artistic, memorable, {character}"
+        },
+        createdAt: new Date("2026-01-22"),
+        downloads: 2560,
+        rating: 4.8
+    },
+
+    // === FİLM & TV ===
+    {
+        id: "film1",
+        name: "Movie Poster Design",
+        description: "Film ve dizi posterleri için sinematik kompozisyonlar.",
+        author: "PosterPro",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Film/Karakter", isVariable: true },
+            location: { id: "cinematic", name: "Dramatic Scene", settings: "" },
+            timeOfDay: "Dramatic",
+            cameraAngles: ["Hero Poster", "Character Ensemble", "Teaser"],
+            style: "Movie Poster",
+            promptTemplate: "movie poster design, cinematic, dramatic, compelling, theatrical, {character}"
+        },
+        createdAt: new Date("2026-02-01"),
+        downloads: 1890,
+        rating: 4.9
+    },
+    {
+        id: "film2",
+        name: "Documentary Style",
+        description: "Belgesel ve gerçekçi hikaye anlatımı için görsel stil.",
+        author: "DocuVision",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Konu", isVariable: true },
+            location: { id: "real", name: "Real Location", settings: "" },
+            timeOfDay: "Natural",
+            cameraAngles: ["Candid", "Environmental Portrait", "Detail"],
+            style: "Documentary",
+            promptTemplate: "documentary photography, authentic, real, storytelling, human interest, {character}"
+        },
+        createdAt: new Date("2026-01-28"),
+        downloads: 670,
+        rating: 4.5
+    },
+
+    // === YEMEK & İÇECEK ===
+    {
+        id: "food2",
+        name: "Beverage & Cocktails",
+        description: "İçecek markaları ve barlar için profesyonel içecek fotoğrafları.",
+        author: "DrinkShots",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "İçecek", isVariable: true },
+            location: { id: "bar", name: "Bar Setting", settings: "" },
+            timeOfDay: "Moody",
+            cameraAngles: ["Hero Shot", "Pour Action", "Ingredient Detail"],
+            style: "Beverage",
+            promptTemplate: "beverage photography, refreshing, elegant, professional, {character}"
+        },
+        createdAt: new Date("2026-02-03"),
+        downloads: 890,
+        rating: 4.7
+    },
+    {
+        id: "food3",
+        name: "Bakery & Desserts",
+        description: "Pastane ve tatlılar için iştah açıcı görseller.",
+        author: "SweetLens",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Tatlı", isVariable: true },
+            location: { id: "bakery", name: "Artisan Bakery", settings: "" },
+            timeOfDay: "Warm",
+            cameraAngles: ["Close-up", "Slice Shot", "Display"],
+            style: "Bakery",
+            promptTemplate: "bakery photography, delicious, appetizing, artisan, warm tones, {character}"
+        },
+        createdAt: new Date("2026-01-30"),
+        downloads: 1230,
+        rating: 4.8
+    },
+
+    // === MODA DETAY ===
+    {
+        id: "fashion2",
+        name: "Streetwear & Urban Fashion",
+        description: "Streetwear markaları için urban ve edgy görseller.",
+        author: "StreetStyle",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Model", isVariable: true },
+            location: { id: "urban", name: "Urban Environment", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Full Look", "Brand Focus", "Lifestyle"],
+            style: "Streetwear",
+            promptTemplate: "streetwear fashion, urban, edgy, authentic, street culture, {character}"
+        },
+        createdAt: new Date("2026-02-02"),
+        downloads: 1780,
+        rating: 4.8
+    },
+    {
+        id: "fashion3",
+        name: "Jewelry & Accessories",
+        description: "Takı ve aksesuar için detaylı makro çekimler.",
+        author: "LuxuryDetails",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Ürün", isVariable: true },
+            location: { id: "studio", name: "Luxury Studio", settings: "" },
+            timeOfDay: "Studio",
+            cameraAngles: ["Macro Detail", "On Model", "Artistic"],
+            style: "Jewelry",
+            promptTemplate: "jewelry photography, luxury, detailed, elegant, precious, {character}"
+        },
+        createdAt: new Date("2026-01-25"),
+        downloads: 920,
+        rating: 4.7
+    },
+
+    // === SOSYAL SORUMLULUK ===
+    {
+        id: "cause1",
+        name: "Environmental & Nature",
+        description: "Çevre ve doğa koruma projeleri için etkileyici görseller.",
+        author: "EcoVision",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Doğa", isVariable: true },
+            location: { id: "nature", name: "Natural Environment", settings: "" },
+            timeOfDay: "Golden Hour",
+            cameraAngles: ["Landscape", "Wildlife", "Environmental Impact"],
+            style: "Nature",
+            promptTemplate: "nature photography, environmental, majestic, conservation, beauty of earth, {character}"
+        },
+        createdAt: new Date("2026-01-20"),
+        downloads: 1450,
+        rating: 4.9
+    },
+
+    // === NFT & DİJİTAL SANAT ===
+    {
+        id: "nft1",
+        name: "NFT Collection Art",
+        description: "NFT koleksiyonları için unique dijital sanat eserleri.",
+        author: "NFTCreator",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "NFT Karakter", isVariable: true },
+            location: { id: "digital", name: "Digital Realm", settings: "" },
+            timeOfDay: "Vibrant",
+            cameraAngles: ["Character Portrait", "Full Body", "Trait Variations"],
+            style: "NFT Art",
+            promptTemplate: "NFT art, unique, collectible, digital art, distinctive style, {character}"
+        },
+        createdAt: new Date("2026-02-04"),
+        downloads: 3100,
+        rating: 4.7
+    },
+
+    // === HORROR & DARK ===
+    {
+        id: "dark1",
+        name: "Horror & Dark Fantasy",
+        description: "Korku ve karanlık fantezi temalı atmosferik görseller.",
+        author: "DarkArtist",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Creature/Scene", isVariable: true },
+            location: { id: "dark", name: "Haunted Space", settings: "" },
+            timeOfDay: "Night",
+            cameraAngles: ["Atmospheric", "Creature Reveal", "Suspense"],
+            style: "Horror",
+            promptTemplate: "horror art, dark fantasy, atmospheric, eerie, haunting, {character}"
+        },
+        createdAt: new Date("2026-01-28"),
+        downloads: 1670,
+        rating: 4.6
+    },
+
+    // === SCI-FI ===
+    {
+        id: "scifi1",
+        name: "Sci-Fi & Space",
+        description: "Bilim kurgu ve uzay temalı futuristik görseller.",
+        author: "SpaceArt",
+        isPublic: true,
+        config: {
+            character: { id: "variable", name: "Uzay/Konsept", isVariable: true },
+            location: { id: "space", name: "Outer Space", settings: "" },
+            timeOfDay: "Cosmic",
+            cameraAngles: ["Space Vista", "Ship Design", "Planet View"],
+            style: "Sci-Fi",
+            promptTemplate: "science fiction art, space, futuristic, cosmic, epic scale, {character}"
+        },
+        createdAt: new Date("2026-02-03"),
+        downloads: 2890,
+        rating: 4.9
     }
 ];
 
