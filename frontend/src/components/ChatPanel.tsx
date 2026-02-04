@@ -223,11 +223,19 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
             try {
                 // Backend'den mesaj geçmişini yükle
                 const history = await getSessionHistory(initialSessionId);
-                const formattedMessages: Message[] = history.map((msg) => ({
+                const formattedMessages: Message[] = history.map((msg: {
+                    id: string;
+                    role: string;
+                    content: string;
+                    created_at: string;
+                    metadata_?: { images?: { url: string }[]; has_reference_image?: boolean };
+                }) => ({
                     id: msg.id,
                     role: msg.role as 'user' | 'assistant',
                     content: msg.content,
                     timestamp: new Date(msg.created_at),
+                    // Metadata'dan image_url al (assistant mesajları için images[0], user için has_reference_image)
+                    image_url: msg.metadata_?.images?.[0]?.url,
                 }));
                 setMessages(formattedMessages);
             } catch (err) {
@@ -311,13 +319,15 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                 role: "assistant",
                 content: responseContent,
                 timestamp: new Date(),
+                // Response'daki ilk image asset'ini mesaja ekle
+                image_url: response.assets?.find((a: { asset_type: string; url: string }) => a.asset_type === 'image')?.url,
             };
 
             setMessages((prev) => [...prev, assistantMessage]);
 
             // Handle generated assets - trigger refresh
             if (response.assets && response.assets.length > 0) {
-                response.assets.forEach((asset) => {
+                response.assets.forEach((asset: { url: string; asset_type: string }) => {
                     onNewAsset?.({ url: asset.url, type: asset.asset_type });
                 });
             }
