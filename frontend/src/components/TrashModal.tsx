@@ -6,7 +6,7 @@ import { X, Trash2, RotateCcw, Clock, AlertCircle, CheckSquare, Square, Trash } 
 export interface TrashItem {
     id: string;
     name: string;
-    type: "proje" | "karakter" | "lokasyon" | "wardrobe" | "plugin" | "marka";
+    type: "proje" | "karakter" | "lokasyon" | "wardrobe" | "plugin" | "marka" | "session" | "character" | "location" | "brand" | "asset";
     deletedAt: Date;
     originalData: any;
 }
@@ -40,27 +40,37 @@ function getTimeRemaining(deletedAt: Date): string {
 }
 
 function getTypeLabel(type: TrashItem["type"]): string {
-    const labels = {
+    const labels: Record<TrashItem["type"], string> = {
         proje: "Proje",
+        session: "Proje",
         karakter: "Karakter",
+        character: "Karakter",
         lokasyon: "Lokasyon",
+        location: "Lokasyon",
         wardrobe: "Kıyafet",
         plugin: "Plugin",
-        marka: "Marka"
+        marka: "Marka",
+        brand: "Marka",
+        asset: "Asset"
     };
-    return labels[type];
+    return labels[type] || type;
 }
 
 function getTypeColor(type: TrashItem["type"]): string {
-    const colors = {
+    const colors: Record<TrashItem["type"], string> = {
         proje: "#22c55e",
+        session: "#22c55e",
         karakter: "#8b5cf6",
+        character: "#8b5cf6",
         lokasyon: "#3b82f6",
+        location: "#3b82f6",
         wardrobe: "#f59e0b",
         plugin: "#ec4899",
-        marka: "#06b6d4"
+        marka: "#06b6d4",
+        brand: "#06b6d4",
+        asset: "#f97316"
     };
-    return colors[type];
+    return colors[type] || "#6b7280";
 }
 
 export function TrashModal({

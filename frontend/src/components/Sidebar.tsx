@@ -469,49 +469,70 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     // Restore from trash - backend'e bağlı
     const handleRestore = async (item: TrashItem) => {
         try {
+            console.log("=== RESTORE DEBUG ===");
+            console.log("TrashItem:", item);
+            console.log("item.type:", item.type);
+            console.log("Current projects:", projects);
+
             const result = await restoreTrashItem(item.id);
+            console.log("API Result:", result);
 
             if (result.success && result.restored) {
                 const restored = result.restored;
+                console.log("Restored object:", restored);
 
                 // UI güncelle - backend'den dönen verilerle
                 switch (item.type) {
                     case "karakter":
+                    case "character":  // Backend alias
+                        console.log("Adding to characters");
                         setCharacters([...characters, {
                             id: restored.id,
                             name: restored.name || item.name
                         }]);
                         break;
                     case "lokasyon":
+                    case "location":  // Backend alias
+                        console.log("Adding to locations");
                         setLocations([...locations, {
                             id: restored.id,
                             name: restored.name || item.name
                         }]);
                         break;
                     case "wardrobe":
+                        console.log("Adding to wardrobe");
                         setWardrobe([...wardrobe, {
                             id: restored.id,
                             name: restored.name || item.name
                         }]);
                         break;
                     case "proje":
-                        setProjects([...projects, {
+                    case "session":  // Backend "session" tip döndürüyor
+                        console.log("Adding to projects:", { id: restored.id, name: restored.title || item.name });
+                        const newProject = {
                             id: restored.id,
                             name: restored.title || item.name,
                             active: false
-                        }]);
+                        };
+                        setProjects(prevProjects => [...prevProjects, newProject]);
                         break;
                     case "plugin":
-                        // Plugin restore için ek veri gerekebilir
+                        console.log("Plugin restore - not implemented");
                         break;
                     case "marka":
-                        // Marka da karakter gibi entity
+                    case "brand":  // Backend alias
+                        console.log("Adding brand to characters");
                         setCharacters([...characters, {
                             id: restored.id,
                             name: restored.name || item.name
                         }]);
                         break;
+                    default:
+                        console.log("Unknown type:", item.type);
                 }
+            } else {
+                console.log("result.success:", result.success);
+                console.log("result.restored:", result.restored);
             }
 
             // Çöp kutusundan kaldır
