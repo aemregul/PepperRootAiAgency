@@ -33,7 +33,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (4 Şubat 2026 - 13:46)
+## 📊 Genel Durum (4 Şubat 2026 - 21:30)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -42,6 +42,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 3: Akıllı Agent + Plugin + Vision | ✅ Tamamlandı | %100 |
 | Hafta 4: Frontend + Auth + Multi-User | ✅ Tamamlandı | %100 |
 | Hafta 5: Performance + LLM Migration | ✅ Tamamlandı | %100 |
+| Hafta 6: Polish + Admin Panel | ✅ Tamamlandı | %100 |
 
 ---
 
@@ -252,24 +253,21 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (3 Şubat 2026 - 20:50)
+## 🎯 SON DURUM (4 Şubat 2026 - 21:30)
 
-**Bugün Tamamlanan (3 Şubat):**
+**Bugün Tamamlanan (4 Şubat):**
+- ✅ Admin Panel gerçek veri bağlantısı
+  - Mock data kaldırıldı (563→50 çağrı, 404→5 görsel, 111→0 video)
+  - AI Modeller sadece entegre olanlar: GPT-4o, fal.ai, Kling 2.5
+  - Claude ve Minimax kaldırıldı
+- ✅ Landing page dinamik butonlar (Giriş/Uygulamaya Git)
+- ✅ Login sayfası: Sadece Google OAuth
+- ✅ "Hesabımı hatırla" checkbox
+
+**Önceden Tamamlanan (3 Şubat):**
 - ✅ OpenAI GPT-4o entegrasyonu (Primary LLM)
-- ✅ Redis Cache sistemi (~100x performans artışı)
+- ✅ Redis Cache sistemi (~100x performans)
 - ✅ Global Wardrobe (cross-session entity)
-- ✅ Entity CASCADE delete fix
-- ✅ Login UI iyileştirmeleri
-- ✅ System status endpoint
-
-**Önceden Tamamlanan (1 Şubat):**
-- ✅ Google OAuth 2.0 + JWT auth
-- ✅ Multi-user izolasyonu
-- ✅ Auto-save draft + Offline queue
-- ✅ Image Lightbox Modal
-- ✅ Frontend: Next.js + Tailwind CSS
-- ✅ Grid Generator Modal
-- ✅ Web Browsing Agent
 
 **Sıradaki Adım:**
 - Deploy (Railway + Vercel)
@@ -280,13 +278,11 @@ git add . && git commit -m "mesaj" && git push
 ## ✅ SON COMMITLER
 
 ```
-5af3148 - refactor: Switch from Claude to GPT-4o for faster chat
-7940605 - feat: Add OpenAI/ChatGPT API integration
-201639a - feat: Redis cache integration
-87ff463 - feat: Save asset to wardrobe - Shirt button
-b26aa4f - feat: Entity schema user_id, system status endpoint
-7edc5dc - fix: Login page improvements
-b9cbaef - fix: Entity CASCADE delete bug
-a36de81 - feat: Auth (Google OAuth + JWT)
+c3eac33 - fix: Admin panel now shows real database stats
+4b030e2 - fix: Admin panel shows only real integrated AI models
+3077ff0 - feat: Auto-redirect logged-in users to /app
+67e6600 - fix: Landing page dynamic buttons
+5af3148 - refactor: Switch from Claude to GPT-4o
 ```
+
 
