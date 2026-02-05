@@ -13,6 +13,7 @@ import {
     Brain,
     Users,
     MapPin,
+    Shirt,
     ImageIcon,
     Search,
     Plus,
@@ -43,6 +44,7 @@ import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePl
 import { useToast } from "./ToastProvider";
 import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
 import { GridGeneratorModal } from "./GridGeneratorModal";
+import { SavedImagesModal } from "./SavedImagesModal";
 import { useKeyboardShortcuts, SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
 
 interface SidebarItem {
@@ -301,6 +303,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [adminOpen, setAdminOpen] = useState(false);
     const [trashOpen, setTrashOpen] = useState(false);
     const [gridGeneratorOpen, setGridGeneratorOpen] = useState(false);
+    const [savedImagesOpen, setSavedImagesOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [projects, setProjects] = useState<{ id: string; name: string; active: boolean }[]>([]);
     const [isLoadingEntities, setIsLoadingEntities] = useState(false);
@@ -961,8 +964,10 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         onDelete={confirmDeleteLocation}
                     />
 
-                    {/* Kaydedilen Görseller - Thumbnail Grid */}
-                    <SavedImagesSection
+                    {/* Wardrobe - Kıyafetler */}
+                    <CollapsibleSection
+                        title="Wardrobe"
+                        icon={<Shirt size={16} />}
                         items={filteredSavedImages}
                         onDelete={confirmDeleteWardrobe}
                     />
@@ -1037,6 +1042,20 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     >
                         <Store size={16} />
                         <span>Plugin Marketplace</span>
+                    </button>
+
+                    {/* Saved Images - Gallery */}
+                    <button
+                        onClick={() => setSavedImagesOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg mb-2 transition-all hover:shadow-lg hover:shadow-cyan-500/20"
+                        style={{
+                            background: "linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)",
+                            color: "#22d3ee",
+                            border: "1px solid rgba(6, 182, 212, 0.3)"
+                        }}
+                    >
+                        <ImageIcon size={16} />
+                        <span>Kaydedilen Görseller</span>
                     </button>
 
                     {/* Search */}
@@ -1250,6 +1269,14 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             <GridGeneratorModal
                 isOpen={gridGeneratorOpen}
                 onClose={() => setGridGeneratorOpen(false)}
+            />
+
+            {/* Saved Images Modal */}
+            <SavedImagesModal
+                isOpen={savedImagesOpen}
+                onClose={() => setSavedImagesOpen(false)}
+                sessionId={sessionId}
+                onRefresh={() => { }} // TODO: entity refresh trigger
             />
         </>
     );
