@@ -189,6 +189,7 @@ class FalPluginV2(PluginBase):
                 return {"success": False, "error": "Görsel üretilemedi"}
                 
         except Exception as e:
+            print(f"❌ FAL.AI HATA: {str(e)}")  # Debug log
             return {"success": False, "error": str(e)}
     
     async def _generate_video(self, params: dict) -> dict:

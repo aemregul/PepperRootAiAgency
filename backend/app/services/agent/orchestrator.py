@@ -225,7 +225,7 @@ Herhangi bir işlem başarısız olursa:
                 },
                 {
                     "type": "text",
-                    "text": user_message + "\n\n[Bu mesajla birlikte bir referans görsel gönderildi. Lütfen görseli analiz et ve bunu dikkate al.]"
+                    "text": user_message + "\n\n[⚡ REFERANS GÖRSEL GÖNDERİLDİ! Bu görseli karakter/lokasyon referansı olarak kullanabilirsin. Kullanıcı 'kaydet', 'bu kişi X' veya 'analiz et' derse → create_character aracını use_current_reference=true ile çağır. Görseli doğrudan kullanmak için hazır.]"
                 }
             ]
             messages = conversation_history + [
