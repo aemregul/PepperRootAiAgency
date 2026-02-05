@@ -259,9 +259,12 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (5 Şubat 2026 - 03:05)
+## 🎯 SON DURUM (5 Şubat 2026 - 03:55)
 
-**Bugün Tamamlanan (5 Şubat):**
+**Bugün Tamamlanan (5 Şubat - Gece):**
+- ✅ **Chat Görsel Rendering** - Markdown `![alt](url)` formatı artık gerçek `<img>` olarak render ediliyor
+- ✅ **Duplicate Entity Prevention** - Aynı isimde entity oluşturulmasını engeller
+- ✅ **Sidebar Smart Collapse** - Boş kategoriler otomatik kapalı, dolu olanlar açık
 - ✅ **Sohbet Hafızası FIX** - Asistan artık önceki mesajları hatırlıyor (conversation_history eklendi)
 - ✅ **Akıllı Marka Araştırması** - Logo görsel araması + GPT-4o Vision ile renk analizi
 - ✅ **Agentic System Prompt** - Düşünce zinciri (Chain of Thought) tabanlı reasoning
@@ -308,11 +311,12 @@ git add . && git commit -m "mesaj" && git push
 ## ✅ SON COMMITLER
 
 ```
+a611640 - fix: CollapsibleSection now uses computed open state based on items.length
+46ee8e6 - fix: Sidebar sections auto-collapse when empty
+2d7ce9a - feat: Render markdown images and links in chat
+4d6fcd6 - feat: Duplicate entity prevention with user-friendly errors
 514e1c9 - feat: AGENTIC AI - Chain of Thought reasoning system prompt
 ee3e7ef - feat: Smart brand research with logo color analysis
 5baad8b - fix: CRITICAL - Add conversation_history to chat route
-bbc0a16 - feat: Add Brands section to sidebar (UI integration)
-cbe51b0 - feat: Realistic plugin data for sorting differentiation
-521b1c8 - fix: Plugin Marketplace card layout improvements
 ```
 
