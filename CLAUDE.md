@@ -259,21 +259,29 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (5 Şubat 2026 - 02:00)
+## 🎯 SON DURUM (5 Şubat 2026 - 03:05)
 
 **Bugün Tamamlanan (5 Şubat):**
-- ✅ **Trash Restore Bug Fix** - Çöp kutusundan geri yükleme UI güncellemesi
-- ✅ **Plugin Marketplace Layout** - Kart yükseklikleri eşitlendi (flex, items-stretch)
-- ✅ **Gerçekçi Plugin Verileri** - Popüler/En İyi/Yeni filtreleri farklı sonuç gösteriyor
+- ✅ **Sohbet Hafızası FIX** - Asistan artık önceki mesajları hatırlıyor (conversation_history eklendi)
+- ✅ **Akıllı Marka Araştırması** - Logo görsel araması + GPT-4o Vision ile renk analizi
+- ✅ **Agentic System Prompt** - Düşünce zinciri (Chain of Thought) tabanlı reasoning
+- ✅ **Sidebar Brands Section** - Markalar UI'da ayrı section olarak görünüyor
+- ✅ **Entity Search** - Sidebar'da entity arama özelliği
 
-**Daha Önce Tamamlanan (4 Şubat):**
+**Agentic AI Özellikleri:**
+- DÜŞÜN → PLANLA → UYGULA → DOĞRULA framework'ü
+- Fallback stratejileri (başarısız olursa alternatif dene)
+- Proaktif davranış ("yapamıyorum" demek yasak!)
+- Bilmiyorsa araştır (search_web, search_images, browse_url)
+
+**Daha Önce Tamamlanan (4-5 Şubat):**
+- ✅ Trash Restore Bug Fix
+- ✅ Plugin Marketplace Layout
 - ✅ Kling 3.0 Pro video entegrasyonu
 - ✅ Kullanım İstatistikleri (stats_service.py)
 - ✅ Admin Panel gerçek veri bağlantısı
 - ✅ Web Search - DuckDuckGo
 - ✅ Marka Sistemi - create_brand, research_brand
-- ✅ Login sayfası sadeleştirildi - Sadece Google OAuth
-- ✅ "Hesabımı hatırla" checkbox
 
 ---
 
@@ -290,7 +298,7 @@ git add . && git commit -m "mesaj" && git push
 3. **Loading States** - Bazı butonlarda loading spinner eksik
 
 ### 🟢 İyileştirme (Nice to Have)
-1. **Search/Filter** - Sidebar'da entity arama
+1. ~~Search/Filter~~ ✅ Entity arama eklendi
 2. **Bulk Operations** - Çoklu seçim ve silme
 3. **Keyboard Shortcuts** - Hızlı erişim kısayolları
 4. **Notification System** - Toast mesajları
@@ -300,13 +308,11 @@ git add . && git commit -m "mesaj" && git push
 ## ✅ SON COMMITLER
 
 ```
+514e1c9 - feat: AGENTIC AI - Chain of Thought reasoning system prompt
+ee3e7ef - feat: Smart brand research with logo color analysis
+5baad8b - fix: CRITICAL - Add conversation_history to chat route
+bbc0a16 - feat: Add Brands section to sidebar (UI integration)
 cbe51b0 - feat: Realistic plugin data for sorting differentiation
 521b1c8 - fix: Plugin Marketplace card layout improvements
-deaa01c - fix: Map backend type aliases to frontend UI updates
-b66e956 - feat: Add brand entity system with web research
-6314185 - feat: Enable web search with DuckDuckGo
-04d939f - feat: Dynamic model distribution in Admin Panel
-2027685 - feat: Add usage statistics tracking
-d015e48 - feat: Upgrade to Kling 3.0 Pro video model
 ```
 
