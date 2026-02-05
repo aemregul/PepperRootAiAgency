@@ -66,13 +66,32 @@ async def _process_chat(
     )
     previous_messages = previous_messages_result.scalars().all()
     
-    # OpenAI formatına çevir
+    # Hata pattern'leri - bunları içeren asistan mesajlarını atla
+    ERROR_PATTERNS = [
+        "kredi", "credit", "yetersiz", "insufficient", 
+        "hata", "error", "başarısız", "failed",
+        "oluşturulamadı", "üretilemedi", "yapılamadı"
+    ]
+    
+    # OpenAI formatına çevir - HATA MESAJLARINI FİLTRELE
     conversation_history = []
     for msg in previous_messages:
+        content = msg.content.lower() if msg.content else ""
+        
+        # Asistan mesajlarında hata pattern'i varsa atla
+        if msg.role == "assistant":
+            has_error = any(pattern in content for pattern in ERROR_PATTERNS)
+            if has_error:
+                continue  # Bu mesajı geçmişe ekleme
+        
         conversation_history.append({
-            "role": msg.role,  # "user" veya "assistant"
+            "role": msg.role,
             "content": msg.content
         })
+    
+    # Max 20 mesaj (son mesajlar)
+    if len(conversation_history) > 20:
+        conversation_history = conversation_history[-20:]
     
     print(f"📜 Conversation history: {len(conversation_history)} mesaj yüklendi (session: {session.id})")
     
