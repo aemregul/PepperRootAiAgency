@@ -178,8 +178,8 @@ export async function getSessionHistory(sessionId: string): Promise<MessageRespo
 // Entity (Character, Location, Wardrobe) APIs
 // Uses user-based endpoint - entities are GLOBAL across all projects for a user
 export async function getEntities(sessionId: string): Promise<Entity[]> {
-    // Use /entities endpoint which returns ALL user entities (not session-specific)
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/entities?session_id=${sessionId}`);
+    // Use /entities/ endpoint which returns ALL user entities (not session-specific)
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/entities/?session_id=${sessionId}`);
 
     if (!response.ok) {
         throw new Error('Failed to fetch entities');
