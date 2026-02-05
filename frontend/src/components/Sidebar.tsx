@@ -121,18 +121,23 @@ interface CollapsibleSectionProps {
 }
 
 function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete }: CollapsibleSectionProps) {
-    // İlk render'da false başla (API henüz dönmemiş olabilir)
-    const [open, setOpen] = useState(false);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-    // Items değiştiğinde: doluysa aç, boşsa kapat
+    // Her zaman items.length > 0 ise true, değilse false
+    // Kullanıcının manuel açıp kapatmasına da izin ver
+    const [userOverride, setUserOverride] = useState<boolean | null>(null);
+
+    // Gerçek open durumu: kullanıcı override ettiyse onu kullan, yoksa items.length'e göre
+    const open = userOverride !== null ? userOverride : items.length > 0;
+
+    // items değiştiğinde user override'ı sıfırla (yeni data geldi)
     useEffect(() => {
-        if (items.length > 0) {
-            setOpen(true);
-        } else {
-            setOpen(false);
-        }
+        setUserOverride(null);
     }, [items.length]);
+
+    const toggleOpen = () => {
+        setUserOverride(!open);
+    };
 
 
     const handleDragStart = (e: React.DragEvent, item: { id: string; name: string }) => {
@@ -144,7 +149,7 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
     return (
         <div className="mb-1">
             <button
-                onClick={() => setOpen(!open)}
+                onClick={toggleOpen}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--card)] rounded-lg transition-colors"
             >
                 {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
