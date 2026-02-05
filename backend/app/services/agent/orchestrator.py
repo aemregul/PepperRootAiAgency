@@ -206,7 +206,17 @@ Herhangi bir işlem başarısız olursa:
             full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
         
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
+        uploaded_image_url = None
         if reference_image:
+            # Görseli fal.ai'ye yükle (edit_image için URL gerekli)
+            try:
+                upload_result = await self.fal_plugin.upload_base64_image(reference_image)
+                if upload_result.get("success"):
+                    uploaded_image_url = upload_result.get("url")
+                    print(f"📤 Görsel fal.ai'ye yüklendi: {uploaded_image_url[:60]}...")
+            except Exception as upload_error:
+                print(f"⚠️ Görsel yükleme hatası: {upload_error}")
+            
             # Detect media type from base64 data
             media_type = "image/png"
             if reference_image.startswith("iVBORw"):
@@ -222,6 +232,11 @@ Herhangi bir işlem başarısız olursa:
             # data URL formatında: data:image/png;base64,...
             data_url = f"data:{media_type};base64,{reference_image}"
             
+            # AI'a yüklenen URL'yi ver
+            image_url_info = ""
+            if uploaded_image_url:
+                image_url_info = f"\n\n🔗 BU GÖRSELİN URL'Sİ: {uploaded_image_url}\n\nEdit isteklerinde edit_image aracını bu URL ile çağır!"
+            
             user_content = [
                 {
                     "type": "image_url",
@@ -232,7 +247,7 @@ Herhangi bir işlem başarısız olursa:
                 },
                 {
                     "type": "text",
-                    "text": user_message + "\n\n[⚡ REFERANS GÖRSEL GÖNDERİLDİ! Bu görseli karakter/lokasyon referansı olarak kullanabilirsin. Kullanıcı 'kaydet', 'bu kişi X' veya 'analiz et' derse → create_character aracını use_current_reference=true ile çağır. Görseli doğrudan kullanmak için hazır.]"
+                    "text": user_message + f"\n\n[⚡ REFERANS GÖRSEL GÖNDERİLDİ!{image_url_info}\n\nKullanıcı 'düzenle', 'kaldır', 'değiştir' gibi bir şey isterse → edit_image aracını image_url={uploaded_image_url} ile çağır. Kullanıcı 'kaydet' derse → create_character aracını use_current_reference=true ile çağır.]"
                 }
             ]
             messages = conversation_history + [
