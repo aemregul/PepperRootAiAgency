@@ -585,14 +585,14 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                 </button>
                                                 <button
                                                     onClick={(e) => handleSaveToImages(asset, e)}
-                                                    className={`p-1 rounded-full transition-colors opacity-0 group-hover:opacity-100 ${asset.savedToImages ? 'bg-emerald-500/80 opacity-100' : 'bg-black/40 hover:bg-emerald-500/60'}`}
+                                                    className={`p-1 rounded-full transition-colors ${asset.savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
                                                     title="Görseli Kaydet"
                                                 >
                                                     <Bookmark size={14} className={asset.savedToImages ? "text-white" : "text-white/70"} />
                                                 </button>
                                                 <button
                                                     onClick={(e) => handleDelete(asset.id, e)}
-                                                    className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors opacity-0 group-hover:opacity-100"
+                                                    className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
                                                     title="Sil"
                                                 >
                                                     <Trash2 size={14} className="text-white/70" />
