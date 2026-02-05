@@ -899,18 +899,12 @@ Herhangi bir işlem başarısız olursa:
     
     async def _edit_image(self, params: dict) -> dict:
         """
-        AKILLI GÖRSEL DÜZENLEME SİSTEMİ
+        GERÇEK GÖRSEL DÜZENLEME (True Inpainting)
         
-        GPT-4o + Nano Banana + Face Swap pipeline:
-        1. GPT-4o Vision ile görseli analiz et (detaylı açıklama çıkar)
-        2. Düzenleme talimatını açıklamaya uygula (gözlük çıkar, renk değiştir vb.)
-        3. Nano Banana ile yeni görsel üret
-        4. Face Swap ile yüz tutarlılığını koru
-        
-        Bu yöntem OmniGen'den daha iyi sonuç verir çünkü:
-        - GPT-4o görseli mükemmel analiz eder
-        - Nano Banana yüksek kalite üretir
-        - Face Swap tutarlılık sağlar
+        fal.ai object-removal API kullanarak:
+        - Orijinal görsel korunur
+        - Sadece belirtilen nesne silinir/değiştirilir
+        - "Gözlüğü kaldır", "şapkayı sil" gibi talimatlar doğrudan çalışır
         """
         try:
             image_url = params.get("image_url")
@@ -928,112 +922,114 @@ Herhangi bir işlem başarısız olursa:
                     "error": "Düzenleme talimatı gerekli"
                 }
             
-            print(f"🎨 AKILLI DÜZENLEME BAŞLADI")
+            print(f"🎨 GERÇEK DÜZENLEME BAŞLADI (Object Removal)")
             print(f"   Görsel: {image_url[:60]}...")
             print(f"   Talimat: {edit_instruction}")
             
-            # ADIM 1: GPT-4o Vision ile görseli analiz et
-            analysis_prompt = f"""Bu görseli çok detaylı analiz et. Şu bilgileri çıkar:
-
-1. KONU: Görselde kim/ne var? (kişi ise yüz özellikleri, saç rengi, ten rengi, göz rengi)
-2. GİYSİ: Ne giyiyor? Renkleri, stilleri
-3. AKSESUAR: Gözlük, şapka, takı vb.
-4. POZ: Nasıl duruyor/poz veriyor?
-5. ARKA PLAN: Nerede? Ortam detayları
-6. AYDINLATMA: Işık yönü ve tarzı
-7. STİL: Fotoğraf mı, illüstrasyon mu, hangi stil?
-
-Tüm bu bilgileri tek paragrafta, İngilizce olarak, görsel üretim için kullanılabilecek formatta yaz.
-Ardından şu düzenleme talimatını görsele uygula: "{edit_instruction}"
-Düzenleme uygulanmış hali için yeni bir prompt yaz."""
-
-            # GPT-4o Vision API çağrısı
-            analysis_response = self.client.chat.completions.create(
-                model="gpt-4o",
-                max_tokens=1000,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": image_url, "detail": "high"}
-                            },
-                            {
-                                "type": "text",
-                                "text": analysis_prompt
-                            }
-                        ]
-                    }
-                ]
-            )
+            # Talimatı İngilizce'ye çevir (daha iyi sonuç için)
+            from app.services.prompt_translator import translate_to_english
+            english_instruction, _ = await translate_to_english(edit_instruction)
             
-            edited_description = analysis_response.choices[0].message.content
-            print(f"📝 GPT-4o Analiz: {edited_description[:200]}...")
+            # Nesne silme talimatlarını tespit et
+            removal_keywords = ["kaldır", "sil", "çıkar", "remove", "delete", "erase", "take off"]
+            is_removal = any(kw in edit_instruction.lower() for kw in removal_keywords)
             
-            # ADIM 2: Nano Banana ile yeni görsel üret
-            nano_result = await self.fal_plugin.generate_with_nano_banana(
-                prompt=edited_description,
-                aspect_ratio="1:1",
-                resolution="1K"
-            )
+            import fal_client
             
-            if not nano_result.get("success"):
-                # Doğrudan hata döndür
-                return {
-                    "success": False,
-                    "error": f"Görsel üretim hatası: {nano_result.get('error', 'Bilinmeyen hata')}"
-                }
+            if is_removal:
+                # Object Removal API - Nesne silme
+                # Talimatı "object to remove" formatına çevir
+                object_to_remove = english_instruction
+                for word in ["remove", "delete", "erase", "take off", "the", "from", "image", "photo"]:
+                    object_to_remove = object_to_remove.lower().replace(word, "").strip()
+                
+                print(f"   Silinecek nesne: {object_to_remove}")
+                
+                try:
+                    result = await fal_client.subscribe_async(
+                        "fal-ai/object-removal",
+                        arguments={
+                            "image_url": image_url,
+                            "prompt": object_to_remove,  # "glasses", "hat" gibi
+                        },
+                        with_logs=True,
+                    )
+                    
+                    if result and "image" in result:
+                        print(f"✅ Object Removal başarılı!")
+                        return {
+                            "success": True,
+                            "image_url": result["image"]["url"],
+                            "original_image_url": image_url,
+                            "model": "object-removal",
+                            "method": "fal-ai/object-removal",
+                            "message": f"'{object_to_remove}' görselden başarıyla kaldırıldı."
+                        }
+                except Exception as removal_error:
+                    print(f"⚠️ Object Removal hatası: {removal_error}")
             
-            new_image_url = nano_result.get("image_url")
-            print(f"🖼️ Yeni görsel üretildi: {new_image_url[:60]}...")
-            
-            # ADIM 3: Face Swap ile yüz tutarlılığını koru
+            # Flux Fill ile inpainting dene (object removal başarısız olursa veya silme değilse)
             try:
-                swap_result = await self.fal_plugin.face_swap(
-                    base_image_url=new_image_url,  # Yeni üretilen görsel
-                    swap_image_url=image_url  # Orijinal yüz
+                # GPT-4o ile mask oluşturma talimatı al
+                analysis_response = self.client.chat.completions.create(
+                    model="gpt-4o",
+                    max_tokens=500,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": image_url, "detail": "high"}
+                                },
+                                {
+                                    "type": "text",
+                                    "text": f"""Bu görsele şu düzenleme uygulanacak: "{edit_instruction}"
+
+Düzenleme tamamlandıktan sonra görsel nasıl görünmeli? Kısa, İngilizce bir prompt yaz.
+Örneğin: "A person with clear face, no glasses, natural skin" gibi."""
+                                }
+                            ]
+                        }
+                    ]
                 )
                 
-                if swap_result.get("success"):
-                    final_image_url = swap_result.get("image_url")
-                    print(f"✅ Face Swap başarılı: {final_image_url[:60]}...")
-                    
+                fill_prompt = analysis_response.choices[0].message.content
+                print(f"   Fill prompt: {fill_prompt[:100]}...")
+                
+                # Flux Pro Fill ile inpainting
+                result = await fal_client.subscribe_async(
+                    "fal-ai/flux-pro/v1/fill",
+                    arguments={
+                        "image_url": image_url,
+                        "prompt": fill_prompt,
+                        "sync_mode": True
+                    },
+                    with_logs=True,
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    print(f"✅ Flux Fill başarılı!")
                     return {
                         "success": True,
-                        "image_url": final_image_url,
+                        "image_url": result["images"][0]["url"],
                         "original_image_url": image_url,
-                        "intermediate_image_url": new_image_url,
-                        "model": "smart-edit-pipeline",
-                        "method": "gpt4o-vision + nano-banana + face-swap",
+                        "model": "flux-pro-fill",
+                        "method": "fal-ai/flux-pro/v1/fill",
                         "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
                     }
-                else:
-                    # Face swap başarısız olursa yine de yeni görseli döndür
-                    print(f"⚠️ Face Swap başarısız, yeni görsel döndürülüyor")
-                    return {
-                        "success": True,
-                        "image_url": new_image_url,
-                        "original_image_url": image_url,
-                        "model": "smart-edit-pipeline",
-                        "method": "gpt4o-vision + nano-banana (face-swap failed)",
-                        "message": f"Görsel düzenlendi (yüz tutarlılığı sağlanamadı): {edit_instruction}"
-                    }
                     
-            except Exception as swap_error:
-                print(f"⚠️ Face Swap hatası: {swap_error}")
-                # Face swap hatası durumunda yine de yeni görseli döndür
-                return {
-                    "success": True,
-                    "image_url": new_image_url,
-                    "original_image_url": image_url,
-                    "model": "smart-edit-pipeline",
-                    "method": "gpt4o-vision + nano-banana (no face-swap)",
-                    "message": f"Görsel düzenlendi: {edit_instruction}"
-                }
+            except Exception as fill_error:
+                print(f"⚠️ Flux Fill hatası: {fill_error}")
+            
+            # Son çare: Bildiri
+            return {
+                "success": False,
+                "error": f"Görsel düzenleme başarısız. Lütfen daha basit bir talimat deneyin veya görseli yeniden üretin."
+            }
         
         except Exception as e:
-            print(f"❌ AKILLI DÜZENLEME HATASI: {str(e)}")
+            print(f"❌ DÜZENLEME HATASI: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
