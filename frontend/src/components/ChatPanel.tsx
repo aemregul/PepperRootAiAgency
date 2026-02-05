@@ -22,22 +22,92 @@ interface ChatPanelProps {
     onPromptConsumed?: () => void;
 }
 
-// Helper to render @mentions with highlighting
+// Helper to render @mentions, markdown images, and links
 function renderContent(content: string | undefined | null) {
     if (!content || typeof content !== 'string') {
         return content ?? '';
     }
-    const parts = content.split(/(@\w+)/g);
-    return parts.map((part, i) => {
-        if (part.startsWith("@")) {
-            return (
-                <span key={i} className="mention">
-                    {part}
+
+    // Markdown görsellerini ve linkleri parse et
+    // ![alt](url) formatındaki görselleri bul
+    // [text](url) formatındaki linkleri bul
+    // @mention formatındaki tag'leri bul
+
+    const elements: React.ReactNode[] = [];
+    let lastIndex = 0;
+
+    // Combined regex for all patterns
+    // 1. Markdown images: ![alt](url)
+    // 2. Markdown links: [text](url)
+    // 3. @mentions: @word
+    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)|@[\w_]+/g;
+
+    let match;
+    let key = 0;
+
+    while ((match = combinedRegex.exec(content)) !== null) {
+        // Add text before the match
+        if (match.index > lastIndex) {
+            elements.push(content.slice(lastIndex, match.index));
+        }
+
+        if (match[0].startsWith('![')) {
+            // Markdown image: ![alt](url)
+            const alt = match[1] || 'Görsel';
+            const url = match[2];
+            elements.push(
+                <img
+                    key={key++}
+                    src={url}
+                    alt={alt}
+                    className="mt-2 mb-2 rounded-lg max-w-full max-h-64 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(url, '_blank')}
+                    onError={(e) => {
+                        // Görsel yüklenemezse link olarak göster
+                        const target = e.currentTarget;
+                        target.style.display = 'none';
+                        const fallback = document.createElement('a');
+                        fallback.href = url;
+                        fallback.target = '_blank';
+                        fallback.textContent = `🔗 ${alt}`;
+                        fallback.className = 'text-[var(--accent)] underline';
+                        target.parentNode?.insertBefore(fallback, target);
+                    }}
+                />
+            );
+        } else if (match[0].startsWith('[')) {
+            // Markdown link: [text](url)
+            const text = match[3];
+            const url = match[4];
+            elements.push(
+                <a
+                    key={key++}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--accent)] underline hover:opacity-80"
+                >
+                    {text}
+                </a>
+            );
+        } else if (match[0].startsWith('@')) {
+            // @mention
+            elements.push(
+                <span key={key++} className="mention">
+                    {match[0]}
                 </span>
             );
         }
-        return part;
-    });
+
+        lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text after last match
+    if (lastIndex < content.length) {
+        elements.push(content.slice(lastIndex));
+    }
+
+    return elements.length > 0 ? elements : content;
 }
 
 export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed }: ChatPanelProps) {
