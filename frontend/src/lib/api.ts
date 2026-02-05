@@ -263,14 +263,16 @@ export async function saveAssetToWardrobe(
         reference_image_url: assetUrl,
     };
 
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/entities`, {
+    // Use /entities/ endpoint with session_id as query param
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/entities/?session_id=${sessionId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(entityData),
     });
 
     if (!response.ok) {
-        throw new Error('Failed to save to wardrobe');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to save to wardrobe');
     }
 
     return response.json();
