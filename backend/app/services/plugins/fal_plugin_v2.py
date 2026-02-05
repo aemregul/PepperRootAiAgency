@@ -228,19 +228,27 @@ class FalPluginV2(PluginBase):
             return {"success": False, "error": str(e)}
     
     async def _edit_image(self, params: dict) -> dict:
-        """Görsel düzenleme (image-to-image)."""
+        """
+        Görsel düzenleme (instruction-based editing).
+        OmniGen kullanarak 'gözlük kaldır', 'saç rengini değiştir' gibi talimatları uygular.
+        """
         prompt = params.get("prompt", "")
         image_url = params.get("image_url", "")
-        strength = params.get("strength", 0.75)
         
         try:
+            # OmniGen - instruction-based image editing
+            # Edit instruction formatı: "<img><|image_1|></img> [talimat]"
+            edit_prompt = f"<img><|image_1|></img> {prompt}"
+            
             result = await fal_client.subscribe_async(
-                "fal-ai/flux/dev/image-to-image",
+                "fal-ai/omnigen-v1",
                 arguments={
-                    "prompt": prompt,
-                    "image_url": image_url,
-                    "strength": strength,
+                    "prompt": edit_prompt,
+                    "input_image_urls": [image_url],
+                    "num_images": 1,
                     "image_size": "square_hd",
+                    "guidance_scale": 3.0,
+                    "num_inference_steps": 50,
                 },
                 with_logs=True,
             )
@@ -249,12 +257,33 @@ class FalPluginV2(PluginBase):
                 return {
                     "success": True,
                     "image_url": result["images"][0]["url"],
-                    "model": "flux-dev-img2img",
+                    "model": "omnigen-v1",
                 }
             else:
+                # Fallback: flux image-to-image
+                print("⚠️ OmniGen failed, trying flux fallback...")
+                result = await fal_client.subscribe_async(
+                    "fal-ai/flux/dev/image-to-image",
+                    arguments={
+                        "prompt": prompt,
+                        "image_url": image_url,
+                        "strength": 0.75,
+                        "image_size": "square_hd",
+                    },
+                    with_logs=True,
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    return {
+                        "success": True,
+                        "image_url": result["images"][0]["url"],
+                        "model": "flux-dev-img2img-fallback",
+                    }
+                    
                 return {"success": False, "error": "Görsel düzenlenemedi"}
                 
         except Exception as e:
+            print(f"❌ EDIT IMAGE HATA: {str(e)}")
             return {"success": False, "error": str(e)}
     
     async def _upscale_image(self, params: dict) -> dict:
