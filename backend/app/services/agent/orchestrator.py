@@ -898,10 +898,23 @@ Herhangi bir işlem başarısız olursa:
             }
     
     async def _edit_image(self, params: dict) -> dict:
-        """Mevcut bir görseli düzenle."""
+        """
+        AKILLI GÖRSEL DÜZENLEME SİSTEMİ
+        
+        GPT-4o + Nano Banana + Face Swap pipeline:
+        1. GPT-4o Vision ile görseli analiz et (detaylı açıklama çıkar)
+        2. Düzenleme talimatını açıklamaya uygula (gözlük çıkar, renk değiştir vb.)
+        3. Nano Banana ile yeni görsel üret
+        4. Face Swap ile yüz tutarlılığını koru
+        
+        Bu yöntem OmniGen'den daha iyi sonuç verir çünkü:
+        - GPT-4o görseli mükemmel analiz eder
+        - Nano Banana yüksek kalite üretir
+        - Face Swap tutarlılık sağlar
+        """
         try:
             image_url = params.get("image_url")
-            prompt = params.get("prompt", "")
+            edit_instruction = params.get("prompt", "")
             
             if not image_url:
                 return {
@@ -909,25 +922,118 @@ Herhangi bir işlem başarısız olursa:
                     "error": "image_url gerekli"
                 }
             
-            result = await self.fal_plugin.edit_image(
-                image_url=image_url,
-                prompt=prompt
-            )
-            
-            if result.get("success"):
-                return {
-                    "success": True,
-                    "image_url": result.get("image_url"),
-                    "model": result.get("model"),
-                    "message": "Görsel başarıyla düzenlendi."
-                }
-            else:
+            if not edit_instruction:
                 return {
                     "success": False,
-                    "error": result.get("error", "Görsel düzenlenemedi")
+                    "error": "Düzenleme talimatı gerekli"
+                }
+            
+            print(f"🎨 AKILLI DÜZENLEME BAŞLADI")
+            print(f"   Görsel: {image_url[:60]}...")
+            print(f"   Talimat: {edit_instruction}")
+            
+            # ADIM 1: GPT-4o Vision ile görseli analiz et
+            analysis_prompt = f"""Bu görseli çok detaylı analiz et. Şu bilgileri çıkar:
+
+1. KONU: Görselde kim/ne var? (kişi ise yüz özellikleri, saç rengi, ten rengi, göz rengi)
+2. GİYSİ: Ne giyiyor? Renkleri, stilleri
+3. AKSESUAR: Gözlük, şapka, takı vb.
+4. POZ: Nasıl duruyor/poz veriyor?
+5. ARKA PLAN: Nerede? Ortam detayları
+6. AYDINLATMA: Işık yönü ve tarzı
+7. STİL: Fotoğraf mı, illüstrasyon mu, hangi stil?
+
+Tüm bu bilgileri tek paragrafta, İngilizce olarak, görsel üretim için kullanılabilecek formatta yaz.
+Ardından şu düzenleme talimatını görsele uygula: "{edit_instruction}"
+Düzenleme uygulanmış hali için yeni bir prompt yaz."""
+
+            # GPT-4o Vision API çağrısı
+            analysis_response = self.client.chat.completions.create(
+                model="gpt-4o",
+                max_tokens=1000,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": image_url, "detail": "high"}
+                            },
+                            {
+                                "type": "text",
+                                "text": analysis_prompt
+                            }
+                        ]
+                    }
+                ]
+            )
+            
+            edited_description = analysis_response.choices[0].message.content
+            print(f"📝 GPT-4o Analiz: {edited_description[:200]}...")
+            
+            # ADIM 2: Nano Banana ile yeni görsel üret
+            nano_result = await self.fal_plugin.generate_with_nano_banana(
+                prompt=edited_description,
+                aspect_ratio="1:1",
+                resolution="1K"
+            )
+            
+            if not nano_result.get("success"):
+                # Doğrudan hata döndür
+                return {
+                    "success": False,
+                    "error": f"Görsel üretim hatası: {nano_result.get('error', 'Bilinmeyen hata')}"
+                }
+            
+            new_image_url = nano_result.get("image_url")
+            print(f"🖼️ Yeni görsel üretildi: {new_image_url[:60]}...")
+            
+            # ADIM 3: Face Swap ile yüz tutarlılığını koru
+            try:
+                swap_result = await self.fal_plugin.face_swap(
+                    base_image_url=new_image_url,  # Yeni üretilen görsel
+                    swap_image_url=image_url  # Orijinal yüz
+                )
+                
+                if swap_result.get("success"):
+                    final_image_url = swap_result.get("image_url")
+                    print(f"✅ Face Swap başarılı: {final_image_url[:60]}...")
+                    
+                    return {
+                        "success": True,
+                        "image_url": final_image_url,
+                        "original_image_url": image_url,
+                        "intermediate_image_url": new_image_url,
+                        "model": "smart-edit-pipeline",
+                        "method": "gpt4o-vision + nano-banana + face-swap",
+                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                    }
+                else:
+                    # Face swap başarısız olursa yine de yeni görseli döndür
+                    print(f"⚠️ Face Swap başarısız, yeni görsel döndürülüyor")
+                    return {
+                        "success": True,
+                        "image_url": new_image_url,
+                        "original_image_url": image_url,
+                        "model": "smart-edit-pipeline",
+                        "method": "gpt4o-vision + nano-banana (face-swap failed)",
+                        "message": f"Görsel düzenlendi (yüz tutarlılığı sağlanamadı): {edit_instruction}"
+                    }
+                    
+            except Exception as swap_error:
+                print(f"⚠️ Face Swap hatası: {swap_error}")
+                # Face swap hatası durumunda yine de yeni görseli döndür
+                return {
+                    "success": True,
+                    "image_url": new_image_url,
+                    "original_image_url": image_url,
+                    "model": "smart-edit-pipeline",
+                    "method": "gpt4o-vision + nano-banana (no face-swap)",
+                    "message": f"Görsel düzenlendi: {edit_instruction}"
                 }
         
         except Exception as e:
+            print(f"❌ AKILLI DÜZENLEME HATASI: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
