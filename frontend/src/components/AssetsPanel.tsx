@@ -62,9 +62,10 @@ interface AssetsPanelProps {
     onToggle?: () => void;
     sessionId?: string | null;
     refreshKey?: number;
+    onWardrobeSave?: () => void;  // Sidebar'ı refresh etmek için
 }
 
-export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey }: AssetsPanelProps) {
+export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey, onWardrobeSave }: AssetsPanelProps) {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -184,9 +185,12 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             setAssets(prev => prev.map(a =>
                 a.id === asset.id ? { ...a, savedToWardrobe: true } : a
             ));
-            // Could also trigger a sidebar refresh here
+            // Sidebar'ı refresh et - wardrobe section güncellenir
+            if (onWardrobeSave) onWardrobeSave();
+            toast.success('Gardroba kaydedildi!');
         } catch (error) {
             console.error('Wardrobe kaydetme hatası:', error);
+            toast.error('Kaydetme başarısız');
         }
     };
 
