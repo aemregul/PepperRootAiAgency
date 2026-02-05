@@ -199,7 +199,8 @@ class EntityService:
             Silme başarılı mı
         """
         from datetime import datetime, timedelta
-        from app.models.models import TrashItem
+        from sqlalchemy import delete
+        from app.models.models import TrashItem, EntityAsset
         
         entity = await self.get_by_id(db, entity_id)
         if not entity:
@@ -222,6 +223,11 @@ class EntityService:
             expires_at=datetime.now() + timedelta(days=3)
         )
         db.add(trash_item)
+        
+        # Önce ilişkili entity_assets kayıtlarını sil (NOT NULL constraint)
+        await db.execute(
+            delete(EntityAsset).where(EntityAsset.entity_id == entity_id)
+        )
         
         # Entity'yi sil
         await db.delete(entity)

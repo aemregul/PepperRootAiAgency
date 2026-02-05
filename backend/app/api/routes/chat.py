@@ -144,6 +144,7 @@ async def _process_chat(
         if isinstance(entity_data, dict):
             entity_responses.append(EntityResponse(
                 id=entity_data.get("id"),
+                user_id=session.user_id,  # Session'dan user_id al
                 session_id=session.id,
                 entity_type=entity_data.get("entity_type", ""),
                 name=entity_data.get("name", ""),
