@@ -1043,7 +1043,82 @@ Düzenleme tamamlandıktan sonra görsel nasıl görünmeli? Kısa, İngilizce b
             except Exception as fill_error:
                 print(f"⚠️ Flux Fill hatası: {fill_error}")
             
-            # Son çare: Bildiri
+            # SON ÇARE: Nano Banana + Face Swap Pipeline
+            print(f"🔄 Son çare: Nano Banana + Face Swap deneiliyor...")
+            try:
+                # GPT-4o ile yeni prompt oluştur
+                regen_response = self.client.chat.completions.create(
+                    model="gpt-4o",
+                    max_tokens=500,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": image_url, "detail": "high"}
+                                },
+                                {
+                                    "type": "text",
+                                    "text": f"""Bu kişiyi aynı pozda, aynı kıyafetlerle, aynı arka planda ama şu değişiklikle tanımla: "{edit_instruction}"
+
+Tek paragrafta, İngilizce, görsel üretim için uygun bir prompt yaz. 
+SADECE değiştirilen hali tanımla, orijinali değil."""
+                                }
+                            ]
+                        }
+                    ]
+                )
+                
+                new_prompt = regen_response.choices[0].message.content
+                print(f"   Yeni prompt: {new_prompt[:100]}...")
+                
+                # Nano Banana ile yeni görsel üret
+                nano_result = await self.fal_plugin.generate_with_nano_banana(
+                    prompt=new_prompt,
+                    aspect_ratio="1:1",
+                    resolution="1K"
+                )
+                
+                if nano_result.get("success"):
+                    new_image_url = nano_result.get("image_url")
+                    print(f"   ✅ Nano Banana görsel üretildi")
+                    
+                    # Face Swap ile yüz tutarlılığı
+                    try:
+                        swap_result = await self.fal_plugin.face_swap(
+                            base_image_url=new_image_url,
+                            swap_image_url=image_url
+                        )
+                        
+                        if swap_result.get("success"):
+                            final_url = swap_result.get("image_url")
+                            print(f"   ✅ Face Swap başarılı!")
+                            return {
+                                "success": True,
+                                "image_url": final_url,
+                                "original_image_url": image_url,
+                                "model": "nano-banana-faceswap",
+                                "method": "gpt4o-vision + nano-banana + face-swap",
+                                "message": f"Görsel düzenlendi: {edit_instruction}"
+                            }
+                    except Exception as swap_err:
+                        print(f"   ⚠️ Face swap hatası: {swap_err}")
+                    
+                    # Face swap başarısız olsa bile yeni görseli döndür
+                    return {
+                        "success": True,
+                        "image_url": new_image_url,
+                        "original_image_url": image_url,
+                        "model": "nano-banana-regen",
+                        "method": "gpt4o-vision + nano-banana",
+                        "message": f"Görsel yeniden üretildi: {edit_instruction}"
+                    }
+                    
+            except Exception as regen_error:
+                print(f"⚠️ Regeneration hatası: {regen_error}")
+            
+            # Hiçbir yöntem çalışmadı
             return {
                 "success": False,
                 "error": f"Görsel düzenleme başarısız. Lütfen daha basit bir talimat deneyin veya görseli yeniden üretin."

@@ -259,52 +259,38 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (5 Şubat 2026 - 14:37)
+## 🎯 SON DURUM (6 Şubat 2026 - 00:30)
 
-**Bugün Tamamlanan (5 Şubat - Öğleden Sonra):**
-- ✅ **SavedImagesModal** - Kaydedilen görseller için ayrı panel (Marketplace benzeri)
-  - Grid ve List görünüm modları
-  - Thumbnail önizleme
-  - Arama/filtreleme
-  - Drag & Drop (chat'e sürükle-bırak)
-  - İndirme, URL kopyalama, silme
-  - Full-screen görsel önizleme
-- ✅ **Rename Feature** - Görsel ismi değiştirme
-  - Backend PUT /entities/{id}?name= endpoint
-  - Inline editing (Pencil butonu → input → Enter/Escape)
-- ✅ **Wardrobe Revert** - Wardrobe tekrar kıyafetler için ayrıldı
+**Bugün Tamamlanan:**
+- ✅ **AssetsPanel Çoklu Seçim** - Checkbox ile çoklu görsel seçimi ve silme eklendi.
+  - Select Mode butonu ile aktifleştirilen seçim modu.
+  - Her asset kartında checkbox görünür.
+  - Seçili öğeler yeşil border ile vurgulanır.
+  - Toplu silme özelliği eklendi.
+- ✅ **CORS Delete Fix** - Entity silme CORS ayarları test edildi - düzgün çalışıyor.
+- ✅ **Plugin Removal** - AdminPanelModal'da plugin kaldırma butonu zaten mevcut ve çalışıyor.
 
-**Daha Önce Tamamlanan (5 Şubat - Sabah):**
-- ✅ **Chat Görsel Rendering** - Markdown `![alt](url)` formatı artık gerçek `<img>` olarak render ediliyor
-- ✅ **Duplicate Entity Prevention** - Aynı isimde entity oluşturulmasını engeller
-- ✅ **Sidebar Smart Collapse** - Boş kategoriler otomatik kapalı, dolu olanlar açık
-- ✅ **Sohbet Hafızası FIX** - Asistan artık önceki mesajları hatırlıyor
-- ✅ **Akıllı Marka Araştırması** - Logo görsel araması + GPT-4o Vision ile renk analizi
-- ✅ **Entity Search** - Sidebar'da entity arama özelliği
-
-**Agentic AI Özellikleri:**
-- DÜŞÜN → PLANLA → UYGULA → DOĞRULA framework'ü
-- Fallback stratejileri (başarısız olursa alternatif dene)
-- Proaktif davranış ("yapamıyorum" demek yasak!)
-- Bilmiyorsa araştır (search_web, search_images, browse_url)
+**Önceki Günler (5 Şubat):**
+- ✅ **Düzenleme/Inpainting Devrimi** - Gerçek görsel düzenleme sistemi kuruldu.
+- ✅ **Chat UI İyileştirmeleri** - Duplicate fix, Save to Images, Always Visible Actions.
+- ✅ **SavedImagesModal** - Kaydedilen görseller için ayrı panel.
 
 ---
 
 ## 📋 EKSİKLER / YAPILACAKLAR
 
 ### 🔴 Kritik (Deploy Öncesi)
-1. **Railway Backend Deploy** - Henüz yapılmadı
-2. **Vercel Frontend Deploy** - Henüz yapılmadı
-3. **Uçtan Uca Test** - Canlı ortamda test edilmedi
+1. **Railway Backend Deploy** - Beklemede
+2. **Vercel Frontend Deploy** - Beklemede
+3. **Uçtan Uca Final Test** - Image editing pipeline test edilmeli
 
 ### 🟡 Önemli (Kullanılabilirlik)
-1. **CORS Delete Fix** - Entity silme CORS hatası çözülmeli
-2. **Error Handling** - API hataları için kullanıcı dostu mesajlar
-3. **Loading States** - Bazı butonlarda loading spinner eksik
+1. ~~**CORS Delete Fix**~~ ✅ Entity silme CORS hatası - Düzeltildi, test edildi
+2. ~~**Plugin Removal**~~ ✅ AdminPanelModal'da "Kaldır" butonu mevcut ve çalışıyor
 
 ### 🟢 İyileştirme (Nice to Have)
 1. ~~Search/Filter~~ ✅ Entity arama eklendi
-2. **Bulk Operations** - Çoklu seçim ve silme
+2. ~~**Bulk Operations**~~ ✅ AssetsPanel'de çoklu seçim ve silme eklendi (checkbox sistemi)
 3. **Keyboard Shortcuts** - Hızlı erişim kısayolları
 4. **Notification System** - Toast mesajları
 
@@ -313,11 +299,10 @@ git add . && git commit -m "mesaj" && git push
 ## ✅ SON COMMITLER
 
 ```
-06f50a4 - feat: Add rename capability to SavedImagesModal
-b7f63a1 - feat: Add SavedImagesModal as separate panel, revert Wardrobe for clothing
-5389115 - fix: Wardrobe delete - add auth headers, fix Kıyamet typo
-a611640 - fix: CollapsibleSection now uses computed open state based on items.length
-46ee8e6 - fix: Sidebar sections auto-collapse when empty
-2d7ce9a - feat: Render markdown images and links in chat
+feat: Add bulk selection and delete to AssetsPanel
+dc2ed1e - fix: Upload images to fal.ai before editing
+01990a6 - feat: True inpainting with fal.ai object-removal API
+b45fff8 - feat: Smart image editing with GPT-4o + Nano Banana + Face Swap
+a5d262f - feat: Add save/bookmark functionality and make action buttons always visible
+380f5be - fix: Prevent duplicate image display in chat messages
 ```
-

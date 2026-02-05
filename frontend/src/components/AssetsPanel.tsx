@@ -485,10 +485,10 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                             {/* Featured video/image */}
                             {displayAssets[0] && (
                                 <div
-                                    className="asset-card cursor-pointer"
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, displayAssets[0])}
-                                    onClick={() => setSelectedAsset(displayAssets[0])}
+                                    className={`asset-card cursor-pointer ${isSelectMode && selectedIds.has(displayAssets[0].id) ? 'ring-2 ring-emerald-500' : ''}`}
+                                    draggable={!isSelectMode}
+                                    onDragStart={(e) => !isSelectMode && handleDragStart(e, displayAssets[0])}
+                                    onClick={(e) => isSelectMode ? toggleSelection(displayAssets[0].id, e) : setSelectedAsset(displayAssets[0])}
                                 >
                                     <div className="aspect-video relative group">
                                         <img
@@ -496,33 +496,48 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             alt="Featured asset"
                                             className="w-full h-full object-cover"
                                         />
+                                        {/* Selection checkbox */}
+                                        {isSelectMode && (
+                                            <div className="absolute top-2 left-2 z-10">
+                                                <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(displayAssets[0].id)
+                                                        ? 'bg-emerald-500 border-emerald-500'
+                                                        : 'bg-black/40 border-white/60 hover:border-white'
+                                                    }`}>
+                                                    {selectedIds.has(displayAssets[0].id) && (
+                                                        <CheckSquare size={14} className="text-white" />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                         {/* Action buttons */}
-                                        <div className="absolute top-2 right-2 flex gap-1 z-10">
-                                            <button
-                                                onClick={() => toggleFavorite(displayAssets[0].id)}
-                                                className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-                                            >
-                                                <Star
-                                                    size={16}
-                                                    fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
-                                                    className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
-                                                />
-                                            </button>
-                                            <button
-                                                onClick={(e) => handleSaveToImages(displayAssets[0], e)}
-                                                className={`p-1.5 rounded-full transition-colors ${displayAssets[0].savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
-                                                title="Görseli Kaydet"
-                                            >
-                                                <Bookmark size={16} className={displayAssets[0].savedToImages ? "text-white" : "text-white/70"} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => handleDelete(displayAssets[0].id, e)}
-                                                className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
-                                                title="Sil"
-                                            >
-                                                <Trash2 size={16} className="text-white/70" />
-                                            </button>
-                                        </div>
+                                        {!isSelectMode && (
+                                            <div className="absolute top-2 right-2 flex gap-1 z-10">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(displayAssets[0].id); }}
+                                                    className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                                                >
+                                                    <Star
+                                                        size={16}
+                                                        fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
+                                                        className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
+                                                    />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleSaveToImages(displayAssets[0], e)}
+                                                    className={`p-1.5 rounded-full transition-colors ${displayAssets[0].savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
+                                                    title="Görseli Kaydet"
+                                                >
+                                                    <Bookmark size={16} className={displayAssets[0].savedToImages ? "text-white" : "text-white/70"} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDelete(displayAssets[0].id, e)}
+                                                    className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
+                                                    title="Sil"
+                                                >
+                                                    <Trash2 size={16} className="text-white/70" />
+                                                </button>
+                                            </div>
+                                        )}
                                         {displayAssets[0].type === "video" && (
                                             <>
                                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -536,9 +551,11 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             </>
                                         )}
                                         {/* Drag hint */}
-                                        <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            Sürükle → Chat
-                                        </div>
+                                        {!isSelectMode && (
+                                            <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Sürükle → Chat
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -548,10 +565,10 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                 {displayAssets.slice(1).map((asset) => (
                                     <div
                                         key={asset.id}
-                                        className="asset-card group cursor-pointer"
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, asset)}
-                                        onClick={() => setSelectedAsset(asset)}
+                                        className={`asset-card group cursor-pointer ${isSelectMode && selectedIds.has(asset.id) ? 'ring-2 ring-emerald-500' : ''}`}
+                                        draggable={!isSelectMode}
+                                        onDragStart={(e) => !isSelectMode && handleDragStart(e, asset)}
+                                        onClick={(e) => isSelectMode ? toggleSelection(asset.id, e) : setSelectedAsset(asset)}
                                     >
                                         <div className="aspect-square relative">
                                             <img
@@ -560,44 +577,62 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                 className="w-full h-full object-cover"
                                             />
 
-                                            {asset.type === "video" && (
+                                            {/* Selection checkbox */}
+                                            {isSelectMode && (
+                                                <div className="absolute top-2 left-2 z-10">
+                                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(asset.id)
+                                                            ? 'bg-emerald-500 border-emerald-500'
+                                                            : 'bg-black/40 border-white/60 hover:border-white'
+                                                        }`}>
+                                                        {selectedIds.has(asset.id) && (
+                                                            <CheckSquare size={12} className="text-white" />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {asset.type === "video" && !isSelectMode && (
                                                 <div className="absolute top-2 left-2">
                                                     <Play size={16} fill="white" className="text-white drop-shadow-lg" />
                                                 </div>
                                             )}
 
                                             {/* Action buttons */}
-                                            <div className="absolute top-2 right-2 flex gap-1">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
-                                                    className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-                                                >
-                                                    <Star
-                                                        size={14}
-                                                        fill={asset.isFavorite ? "#eab308" : "none"}
-                                                        className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
-                                                    />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => handleSaveToImages(asset, e)}
-                                                    className={`p-1 rounded-full transition-colors ${asset.savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
-                                                    title="Görseli Kaydet"
-                                                >
-                                                    <Bookmark size={14} className={asset.savedToImages ? "text-white" : "text-white/70"} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => handleDelete(asset.id, e)}
-                                                    className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
-                                                    title="Sil"
-                                                >
-                                                    <Trash2 size={14} className="text-white/70" />
-                                                </button>
-                                            </div>
+                                            {!isSelectMode && (
+                                                <div className="absolute top-2 right-2 flex gap-1">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
+                                                        className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                                                    >
+                                                        <Star
+                                                            size={14}
+                                                            fill={asset.isFavorite ? "#eab308" : "none"}
+                                                            className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
+                                                        />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleSaveToImages(asset, e)}
+                                                        className={`p-1 rounded-full transition-colors ${asset.savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
+                                                        title="Görseli Kaydet"
+                                                    >
+                                                        <Bookmark size={14} className={asset.savedToImages ? "text-white" : "text-white/70"} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDelete(asset.id, e)}
+                                                        className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
+                                                        title="Sil"
+                                                    >
+                                                        <Trash2 size={14} className="text-white/70" />
+                                                    </button>
+                                                </div>
+                                            )}
 
                                             {/* Hover overlay with download */}
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                                <span className="text-xs text-white/70 px-2 py-1 bg-black/50 rounded">Sürükle → Chat</span>
-                                            </div>
+                                            {!isSelectMode && (
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                                    <span className="text-xs text-white/70 px-2 py-1 bg-black/50 rounded">Sürükle → Chat</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
