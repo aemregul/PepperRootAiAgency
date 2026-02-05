@@ -259,16 +259,27 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (5 Şubat 2026 - 03:55)
+## 🎯 SON DURUM (5 Şubat 2026 - 14:37)
 
-**Bugün Tamamlanan (5 Şubat - Gece):**
+**Bugün Tamamlanan (5 Şubat - Öğleden Sonra):**
+- ✅ **SavedImagesModal** - Kaydedilen görseller için ayrı panel (Marketplace benzeri)
+  - Grid ve List görünüm modları
+  - Thumbnail önizleme
+  - Arama/filtreleme
+  - Drag & Drop (chat'e sürükle-bırak)
+  - İndirme, URL kopyalama, silme
+  - Full-screen görsel önizleme
+- ✅ **Rename Feature** - Görsel ismi değiştirme
+  - Backend PUT /entities/{id}?name= endpoint
+  - Inline editing (Pencil butonu → input → Enter/Escape)
+- ✅ **Wardrobe Revert** - Wardrobe tekrar kıyafetler için ayrıldı
+
+**Daha Önce Tamamlanan (5 Şubat - Sabah):**
 - ✅ **Chat Görsel Rendering** - Markdown `![alt](url)` formatı artık gerçek `<img>` olarak render ediliyor
 - ✅ **Duplicate Entity Prevention** - Aynı isimde entity oluşturulmasını engeller
 - ✅ **Sidebar Smart Collapse** - Boş kategoriler otomatik kapalı, dolu olanlar açık
-- ✅ **Sohbet Hafızası FIX** - Asistan artık önceki mesajları hatırlıyor (conversation_history eklendi)
+- ✅ **Sohbet Hafızası FIX** - Asistan artık önceki mesajları hatırlıyor
 - ✅ **Akıllı Marka Araştırması** - Logo görsel araması + GPT-4o Vision ile renk analizi
-- ✅ **Agentic System Prompt** - Düşünce zinciri (Chain of Thought) tabanlı reasoning
-- ✅ **Sidebar Brands Section** - Markalar UI'da ayrı section olarak görünüyor
 - ✅ **Entity Search** - Sidebar'da entity arama özelliği
 
 **Agentic AI Özellikleri:**
@@ -276,15 +287,6 @@ git add . && git commit -m "mesaj" && git push
 - Fallback stratejileri (başarısız olursa alternatif dene)
 - Proaktif davranış ("yapamıyorum" demek yasak!)
 - Bilmiyorsa araştır (search_web, search_images, browse_url)
-
-**Daha Önce Tamamlanan (4-5 Şubat):**
-- ✅ Trash Restore Bug Fix
-- ✅ Plugin Marketplace Layout
-- ✅ Kling 3.0 Pro video entegrasyonu
-- ✅ Kullanım İstatistikleri (stats_service.py)
-- ✅ Admin Panel gerçek veri bağlantısı
-- ✅ Web Search - DuckDuckGo
-- ✅ Marka Sistemi - create_brand, research_brand
 
 ---
 
@@ -296,7 +298,7 @@ git add . && git commit -m "mesaj" && git push
 3. **Uçtan Uca Test** - Canlı ortamda test edilmedi
 
 ### 🟡 Önemli (Kullanılabilirlik)
-1. **Creative Plugins Boş Görünüm** - Hiç plugin yokken section gizlenmeli
+1. **CORS Delete Fix** - Entity silme CORS hatası çözülmeli
 2. **Error Handling** - API hataları için kullanıcı dostu mesajlar
 3. **Loading States** - Bazı butonlarda loading spinner eksik
 
@@ -311,12 +313,11 @@ git add . && git commit -m "mesaj" && git push
 ## ✅ SON COMMITLER
 
 ```
+06f50a4 - feat: Add rename capability to SavedImagesModal
+b7f63a1 - feat: Add SavedImagesModal as separate panel, revert Wardrobe for clothing
+5389115 - fix: Wardrobe delete - add auth headers, fix Kıyamet typo
 a611640 - fix: CollapsibleSection now uses computed open state based on items.length
 46ee8e6 - fix: Sidebar sections auto-collapse when empty
 2d7ce9a - feat: Render markdown images and links in chat
-4d6fcd6 - feat: Duplicate entity prevention with user-friendly errors
-514e1c9 - feat: AGENTIC AI - Chain of Thought reasoning system prompt
-ee3e7ef - feat: Smart brand research with logo color analysis
-5baad8b - fix: CRITICAL - Add conversation_history to chat route
 ```
 
