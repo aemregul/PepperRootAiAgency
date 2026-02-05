@@ -718,6 +718,13 @@ Herhangi bir işlem başarısız olursa:
                 "has_reference_image": bool(reference_image_url)
             }
         
+        except ValueError as ve:
+            # Duplicate entity hatası - kullanıcıya açık mesaj göster
+            return {
+                "success": False,
+                "error": str(ve),
+                "duplicate": True
+            }
         except Exception as e:
             return {
                 "success": False,
@@ -1791,20 +1798,25 @@ Herhangi bir işlem başarısız olursa:
             
             # Entity olarak kaydet
             if save_as_entity and entity_name:
-                # Entity oluştur veya güncelle
-                user_id = await get_user_id_from_session(db, session_id)
-                entity = await entity_service.create_entity(
-                    db=db,
-                    user_id=user_id,
-                    entity_type="character",
-                    name=entity_name,
-                    description=f"Web'den indirilen görsel: {image_url[:50]}...",
-                    reference_image_url=saved_url,
-                    session_id=session_id
-                )
-                result["entity_id"] = str(entity.id)
-                result["entity_tag"] = f"@{entity_name.lower().replace(' ', '_')}"
-                result["message"] += f" Entity olarak kaydedildi: @{entity_name}"
+                try:
+                    # Entity oluştur veya güncelle
+                    user_id = await get_user_id_from_session(db, session_id)
+                    entity = await entity_service.create_entity(
+                        db=db,
+                        user_id=user_id,
+                        entity_type="character",
+                        name=entity_name,
+                        description=f"Web'den indirilen görsel: {image_url[:50]}...",
+                        reference_image_url=saved_url,
+                        session_id=session_id
+                    )
+                    result["entity_id"] = str(entity.id)
+                    result["entity_tag"] = f"@{entity_name.lower().replace(' ', '_')}"
+                    result["message"] += f" Entity olarak kaydedildi: @{entity_name}"
+                except ValueError as ve:
+                    # Duplicate entity - user'a bildir ama görsel yine de kaydedildi
+                    result["entity_warning"] = str(ve)
+                    result["message"] += f" (⚠️ Entity kaydedilemedi: zaten mevcut)"
             
             # Asset olarak kaydet
             try:
@@ -2198,6 +2210,13 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
                 }
             }
         
+        except ValueError as ve:
+            # Duplicate marka hatası
+            return {
+                "success": False,
+                "error": str(ve),
+                "duplicate": True
+            }
         except Exception as e:
             return {
                 "success": False,

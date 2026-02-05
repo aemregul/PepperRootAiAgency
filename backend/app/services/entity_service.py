@@ -47,7 +47,7 @@ class EntityService:
         Args:
             db: Database session
             user_id: Kullanıcı ID (entity sahibi)
-            entity_type: character, location, costume, object
+            entity_type: character, location, costume, object, brand
             name: Entity adı
             description: Detaylı açıklama
             attributes: Ek özellikler (JSON)
@@ -56,10 +56,22 @@ class EntityService:
         
         Returns:
             Oluşturulan Entity
+            
+        Raises:
+            ValueError: Aynı isimde entity zaten varsa
         """
         # Tag otomatik oluştur: sadece isim (@emre, @mutfak)
         name_slug = slugify(name)
         tag = f"@{name_slug}"
+        
+        # 🔒 UNIQUE CONSTRAINT: Aynı tag varsa hata fırlat
+        # Projeler hariç tüm entity tipleri için kontrol et
+        existing = await self.get_by_tag(db, user_id, tag)
+        if existing:
+            raise ValueError(
+                f"Bu isimde bir {existing.entity_type} zaten var: {tag}. "
+                f"Lütfen farklı bir isim kullanın (örn: {name}_2, {name}_yeni)"
+            )
         
         entity = Entity(
             user_id=user_id,
