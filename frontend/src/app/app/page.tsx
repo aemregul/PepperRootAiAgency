@@ -206,7 +206,6 @@ export default function Home() {
         onToggle={() => setAssetsCollapsed(!assetsCollapsed)}
         sessionId={sessionId}
         refreshKey={assetRefreshKey}
-        onWardrobeSave={handleEntityChange}
       />
 
       {/* New Project Modal */}

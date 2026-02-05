@@ -962,14 +962,6 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         onDelete={confirmDeleteLocation}
                     />
 
-                    {/* Wardrobe - Kıyafetler */}
-                    <CollapsibleSection
-                        title="Wardrobe"
-                        icon={<Shirt size={16} />}
-                        items={filteredSavedImages}
-                        onDelete={confirmDeleteWardrobe}
-                    />
-
                     {/* Brands */}
                     <CollapsibleSection
                         title="Brands"

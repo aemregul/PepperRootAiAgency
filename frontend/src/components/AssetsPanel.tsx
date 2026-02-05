@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, Shirt, CheckSquare, Square } from "lucide-react";
-import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe } from "@/lib/api";
+import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, CheckSquare, Square } from "lucide-react";
+import { getAssets, GeneratedAsset, deleteAsset } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
 interface Asset {
@@ -12,7 +12,6 @@ interface Asset {
     label?: string;
     duration?: string;
     isFavorite?: boolean;
-    savedToWardrobe?: boolean;
 }
 
 // Mock data with more realistic images
@@ -62,10 +61,9 @@ interface AssetsPanelProps {
     onToggle?: () => void;
     sessionId?: string | null;
     refreshKey?: number;
-    onWardrobeSave?: () => void;  // Sidebar'ı refresh etmek için
 }
 
-export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey, onWardrobeSave }: AssetsPanelProps) {
+export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey }: AssetsPanelProps) {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -171,28 +169,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         e.dataTransfer.effectAllowed = 'copy';
     };
 
-    // Save to wardrobe
-    const handleSaveToWardrobe = async (asset: Asset, e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
 
-        if (!sessionId) return;
-
-        try {
-            const wardrobeName = asset.label || `Wardrobe_${asset.id.slice(0, 6)}`;
-            await saveAssetToWardrobe(sessionId, asset.url, wardrobeName);
-            // Visual feedback - mark as saved
-            setAssets(prev => prev.map(a =>
-                a.id === asset.id ? { ...a, savedToWardrobe: true } : a
-            ));
-            // Sidebar'ı refresh et - wardrobe section güncellenir
-            if (onWardrobeSave) onWardrobeSave();
-            toast.success('Görsel kaydedildi!');
-        } catch (error) {
-            console.error('Wardrobe kaydetme hatası:', error);
-            toast.error('Kaydetme başarısız');
-        }
-    };
 
     // Download all assets
     const handleDownloadAll = async () => {
@@ -507,13 +484,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
                                                 />
                                             </button>
-                                            <button
-                                                onClick={(e) => handleSaveToWardrobe(displayAssets[0], e)}
-                                                className={`p-1.5 rounded-full transition-colors ${displayAssets[0].savedToWardrobe ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
-                                                title="Gardroba Kaydet"
-                                            >
-                                                <Shirt size={16} className={displayAssets[0].savedToWardrobe ? "text-white" : "text-white/70"} />
-                                            </button>
+
                                             <button
                                                 onClick={(e) => handleDelete(displayAssets[0].id, e)}
                                                 className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
@@ -582,13 +553,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                         className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
                                                     />
                                                 </button>
-                                                <button
-                                                    onClick={(e) => handleSaveToWardrobe(asset, e)}
-                                                    className={`p-1 rounded-full transition-colors opacity-0 group-hover:opacity-100 ${asset.savedToWardrobe ? 'bg-emerald-500/80 opacity-100' : 'bg-black/40 hover:bg-emerald-500/60'}`}
-                                                    title="Gardroba Kaydet"
-                                                >
-                                                    <Shirt size={14} className={asset.savedToWardrobe ? "text-white" : "text-white/70"} />
-                                                </button>
+
                                                 <button
                                                     onClick={(e) => handleDelete(asset.id, e)}
                                                     className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors opacity-0 group-hover:opacity-100"
