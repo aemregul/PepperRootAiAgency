@@ -108,6 +108,11 @@ class FalPlugin:
                 with_logs=True,
             )
             
+            # 🔍 DEBUG: API yanıtı
+            print(f"🍌 NANO BANANA API Response: success={bool(result)}, has_images={bool(result and 'images' in result)}")
+            if result and "images" in result:
+                print(f"   → Image count: {len(result['images'])}")
+            
             if result and "images" in result and len(result["images"]) > 0:
                 return {
                     "success": True,
@@ -122,6 +127,7 @@ class FalPlugin:
                 }
                 
         except Exception as e:
+            print(f"🔴 NANO BANANA ERROR: {type(e).__name__}: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)

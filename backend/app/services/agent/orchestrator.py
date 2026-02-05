@@ -320,6 +320,14 @@ Herhangi bir işlem başarısız olursa:
         
         message = response.choices[0].message
         
+        # 🔍 DEBUG: Agent ne döndü?
+        print(f"🤖 AGENT RESPONSE:")
+        print(f"   - Content: {message.content[:200] if message.content else 'None'}...")
+        print(f"   - Tool calls: {len(message.tool_calls) if message.tool_calls else 0}")
+        if message.tool_calls:
+            for tc in message.tool_calls:
+                print(f"   - Tool: {tc.function.name}")
+        
         # Normal metin yanıtı
         if message.content:
             result["response"] += message.content
@@ -330,6 +338,10 @@ Herhangi bir işlem başarısız olursa:
                 tool_name = tool_call.function.name
                 tool_args = json.loads(tool_call.function.arguments)
                 
+                # 🔍 DEBUG: Tool çağrısı başlıyor
+                print(f"🔧 TOOL EXECUTION START: {tool_name}")
+                print(f"   Args: {json.dumps(tool_args, ensure_ascii=False)[:200]}...")
+                
                 # Araç çağrısını yürüt
                 tool_result = await self._handle_tool_call(
                     tool_name, 
@@ -339,6 +351,10 @@ Herhangi bir işlem başarısız olursa:
                     resolved_entities=result.get("_resolved_entities", []),
                     current_reference_image=result.get("_current_reference_image")
                 )
+                
+                # 🔍 DEBUG: Tool çağrısı bitti
+                print(f"🔧 TOOL EXECUTION END: {tool_name}")
+                print(f"   Result: success={tool_result.get('success')}, error={tool_result.get('error', 'None')}")
                 
                 # Görsel üretildiyse ekle
                 if tool_result.get("success") and tool_result.get("image_url"):

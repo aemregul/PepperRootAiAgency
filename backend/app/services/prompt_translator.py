@@ -1,11 +1,13 @@
 """
 Prompt çeviri ve zenginleştirme servisi.
 Türkçe promptları görsel üretim için optimize edilmiş İngilizce'ye çevirir.
+
+GPT-4o kullanır (OpenAI) - Claude'dan geçiş yapıldı.
 """
-from anthropic import Anthropic
+from openai import OpenAI
 from app.core.config import settings
 
-client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 async def translate_prompt_to_english(turkish_prompt: str, context: str = "") -> str:
@@ -42,14 +44,16 @@ Important:
 
 {f"Additional context: {context}" if context else ""}"""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",  # Hızlı ve ucuz model - sadece çeviri için
         max_tokens=500,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
     )
     
-    return response.content[0].text.strip()
+    return response.choices[0].message.content.strip()
 
 
 async def enhance_character_prompt(
@@ -127,14 +131,16 @@ Physical attributes: {attributes_str if attributes_str else "Not specified - use
 
 Create a detailed, photorealistic character portrait prompt."""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",  # Hızlı ve ucuz model
         max_tokens=600,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
     )
     
-    return response.content[0].text.strip()
+    return response.choices[0].message.content.strip()
 
 
 # Convenience function - translates any non-English text
