@@ -505,7 +505,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     setWardrobe(wardrobe.filter(w => w.id !== id));
                     toast.success(`"${item.name}" çöp kutusuna taşındı`);
                 } else {
-                    toast.error('Kıyamet silinemedi');
+                    toast.error('Kıyafet silinemedi');
                 }
             }
         });

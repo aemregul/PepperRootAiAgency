@@ -231,6 +231,7 @@ export async function deleteEntity(entityId: string): Promise<boolean> {
     try {
         const response = await fetch(`${API_BASE_URL}${API_PREFIX}/entities/${entityId}`, {
             method: 'DELETE',
+            headers: getAuthHeaders(),
         });
         return response.ok;
     } catch {
