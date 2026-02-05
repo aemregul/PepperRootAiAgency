@@ -109,3 +109,17 @@ async def delete_entity(
     
     return {"success": True, "message": "Entity silindi"}
 
+
+@router.put("/{entity_id}", response_model=EntityResponse, summary="Entity Güncelle")
+async def update_entity(
+    entity_id: UUID,
+    name: str = Query(..., description="Yeni isim"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Entity ismini günceller."""
+    entity = await entity_service.update_entity(db, entity_id, name=name)
+    
+    if not entity:
+        raise HTTPException(status_code=404, detail="Entity bulunamadı")
+    
+    return entity

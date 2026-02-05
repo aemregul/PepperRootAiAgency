@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, ImageIcon, Search, Trash2, Download, Copy, ExternalLink, Grid, List } from "lucide-react";
-import { getEntities, deleteEntity, Entity } from "@/lib/api";
+import { useState, useEffect, useRef } from "react";
+import { X, ImageIcon, Search, Trash2, Download, Copy, ExternalLink, Grid, List, Pencil, Check } from "lucide-react";
+import { getEntities, deleteEntity, updateEntityName, Entity } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
 interface SavedImagesModalProps {
@@ -25,6 +25,9 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [selectedImage, setSelectedImage] = useState<SavedImage | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingName, setEditingName] = useState("");
+    const editInputRef = useRef<HTMLInputElement>(null);
     const toast = useToast();
 
     // Fetch saved images from entities
@@ -71,6 +74,33 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
         } else {
             toast.error('Silme başarısız');
         }
+    };
+
+    // Start editing name
+    const startEditing = (image: SavedImage) => {
+        setEditingId(image.id);
+        setEditingName(image.name);
+        setTimeout(() => editInputRef.current?.focus(), 50);
+    };
+
+    // Save renamed name
+    const handleRename = async () => {
+        if (!editingId || !editingName.trim()) {
+            setEditingId(null);
+            return;
+        }
+
+        const result = await updateEntityName(editingId, editingName.trim());
+        if (result) {
+            setImages(images.map(img =>
+                img.id === editingId ? { ...img, name: editingName.trim() } : img
+            ));
+            onRefresh?.();
+            toast.success('İsim güncellendi');
+        } else {
+            toast.error('Güncelleme başarısız');
+        }
+        setEditingId(null);
     };
 
     // Copy URL to clipboard
@@ -258,7 +288,7 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                     key={image.id}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, image)}
-                                    onClick={() => setSelectedImage(image)}
+                                    onClick={() => editingId !== image.id && setSelectedImage(image)}
                                     className="flex items-center gap-4 p-3 rounded-xl cursor-pointer hover:bg-[var(--card)] transition-colors border"
                                     style={{ borderColor: "var(--border)" }}
                                 >
@@ -268,12 +298,45 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                         className="w-16 h-16 rounded-lg object-cover"
                                     />
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{image.name}</p>
-                                        <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                                            {image.createdAt?.toLocaleDateString('tr-TR') || 'Tarih bilinmiyor'}
-                                        </p>
+                                        {editingId === image.id ? (
+                                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    ref={editInputRef}
+                                                    type="text"
+                                                    value={editingName}
+                                                    onChange={(e) => setEditingName(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRename();
+                                                        if (e.key === 'Escape') setEditingId(null);
+                                                    }}
+                                                    className="flex-1 px-2 py-1 rounded border text-sm"
+                                                    style={{ background: "var(--background)", borderColor: "var(--accent)", color: "var(--foreground)" }}
+                                                />
+                                                <button
+                                                    onClick={handleRename}
+                                                    className="p-1.5 rounded-lg bg-[var(--accent)] text-white hover:opacity-80"
+                                                    title="Kaydet"
+                                                >
+                                                    <Check size={14} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p className="font-medium truncate">{image.name}</p>
+                                                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                                                    {image.createdAt?.toLocaleDateString('tr-TR') || 'Tarih bilinmiyor'}
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); startEditing(image); }}
+                                            className="p-2 rounded-lg hover:bg-[var(--accent)]/20 transition-colors"
+                                            title="Yeniden Adlandır"
+                                        >
+                                            <Pencil size={18} />
+                                        </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleDownload(image); }}
                                             className="p-2 rounded-lg hover:bg-[var(--accent)]/20 transition-colors"

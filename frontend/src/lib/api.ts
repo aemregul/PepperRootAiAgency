@@ -239,6 +239,20 @@ export async function deleteEntity(entityId: string): Promise<boolean> {
     }
 }
 
+// Update Entity Name
+export async function updateEntityName(entityId: string, name: string): Promise<Entity | null> {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/entities/${entityId}?name=${encodeURIComponent(name)}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+        });
+        if (!response.ok) return null;
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
 // Delete Asset
 export async function deleteAsset(assetId: string): Promise<boolean> {
     try {
