@@ -121,8 +121,17 @@ interface CollapsibleSectionProps {
 }
 
 function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete }: CollapsibleSectionProps) {
-    const [open, setOpen] = useState(defaultOpen);
+    // Akıllı varsayılan: items varsa açık, yoksa kapalı
+    const [open, setOpen] = useState(items.length > 0 ? true : defaultOpen);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+    // Items değiştiğinde (örn: entity eklendiğinde) otomatik aç
+    useEffect(() => {
+        if (items.length > 0 && !open) {
+            setOpen(true);
+        }
+    }, [items.length]);
+
 
     const handleDragStart = (e: React.DragEvent, item: { id: string; name: string }) => {
         e.dataTransfer.setData('text/plain', item.name);
