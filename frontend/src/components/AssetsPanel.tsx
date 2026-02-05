@@ -540,11 +540,6 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             Sürükle → Chat
                                         </div>
                                     </div>
-                                    {displayAssets[0].label && (
-                                        <div className="p-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                            ▪ {displayAssets[0].label}
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
