@@ -123,8 +123,6 @@ interface CollapsibleSectionProps {
 }
 
 function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete }: CollapsibleSectionProps) {
-    const [hoveredId, setHoveredId] = useState<string | null>(null);
-
     // Her zaman items.length > 0 ise true, değilse false
     // Kullanıcının manuel açıp kapatmasına da izin ver
     const [userOverride, setUserOverride] = useState<boolean | null>(null);
@@ -168,20 +166,19 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
                             onDragStart={(e) => handleDragStart(e, item)}
                             className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-grab active:cursor-grabbing transition-colors"
                             style={{ color: "var(--foreground-muted)" }}
-                            onMouseEnter={() => setHoveredId(item.id)}
-                            onMouseLeave={() => setHoveredId(null)}
                         >
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
                                 <span className="truncate">{item.name}</span>
                             </div>
-                            {onDelete && hoveredId === item.id && (
+                            {onDelete && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
+                                        e.preventDefault();
                                         onDelete(item.id);
                                     }}
-                                    className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                                    className="p-1 rounded hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
                                     title="Sil"
                                 >
                                     <Trash2 size={14} className="text-red-400" />
@@ -194,6 +191,7 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
         </div>
     );
 }
+
 
 // SavedImagesSection - Thumbnail grid ile kaydedilen görseller
 interface SavedImagesSectionProps {
