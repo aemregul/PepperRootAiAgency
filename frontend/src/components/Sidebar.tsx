@@ -193,6 +193,94 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
     );
 }
 
+// SavedImagesSection - Thumbnail grid ile kaydedilen görseller
+interface SavedImagesSectionProps {
+    items: { id: string; name: string; imageUrl?: string }[];
+    onDelete?: (id: string) => void;
+}
+
+function SavedImagesSection({ items, onDelete }: SavedImagesSectionProps) {
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const [userOverride, setUserOverride] = useState<boolean | null>(null);
+
+    const open = userOverride !== null ? userOverride : items.length > 0;
+
+    useEffect(() => {
+        setUserOverride(null);
+    }, [items.length]);
+
+    const toggleOpen = () => {
+        setUserOverride(!open);
+    };
+
+    const handleDragStart = (e: React.DragEvent, item: { id: string; name: string; imageUrl?: string }) => {
+        e.dataTransfer.setData('text/plain', item.imageUrl || item.name);
+        e.dataTransfer.setData('application/x-image-url', item.imageUrl || '');
+        e.dataTransfer.setData('application/x-entity-tag', item.name);
+        e.dataTransfer.effectAllowed = 'copy';
+    };
+
+    return (
+        <div className="mb-1">
+            <button
+                onClick={toggleOpen}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--card)] rounded-lg transition-colors"
+            >
+                {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <ImageIcon size={16} />
+                <span className="font-medium">Kaydedilen Görseller</span>
+                {items.length > 0 && (
+                    <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-[var(--accent)]/20" style={{ color: "var(--accent)" }}>
+                        {items.length}
+                    </span>
+                )}
+            </button>
+
+            {open && (
+                <div className="ml-4 mt-2 grid grid-cols-3 gap-1.5">
+                    {items.map((item) => (
+                        <div
+                            key={item.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, item)}
+                            className="relative group aspect-square rounded-lg overflow-hidden cursor-grab active:cursor-grabbing border border-[var(--border)] hover:border-[var(--accent)] transition-colors"
+                            onMouseEnter={() => setHoveredId(item.id)}
+                            onMouseLeave={() => setHoveredId(null)}
+                            title={item.name}
+                        >
+                            {item.imageUrl ? (
+                                <img
+                                    src={item.imageUrl}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-[var(--card)]">
+                                    <ImageIcon size={20} style={{ color: "var(--foreground-muted)" }} />
+                                </div>
+                            )}
+
+                            {/* Delete button overlay */}
+                            {onDelete && hoveredId === item.id && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(item.id);
+                                    }}
+                                    className="absolute top-1 right-1 p-1 rounded bg-black/60 hover:bg-red-500/80 transition-colors"
+                                    title="Sil"
+                                >
+                                    <Trash2 size={12} className="text-white" />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 interface SidebarProps {
     activeProjectId?: string;
     onProjectChange?: (projectId: string) => void;
@@ -873,10 +961,8 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         onDelete={confirmDeleteLocation}
                     />
 
-                    {/* Kaydedilen Görseller */}
-                    <CollapsibleSection
-                        title="Kaydedilen Görseller"
-                        icon={<ImageIcon size={16} />}
+                    {/* Kaydedilen Görseller - Thumbnail Grid */}
+                    <SavedImagesSection
                         items={filteredSavedImages}
                         onDelete={confirmDeleteWardrobe}
                     />
