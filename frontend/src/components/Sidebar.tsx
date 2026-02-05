@@ -121,14 +121,16 @@ interface CollapsibleSectionProps {
 }
 
 function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete }: CollapsibleSectionProps) {
-    // Akıllı varsayılan: items varsa açık, yoksa kapalı
-    const [open, setOpen] = useState(items.length > 0 ? true : defaultOpen);
+    // İlk render'da false başla (API henüz dönmemiş olabilir)
+    const [open, setOpen] = useState(false);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-    // Items değiştiğinde (örn: entity eklendiğinde) otomatik aç
+    // Items değiştiğinde: doluysa aç, boşsa kapat
     useEffect(() => {
-        if (items.length > 0 && !open) {
+        if (items.length > 0) {
             setOpen(true);
+        } else {
+            setOpen(false);
         }
     }, [items.length]);
 
@@ -854,7 +856,6 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         title="Characters"
                         icon={<Users size={16} />}
                         items={filteredCharacters}
-                        defaultOpen={true}
                         onDelete={confirmDeleteCharacter}
                     />
 
@@ -863,7 +864,6 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         title="Locations"
                         icon={<MapPin size={16} />}
                         items={filteredLocations}
-                        defaultOpen={true}
                         onDelete={confirmDeleteLocation}
                     />
 
@@ -872,7 +872,6 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         title="Wardrobe"
                         icon={<Shirt size={16} />}
                         items={filteredWardrobe}
-                        defaultOpen={false}
                         onDelete={confirmDeleteWardrobe}
                     />
 
@@ -881,7 +880,6 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         title="Brands"
                         icon={<Tag size={16} />}
                         items={filteredBrands}
-                        defaultOpen={false}
                         onDelete={confirmDeleteBrand}
                     />
 
