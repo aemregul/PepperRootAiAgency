@@ -187,7 +187,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             ));
             // Sidebar'ı refresh et - wardrobe section güncellenir
             if (onWardrobeSave) onWardrobeSave();
-            toast.success('Gardroba kaydedildi!');
+            toast.success('Görsel kaydedildi!');
         } catch (error) {
             console.error('Wardrobe kaydetme hatası:', error);
             toast.error('Kaydetme başarısız');

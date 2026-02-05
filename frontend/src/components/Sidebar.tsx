@@ -13,7 +13,7 @@ import {
     Brain,
     Users,
     MapPin,
-    Shirt,
+    ImageIcon,
     Search,
     Plus,
     Sun,
@@ -278,7 +278,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     // Entity states - API'den gelecek
     const [characters, setCharacters] = useState<{ id: string; name: string }[]>([]);
     const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
-    const [wardrobe, setWardrobe] = useState<{ id: string; name: string }[]>([]);
+    const [savedImages, setSavedImages] = useState<{ id: string; name: string; imageUrl?: string }[]>([]);
     const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
     const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>([]);
 
@@ -289,7 +289,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const filteredLocations = locations.filter(l =>
         l.name.toLowerCase().includes(entitySearchQuery.toLowerCase())
     );
-    const filteredWardrobe = wardrobe.filter(w =>
+    const filteredSavedImages = savedImages.filter(w =>
         w.name.toLowerCase().includes(entitySearchQuery.toLowerCase())
     );
     const filteredBrands = brands.filter(b =>
@@ -364,21 +364,21 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
                 const ward = entities
                     .filter((e: Entity) => e.entity_type === 'wardrobe')
-                    .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
+                    .map((e: Entity) => ({ id: e.id, name: e.tag || e.name, imageUrl: e.reference_image_url }));
                 const brandList = entities
                     .filter((e: Entity) => e.entity_type === 'brand')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
 
                 setCharacters(chars);
                 setLocations(locs);
-                setWardrobe(ward);
+                setSavedImages(ward);
                 setBrands(brandList);
             } catch (error) {
                 console.error('Entity yükleme hatası:', error);
                 // Hata durumunda boş göster
                 setCharacters([]);
                 setLocations([]);
-                setWardrobe([]);
+                setSavedImages([]);
                 setBrands([]);
             } finally {
                 setIsLoadingEntities(false);
@@ -491,7 +491,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     };
 
     const confirmDeleteWardrobe = (id: string) => {
-        const item = wardrobe.find(w => w.id === id);
+        const item = savedImages.find((w: { id: string; name: string; imageUrl?: string }) => w.id === id);
         if (!item) return;
         setDeleteConfirm({
             isOpen: true,
@@ -502,10 +502,10 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 const success = await deleteEntity(id);
                 if (success) {
                     moveToTrash(id, item.name, "wardrobe", item);
-                    setWardrobe(wardrobe.filter(w => w.id !== id));
+                    setSavedImages(savedImages.filter((w: { id: string; name: string; imageUrl?: string }) => w.id !== id));
                     toast.success(`"${item.name}" çöp kutusuna taşındı`);
                 } else {
-                    toast.error('Kıyafet silinemedi');
+                    toast.error('Görsel silinemedi');
                 }
             }
         });
@@ -595,10 +595,11 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         }]);
                         break;
                     case "wardrobe":
-                        console.log("Adding to wardrobe");
-                        setWardrobe([...wardrobe, {
+                        console.log("Adding to saved images");
+                        setSavedImages([...savedImages, {
                             id: restored.id,
-                            name: restored.name || item.name
+                            name: restored.name || item.name,
+                            imageUrl: (item as { imageUrl?: string })?.imageUrl
                         }]);
                         break;
                     case "proje":
@@ -872,11 +873,11 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         onDelete={confirmDeleteLocation}
                     />
 
-                    {/* Wardrobe */}
+                    {/* Kaydedilen Görseller */}
                     <CollapsibleSection
-                        title="Wardrobe"
-                        icon={<Shirt size={16} />}
-                        items={filteredWardrobe}
+                        title="Kaydedilen Görseller"
+                        icon={<ImageIcon size={16} />}
+                        items={filteredSavedImages}
                         onDelete={confirmDeleteWardrobe}
                     />
 
