@@ -39,7 +39,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (4 Şubat 2026 - 22:15)
+## 📊 Genel Durum (7 Şubat 2026 - 20:43)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -49,6 +49,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 4: Frontend + Auth + Multi-User | ✅ Tamamlandı | %100 |
 | Hafta 5: Performance + LLM Migration | ✅ Tamamlandı | %100 |
 | Hafta 6: Polish + Admin Panel | ✅ Tamamlandı | %100 |
+| Hafta 7: Semantic Search + Context7 | ✅ Tamamlandı | %100 |
 
 ---
 
