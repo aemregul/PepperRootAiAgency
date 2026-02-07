@@ -1,0 +1,170 @@
+version: "3.9"
+
+services:
+  # ============== DATABASE ==============
+  postgres:
+    image: postgres:15-alpine
+    container_name: pepper_root_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pepper_root
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pepper_root_secret}
+      POSTGRES_DB: pepper_root
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pepper_root"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============== CACHE & MESSAGE BROKER ==============
+  redis:
+    image: redis:7-alpine
+    container_name: pepper_root_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============== BACKEND API ==============
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pepper_root_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pepper_root:${DB_PASSWORD:-pepper_root_secret}@postgres:5432/pepper_root
+      REDIS_URL: redis://redis:6379/0
+      USE_REDIS: "true"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      FAL_API_KEY: ${FAL_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME:-pepper-root}
+      USE_PINECONE: ${USE_PINECONE:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ============== CELERY WORKER (Default Queue) ==============
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pepper_root_celery_worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pepper_root:${DB_PASSWORD:-pepper_root_secret}@postgres:5432/pepper_root
+      REDIS_URL: redis://redis:6379/0
+      USE_REDIS: "true"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      FAL_API_KEY: ${FAL_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      USE_PINECONE: ${USE_PINECONE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=4 -Q default,high,low
+
+  # ============== CELERY WORKER (Video Queue - Long Running) ==============
+  celery_video_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pepper_root_celery_video
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pepper_root:${DB_PASSWORD:-pepper_root_secret}@postgres:5432/pepper_root
+      REDIS_URL: redis://redis:6379/0
+      USE_REDIS: "true"
+      FAL_API_KEY: ${FAL_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2 -Q video
+
+  # ============== CELERY BEAT (Scheduled Tasks) ==============
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pepper_root_celery_beat
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pepper_root:${DB_PASSWORD:-pepper_root_secret}@postgres:5432/pepper_root
+      REDIS_URL: redis://redis:6379/0
+      USE_REDIS: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.core.celery_app beat --loglevel=info
+
+  # ============== FLOWER (Celery Monitoring) ==============
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pepper_root_flower
+    restart: unless-stopped
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
+    command: celery -A app.core.celery_app flower --port=5555
+
+  # ============== FRONTEND ==============
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pepper_root_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://backend:8000
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: pepper_root_network

@@ -31,6 +31,12 @@ pinecone-client
 python-dotenv
 tenacity
 
+# Background Tasks (Celery)
+celery[redis]
+redis
+kombu
+flower
+
 # Testing
 pytest
 pytest-asyncio
