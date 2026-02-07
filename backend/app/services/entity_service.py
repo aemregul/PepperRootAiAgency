@@ -173,6 +173,51 @@ class EntityService:
         result = await db.execute(query)
         return list(result.scalars().all())
     
+    async def list_entities_paginated(
+        self,
+        db: AsyncSession,
+        user_id: uuid.UUID,
+        entity_type: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 50
+    ) -> tuple[list[Entity], int]:
+        """
+        Kullanıcının entity'lerini pagination ile listele.
+        
+        Args:
+            db: Database session
+            user_id: Kullanıcı ID
+            entity_type: Opsiyonel filtre
+            skip: Atlanacak kayıt
+            limit: Sayfa başına kayıt
+        
+        Returns:
+            (Entity listesi, toplam kayıt sayısı)
+        """
+        from sqlalchemy import func
+        
+        # Base query
+        base_query = select(Entity).where(Entity.user_id == user_id)
+        
+        if entity_type:
+            base_query = base_query.where(Entity.entity_type == entity_type)
+        
+        # Toplam sayı
+        count_query = select(func.count()).select_from(
+            base_query.subquery()
+        )
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+        
+        # Paginated query
+        query = base_query.order_by(Entity.created_at.desc())
+        query = query.offset(skip).limit(limit)
+        
+        result = await db.execute(query)
+        entities = list(result.scalars().all())
+        
+        return entities, total
+    
     async def update_entity(
         self,
         db: AsyncSession,

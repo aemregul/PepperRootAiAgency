@@ -54,25 +54,37 @@ async def create_entity(
     return entity
 
 
-@router.get("/", response_model=list[EntityResponse], summary="Entity Listele")
+@router.get("/", summary="Entity Listele")
 async def list_entities(
     session_id: UUID,
     entity_type: Optional[str] = Query(None, description="Filtre: character, location, vb."),
+    skip: int = Query(0, ge=0, description="Atlanacak kayıt sayısı (pagination)"),
+    limit: int = Query(50, ge=1, le=100, description="Sayfa başına kayıt (max 100)"),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Kullanıcının tüm entity'lerini listeler (proje bağımsız).
+    Kullanıcının entity'lerini listeler (pagination destekli).
     
-    Opsiyonel olarak entity_type ile filtrelenebilir.
+    - **skip**: Kaç kayıt atlanacak (offset)
+    - **limit**: Sayfa başına max kayıt (varsayılan 50, max 100)
     """
     user_id = await get_user_id_from_session(db, session_id)
     
-    entities = await entity_service.list_entities(
+    entities, total = await entity_service.list_entities_paginated(
         db=db,
         user_id=user_id,
-        entity_type=entity_type
+        entity_type=entity_type,
+        skip=skip,
+        limit=limit
     )
-    return entities
+    
+    return {
+        "items": entities,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "has_more": skip + len(entities) < total
+    }
 
 
 @router.get("/{tag}", response_model=EntityResponse, summary="Tag ile Entity Bul")
