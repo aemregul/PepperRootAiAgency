@@ -78,10 +78,10 @@ class Entity(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # Entity artık user'a bağlı - proje silinse de entity kalır!
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)  # 📈 INDEX
     # Session opsiyonel - entity belirli bir projeyle ilişkilendirilebilir ama zorunlu değil
-    session_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True)
-    entity_type: Mapped[str] = mapped_column(String(50))
+    session_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True, index=True)  # 📈 INDEX
+    entity_type: Mapped[str] = mapped_column(String(50), index=True)  # 📈 INDEX
     name: Mapped[str] = mapped_column(String(255))
     tag: Mapped[str] = mapped_column(String(255), index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -90,7 +90,7 @@ class Entity(Base):
     # Referans görsel (yüz/vücut tutarlılığı için)
     reference_image_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)  # 📈 INDEX
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Faz 2 hazırlık
