@@ -18,6 +18,7 @@ from app.services.stats_service import StatsService
 from app.services.prompt_translator import translate_to_english, enhance_character_prompt
 from app.services.context7.context7_service import context7_service
 from app.services.preferences_service import preferences_service
+from app.services.episodic_memory_service import episodic_memory
 from app.models.models import Session as SessionModel
 
 
@@ -276,6 +277,15 @@ Herhangi bir işlem başarısız olursa:
                     full_system_prompt += prefs_prompt
         except Exception as pref_error:
             print(f"⚠️ Tercih yükleme hatası: {pref_error}")
+        
+        # 🧠 EPİSODİC MEMORY EKLE (Faz 2 - Uzun vadeli hafıza)
+        try:
+            if user_id:
+                memory_prompt = await episodic_memory.get_context_for_prompt(str(user_id))
+                if memory_prompt:
+                    full_system_prompt += memory_prompt
+        except Exception as mem_error:
+            print(f"⚠️ Episodic memory hatası: {mem_error}")
         
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         uploaded_image_url = None
