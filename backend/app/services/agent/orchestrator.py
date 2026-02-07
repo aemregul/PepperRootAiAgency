@@ -17,6 +17,7 @@ from app.services.asset_service import asset_service
 from app.services.stats_service import StatsService
 from app.services.prompt_translator import translate_to_english, enhance_character_prompt
 from app.services.context7.context7_service import context7_service
+from app.services.preferences_service import preferences_service
 from app.models.models import Session as SessionModel
 
 
@@ -265,6 +266,16 @@ Herhangi bir işlem başarısız olursa:
         full_system_prompt = self.system_prompt
         if entity_context:
             full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
+        
+        # 🧠 KULLANICI TERCİHLERİNİ EKLE (Memory - Faz 2)
+        try:
+            user_id = await get_user_id_from_session(db, session_id)
+            if user_id:
+                prefs_prompt = await preferences_service.get_preferences_for_prompt(db, user_id)
+                if prefs_prompt:
+                    full_system_prompt += prefs_prompt
+        except Exception as pref_error:
+            print(f"⚠️ Tercih yükleme hatası: {pref_error}")
         
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         uploaded_image_url = None

@@ -324,3 +324,46 @@ class TrashItem(Base):
     deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # 3 gün sonra silinecek
 
+
+# ============== KULLANICI TERCİHLERİ (AGENT İÇİN) ==============
+
+class UserPreferences(Base):
+    """
+    Agent için kullanıcı tercihleri.
+    Görsel üretim, video, stil tercihleri vb.
+    """
+    __tablename__ = "user_preferences"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    
+    # Görsel tercihleri
+    default_aspect_ratio: Mapped[str] = mapped_column(String(20), default="16:9")
+    default_style: Mapped[str] = mapped_column(String(50), default="realistic")  # realistic, anime, illustration, etc.
+    default_image_model: Mapped[str] = mapped_column(String(100), default="fal-ai/flux-pro/v1.1-ultra")
+    
+    # Video tercihleri
+    default_video_model: Mapped[str] = mapped_column(String(100), default="fal-ai/kling-video/v1.5/pro/text-to-video")
+    default_video_duration: Mapped[int] = mapped_column(Integer, default=5)  # saniye
+    
+    # Agent davranış tercihleri
+    auto_face_swap: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_upscale: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_translate_prompts: Mapped[bool] = mapped_column(Boolean, default=True)  # TR→EN
+    
+    # Dil tercihi
+    response_language: Mapped[str] = mapped_column(String(10), default="tr")
+    
+    # Favori entity'ler (JSON array of tags)
+    favorite_entities: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
+    
+    # Öğrenilmiş tercihler (agent tarafından güncellenir)
+    learned_preferences: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    # Örn: {"preferred_colors": ["#FF0000"], "common_prompts": ["professional photo"]}
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    user: Mapped["User"] = relationship("User")
+
+
