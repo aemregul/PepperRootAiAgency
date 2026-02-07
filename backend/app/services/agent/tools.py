@@ -270,8 +270,54 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["panel_number", "action"]
         }
+    },
+    {
+        "name": "semantic_search",
+        "description": "Semantik olarak benzer karakterleri, mekanları veya markaları arar. Doğal dil sorgusu ile ilgili entity'leri bulur. Örnek: 'sarışın erkek karakter', 'plaj mekanı', 'spor markası'",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Doğal dil arama sorgusu (örn: 'uzun boylu, atletik erkek karakterler')"
+                },
+                "entity_type": {
+                    "type": "string",
+                    "enum": ["character", "location", "brand", "wardrobe", "all"],
+                    "description": "Aranacak entity tipi (varsayılan: all)"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maksimum sonuç sayısı (varsayılan: 5)"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "get_library_docs",
+        "description": "Herhangi bir kütüphanenin (library) güncel API dokümantasyonunu çeker. LLM'lerin eski/yanlış bilgi üretmesini engeller. Örn: 'react', 'nextjs', 'fastapi', 'fal.ai', 'langchain' gibi popüler kütüphaneler için kullanılabilir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "library_name": {
+                    "type": "string",
+                    "description": "Dokümantasyonu çekilecek kütüphane adı (örn: 'react', 'nextjs', 'fastapi', 'fal-ai')"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Spesifik bir sorgu veya konu (opsiyonel). Örn: 'hooks', 'routing', 'authentication'"
+                },
+                "tokens": {
+                    "type": "integer",
+                    "description": "Döndürülecek maksimum token sayısı (varsayılan: 5000)"
+                }
+            },
+            "required": ["library_name"]
+        }
     }
 ]
 
 # OpenAI tools formatı
 AGENT_TOOLS = convert_to_openai_tools(AGENT_TOOLS_ANTHROPIC)
+

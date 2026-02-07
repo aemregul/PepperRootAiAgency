@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Entity
+from app.core.config import settings
 
 
 def slugify(text: str) -> str:
@@ -87,6 +88,21 @@ class EntityService:
         db.add(entity)
         await db.commit()
         await db.refresh(entity)
+        
+        # 🔍 Pinecone'a ekle (arka planda, hata durumunda sessizce devam et)
+        if settings.USE_PINECONE:
+            try:
+                from app.services.embeddings.pinecone_service import pinecone_service
+                await pinecone_service.upsert_entity(
+                    entity_id=str(entity.id),
+                    entity_type=entity_type,
+                    name=name,
+                    description=description or "",
+                    attributes=attributes,
+                    metadata={"user_id": str(user_id), "tag": tag}
+                )
+            except Exception as e:
+                print(f"⚠️ Pinecone upsert uyarısı: {e}")
         
         return entity
     
@@ -232,6 +248,14 @@ class EntityService:
         # Entity'yi sil
         await db.delete(entity)
         await db.commit()
+        
+        # 🔍 Pinecone'dan sil
+        if settings.USE_PINECONE:
+            try:
+                from app.services.embeddings.pinecone_service import pinecone_service
+                await pinecone_service.delete_entity(entity.entity_type, str(entity_id))
+            except Exception as e:
+                print(f"⚠️ Pinecone delete uyarısı: {e}")
         
         return True
     

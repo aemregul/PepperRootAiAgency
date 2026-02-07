@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[str] = None
     USE_REDIS: bool = False
     
+    # Pinecone Semantic Search
+    PINECONE_API_KEY: Optional[str] = None
+    PINECONE_INDEX_NAME: str = "pepperroot"
+    PINECONE_ENVIRONMENT: str = "us-east-1"
+    USE_PINECONE: bool = False
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -16,6 +16,7 @@ from app.services.entity_service import entity_service
 from app.services.asset_service import asset_service
 from app.services.stats_service import StatsService
 from app.services.prompt_translator import translate_to_english, enhance_character_prompt
+from app.services.context7.context7_service import context7_service
 from app.models.models import Session as SessionModel
 
 
@@ -534,6 +535,12 @@ Herhangi bir işlem başarısız olursa:
         
         elif tool_name == "research_brand":
             return await self._research_brand(db, session_id, tool_input)
+        
+        elif tool_name == "semantic_search":
+            return await self._semantic_search(db, session_id, tool_input)
+        
+        elif tool_name == "get_library_docs":
+            return await self._get_library_docs(tool_input)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
@@ -2721,6 +2728,133 @@ SADECE JSON döndür, başka açıklama yazma."""
             return {
                 "success": False,
                 "error": f"Marka araştırması başarısız: {str(e)}"
+            }
+    
+    async def _semantic_search(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict
+    ) -> dict:
+        """
+        Pinecone ile semantik entity araması.
+        Doğal dil sorgusu ile benzer karakterleri, mekanları veya markaları bulur.
+        """
+        query = params.get("query", "")
+        entity_type = params.get("entity_type", "all")
+        limit = params.get("limit", 5)
+        
+        if not query:
+            return {"success": False, "error": "Arama sorgusu gerekli"}
+        
+        # Pinecone devre dışıysa, basit veritabanı araması yap
+        if not settings.USE_PINECONE:
+            # Fallback: basit LIKE araması
+            user_id = await get_user_id_from_session(db, session_id)
+            entities = await entity_service.list_entities(
+                db, user_id,
+                entity_type=entity_type if entity_type != "all" else None
+            )
+            
+            # Basit kelime eşleştirme
+            query_lower = query.lower()
+            matches = []
+            for entity in entities:
+                search_text = f"{entity.name} {entity.description or ''} {json.dumps(entity.attributes or {})}"
+                if query_lower in search_text.lower():
+                    matches.append({
+                        "tag": entity.tag,
+                        "name": entity.name,
+                        "type": entity.entity_type,
+                        "description": entity.description[:100] if entity.description else "",
+                        "score": 0.5  # Fallback için sabit skor
+                    })
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": matches[:limit],
+                "total": len(matches),
+                "method": "database_fallback"
+            }
+        
+        # Pinecone ile semantik arama
+        try:
+            from app.services.embeddings.pinecone_service import pinecone_service
+            
+            search_type = None if entity_type == "all" else entity_type
+            results = await pinecone_service.search_similar(
+                query=query,
+                entity_type=search_type,
+                top_k=limit
+            )
+            
+            matches = []
+            for result in results:
+                matches.append({
+                    "id": result["id"],
+                    "tag": result["metadata"].get("tag", ""),
+                    "name": result["metadata"].get("name", ""),
+                    "type": result["metadata"].get("entity_type", "unknown"),
+                    "description": result["metadata"].get("description", "")[:100],
+                    "score": round(result["score"], 3)
+                })
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": matches,
+                "total": len(matches),
+                "method": "pinecone_semantic"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Semantik arama hatası: {str(e)}"
+            }
+    
+    async def _get_library_docs(self, params: dict) -> dict:
+        """
+        Context7 MCP kullanarak kütüphane dokümantasyonu çek.
+        Güncel API bilgilerini getirerek LLM'lerin eski bilgi kullanmasını engeller.
+        """
+        library_name = params.get("library_name", "")
+        query = params.get("query")  # Opsiyonel: spesifik sorgu
+        tokens = params.get("tokens", 5000)
+        
+        if not library_name:
+            return {"success": False, "error": "Kütüphane adı gerekli"}
+        
+        try:
+            result = await context7_service.get_library_docs(
+                library_name=library_name,
+                query=query,
+                tokens=tokens
+            )
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "library": result.get("library"),
+                    "title": result.get("title", library_name),
+                    "content": result.get("content", ""),
+                    "description": result.get("description", ""),
+                    "version": result.get("version"),
+                    "source_url": result.get("source_url"),
+                    "message": f"'{library_name}' dokümantasyonu başarıyla çekildi"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Dokümantasyon çekilemedi"),
+                    "suggestion": result.get("suggestion")
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Context7 hatası: {str(e)}"
             }
 
 

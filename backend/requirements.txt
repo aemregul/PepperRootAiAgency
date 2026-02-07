@@ -24,6 +24,8 @@ aiohttp
 # AI APIs
 anthropic
 fal-client
+openai
+pinecone-client
 
 # Utilities
 python-dotenv
