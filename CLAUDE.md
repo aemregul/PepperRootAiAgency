@@ -6,7 +6,7 @@
 ---
 
 ## 🚨 KRİTİK: Proje Vizyonunu Anla!
-w
+
 **Mimari Doküman:** `/Users/emre/Desktop/Pepper_Root_AI_Agency_Mimari_Dokumani.md`
 
 Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
@@ -311,9 +311,80 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
+## 🧠 AGENT ZEKA GELİŞTİRME ROADMAP (7 Şubat 2026)
+
+> **KRİTİK:** Mevcut agent yeterince akıllı değil. Aşağıdaki iyileştirmeler yapılmalı.
+
+### 🔴 KRİTİK GEREKSİNİMLER (Kullanıcıdan)
+
+| # | Gereksinim | Açıklama | Durum |
+|---|------------|----------|-------|
+| 1 | **Memory Sistemi** | Agent geçmişi hatırlamıyor, hafıza YOK | ❌ Eksik |
+| 2 | **Roadmap Oluşturma** | Agent kendi için plan/roadmap yapabilmeli | ❌ Eksik |
+| 3 | **Ölçeklenebilirlik** | 100+ görsel, çok proje açıldığında patlamama | ❌ Test edilmedi |
+| 4 | **3 Dakikalık Video** | Uzun video üretimi (~3 dk) | ❌ Eksik |
+
+### 📚 ÖNERİLEN ÇÖZÜMLER (Araştırma Sonucu)
+
+#### 1. MEMORY SİSTEMİ
+| Çözüm | Açıklama | Zorluk |
+|-------|----------|--------|
+| **Conversation Summary** | Her 10 mesajda konuşmayı özetle, context window tasarrufu | Kolay (1 gün) |
+| **User Preferences** | Kullanıcı tercihlerini DB'de sakla (aspect ratio, stil, vb.) | Kolay (2 gün) |
+| **Episodic Memory (Mem0)** | "User liked X", "Project Y created" gibi olayları hatırla | Orta (1 hafta) |
+| **Redis Session Cache** | Kısa vadeli hafıza (zaten var, genişletilmeli) | Kolay (1 gün) |
+
+#### 2. REASONING & PLANNING
+| Çözüm | Açıklama | Zorluk |
+|-------|----------|--------|
+| **Chain of Thought** | System prompt'a "önce düşün" talimatları ekle | Kolay (2 saat) |
+| **ReAct Pattern** | Thought → Action → Observation döngüsü | Orta (3 gün) |
+| **Plan-and-Execute** | Önce plan yap, sonra uygula, her adımda gözden geçir | Zor (1 hafta) |
+| **Few-Shot Examples** | Örnek tool akışları system prompt'a ekle | Kolay (4 saat) |
+
+#### 3. ÖLÇEKLENEBİLİRLİK
+| Çözüm | Açıklama | Zorluk |
+|-------|----------|--------|
+| **Lazy Loading** | Görselleri sayfalayarak yükle (pagination) | Orta (2 gün) |
+| **Image Compression** | Thumbnail'ler için sıkıştırma | Kolay (1 gün) |
+| **Background Processing** | Uzun işleri Celery/Redis Queue ile arkaplan | Orta (3 gün) |
+| **DB Query Optimization** | Index'ler, eager loading | Kolay (1 gün) |
+
+#### 4. UZUN VİDEO (3 DK)
+| Çözüm | Açıklama | Zorluk |
+|-------|----------|--------|
+| **Video Stitching** | Kısa klipleri birleştir (FFmpeg) | Orta (3 gün) |
+| **Segment Generation** | 10 sn'lik parçalar üret, birleştir | Orta (1 hafta) |
+| **Kling 3.0 API** | Fal.ai'nin en uzun video desteğini araştır | Araştırma |
+
+### 🎯 ÖNCELİK SIRASI (Önerilen)
+
+**Faz 1: Temel Zeka (Bu Hafta)**
+- [ ] Chain of Thought system prompt güncellemesi
+- [ ] Few-shot tool examples ekleme
+- [ ] Conversation summarization
+
+**Faz 2: Hafıza (Gelecek Hafta)**
+- [ ] User preferences store (DB tablosu)
+- [ ] Redis session memory genişletme
+- [ ] Episodic memory (Mem0 veya custom)
+
+**Faz 3: Ölçek (2. Hafta)**
+- [ ] Lazy loading + pagination
+- [ ] Background job queue (Celery)
+- [ ] DB optimizasyonları
+
+**Faz 4: Uzun Video (3. Hafta)**
+- [ ] Video stitching altyapısı
+- [ ] Segment-based generation
+- [ ] 3 dakikalık video testi
+
+---
+
 ## ✅ SON COMMITLER
 
 ```
+feat: Add Pinecone semantic search and Context7 MCP integration
 feat: Add bulk selection and delete to AssetsPanel
 dc2ed1e - fix: Upload images to fal.ai before editing
 01990a6 - feat: True inpainting with fal.ai object-removal API
@@ -321,3 +392,4 @@ b45fff8 - feat: Smart image editing with GPT-4o + Nano Banana + Face Swap
 a5d262f - feat: Add save/bookmark functionality and make action buttons always visible
 380f5be - fix: Prevent duplicate image display in chat messages
 ```
+
