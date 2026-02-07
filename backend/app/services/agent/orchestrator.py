@@ -254,6 +254,10 @@ Herhangi bir işlem başarısız olursa:
         if conversation_history is None:
             conversation_history = []
         
+        # 🧠 UZUN KONUŞMALARI ÖZETLE (Memory iyileştirmesi)
+        if len(conversation_history) > 15:
+            conversation_history = await self._summarize_conversation(conversation_history)
+        
         # @tag'leri çözümle ve context oluştur
         entity_context = await self._build_entity_context(db, session_id, user_message)
         
@@ -593,6 +597,74 @@ Herhangi bir işlem başarısız olursa:
             return await self._get_library_docs(tool_input)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
+    
+    async def _summarize_conversation(self, messages: list, max_messages: int = 15) -> list:
+        """
+        Uzun konuşmaları özetleyerek context window tasarrufu sağlar.
+        
+        - 15+ mesajda: Eski mesajları özetle, son 5'i koru
+        - Özet + son mesajlar = daha akıllı agent
+        
+        Args:
+            messages: Tüm mesaj listesi
+            max_messages: Özet başlamadan önceki max mesaj sayısı
+            
+        Returns:
+            list: Özetlenmiş + son mesajlar
+        """
+        if len(messages) <= max_messages:
+            return messages
+        
+        try:
+            # Son 5 mesajı koru (en güncel context)
+            recent_messages = messages[-5:]
+            old_messages = messages[:-5]
+            
+            # Eski mesajları özetle
+            summary_prompt = """Aşağıdaki konuşmayı kısa ve öz özetle. 
+Önemli bilgileri koru:
+- Üretilen görsel/video detayları
+- Oluşturulan entity'ler (@karakterler, @mekanlar, @markalar)
+- Kullanıcı tercihleri (aspect ratio, stil, vb.)
+- Başarısız işlemler ve nedenleri
+
+Konuşma:
+"""
+            for msg in old_messages:
+                role = "Kullanıcı" if msg.get("role") == "user" else "Asistan"
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    # Vision mesajı - sadece text kısmını al
+                    content = " ".join([c.get("text", "") for c in content if c.get("type") == "text"])
+                summary_prompt += f"\n{role}: {content[:500]}..."  # Max 500 karakter/mesaj
+            
+            # GPT-4o ile özetle
+            summary_response = self.client.chat.completions.create(
+                model="gpt-4o-mini",  # Hızlı ve ucuz model özet için
+                max_tokens=500,
+                messages=[
+                    {"role": "system", "content": "Sen bir konuşma özetleyicisisin. Kısa ve öz özetler yap."},
+                    {"role": "user", "content": summary_prompt}
+                ]
+            )
+            
+            summary_text = summary_response.choices[0].message.content
+            
+            # Özet mesajı oluştur
+            summary_message = {
+                "role": "system",
+                "content": f"📝 ÖNCEKİ KONUŞMA ÖZETİ:\n{summary_text}\n\n(Son {len(recent_messages)} mesaj aşağıda)"
+            }
+            
+            print(f"🧠 Konuşma özetlendi: {len(old_messages)} mesaj → 1 özet + {len(recent_messages)} güncel mesaj")
+            
+            return [summary_message] + recent_messages
+            
+        except Exception as e:
+            print(f"⚠️ Özetleme hatası: {e}")
+            # Hata durumunda son 10 mesajı döndür
+            return messages[-10:]
+
     
     async def _generate_image(
         self, 

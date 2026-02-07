@@ -360,8 +360,8 @@ git add . && git commit -m "mesaj" && git push
 ### 🎯 ÖNCELİK SIRASI (Önerilen)
 
 **Faz 1: Temel Zeka (Bu Hafta)**
-- [ ] Chain of Thought system prompt güncellemesi
-- [ ] Few-shot tool examples ekleme
+- [x] Chain of Thought system prompt güncellemesi ✅ (7 Şubat 21:35)
+- [x] Few-shot tool examples ekleme ✅ (7 Şubat 21:35)
 - [ ] Conversation summarization
 
 **Faz 2: Hafıza (Gelecek Hafta)**
