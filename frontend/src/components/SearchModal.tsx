@@ -46,7 +46,7 @@ export function SearchModal({ isOpen, onClose, sessionId }: SearchModalProps) {
                     id: a.id,
                     type: "asset" as const,
                     name: `Asset ${a.id.substring(0, 8)}`,
-                    description: a.prompt?.substring(0, 50) || a.type
+                    description: a.prompt?.substring(0, 50) || a.asset_type
                 }));
 
                 setAllItems([...entityResults, ...assetResults]);

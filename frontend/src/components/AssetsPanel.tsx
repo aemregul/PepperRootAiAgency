@@ -13,6 +13,7 @@ interface Asset {
     duration?: string;
     isFavorite?: boolean;
     savedToImages?: boolean;
+    thumbnailUrl?: string;
 }
 
 // Mock data with more realistic images
@@ -88,9 +89,10 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                 const mappedAssets: Asset[] = apiAssets.map((a: GeneratedAsset) => ({
                     id: a.id,
                     url: a.url,
-                    type: a.type,
+                    type: a.asset_type as "image" | "video",
                     label: a.prompt?.substring(0, 30),
-                    isFavorite: false
+                    isFavorite: false,
+                    thumbnailUrl: a.thumbnail_url
                 }));
                 setAssets(mappedAssets);
             } catch (error) {
@@ -336,11 +338,22 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                         className="max-w-[90vw] max-h-[85vh] relative"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <img
-                            src={selectedAsset.url}
-                            alt="Full size asset"
-                            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-                        />
+                        {selectedAsset.type === 'video' ? (
+                            <div className="relative bg-black rounded-lg overflow-hidden flex items-center justify-center max-h-[85vh]">
+                                <video
+                                    src={selectedAsset.url}
+                                    controls
+                                    autoPlay
+                                    className="max-w-full max-h-[85vh] object-contain shadow-2xl"
+                                />
+                            </div>
+                        ) : (
+                            <img
+                                src={selectedAsset.url}
+                                alt="Full size asset"
+                                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                            />
+                        )}
 
                         {/* Bottom controls */}
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-black/60">
@@ -490,18 +503,50 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                     onDragStart={(e) => !isSelectMode && handleDragStart(e, displayAssets[0])}
                                     onClick={(e) => isSelectMode ? toggleSelection(displayAssets[0].id, e) : setSelectedAsset(displayAssets[0])}
                                 >
-                                    <div className="aspect-video relative group">
-                                        <img
-                                            src={displayAssets[0].url}
-                                            alt="Featured asset"
-                                            className="w-full h-full object-cover"
-                                        />
+                                    <div className="aspect-video relative group bg-black/10">
+                                        {displayAssets[0].type === 'video' ? (
+                                            <div className="w-full h-full flex items-center justify-center bg-black/20">
+                                                {displayAssets[0].thumbnailUrl ? (
+                                                    <img
+                                                        src={displayAssets[0].thumbnailUrl}
+                                                        alt="Featured video thumbnail"
+                                                        className="w-full h-full object-cover opacity-80"
+                                                    />
+                                                ) : (
+                                                    <video
+                                                        src={displayAssets[0].url}
+                                                        className="w-full h-full object-cover"
+                                                        muted
+                                                        loop
+                                                        playsInline
+                                                        onMouseOver={e => {
+                                                            const p = e.currentTarget.play();
+                                                            if (p !== undefined) {
+                                                                p.catch(error => {
+                                                                    if (error.name !== 'AbortError') console.error("Video play error:", error);
+                                                                });
+                                                            }
+                                                        }}
+                                                        onMouseOut={e => {
+                                                            e.currentTarget.pause();
+                                                            e.currentTarget.currentTime = 0;
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={displayAssets[0].url}
+                                                alt="Featured asset"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        )}
                                         {/* Selection checkbox */}
                                         {isSelectMode && (
                                             <div className="absolute top-2 left-2 z-10">
                                                 <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(displayAssets[0].id)
-                                                        ? 'bg-emerald-500 border-emerald-500'
-                                                        : 'bg-black/40 border-white/60 hover:border-white'
+                                                    ? 'bg-emerald-500 border-emerald-500'
+                                                    : 'bg-black/40 border-white/60 hover:border-white'
                                                     }`}>
                                                     {selectedIds.has(displayAssets[0].id) && (
                                                         <CheckSquare size={14} className="text-white" />
@@ -570,19 +615,51 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         onDragStart={(e) => !isSelectMode && handleDragStart(e, asset)}
                                         onClick={(e) => isSelectMode ? toggleSelection(asset.id, e) : setSelectedAsset(asset)}
                                     >
-                                        <div className="aspect-square relative">
-                                            <img
-                                                src={asset.url}
-                                                alt="Generated asset"
-                                                className="w-full h-full object-cover"
-                                            />
+                                        <div className="aspect-square relative bg-black/10">
+                                            {asset.type === 'video' ? (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    {asset.thumbnailUrl ? (
+                                                        <img
+                                                            src={asset.thumbnailUrl}
+                                                            alt="Video thumbnail"
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <video
+                                                            src={asset.url}
+                                                            className="w-full h-full object-cover"
+                                                            muted
+                                                            loop
+                                                            playsInline
+                                                            onMouseOver={e => {
+                                                                const p = e.currentTarget.play();
+                                                                if (p !== undefined) {
+                                                                    p.catch(error => {
+                                                                        if (error.name !== 'AbortError') console.error("Video play error:", error);
+                                                                    });
+                                                                }
+                                                            }}
+                                                            onMouseOut={e => {
+                                                                e.currentTarget.pause();
+                                                                e.currentTarget.currentTime = 0;
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={asset.url}
+                                                    alt="Generated asset"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            )}
 
                                             {/* Selection checkbox */}
                                             {isSelectMode && (
                                                 <div className="absolute top-2 left-2 z-10">
                                                     <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(asset.id)
-                                                            ? 'bg-emerald-500 border-emerald-500'
-                                                            : 'bg-black/40 border-white/60 hover:border-white'
+                                                        ? 'bg-emerald-500 border-emerald-500'
+                                                        : 'bg-black/40 border-white/60 hover:border-white'
                                                         }`}>
                                                         {selectedIds.has(asset.id) && (
                                                             <CheckSquare size={12} className="text-white" />

@@ -52,6 +52,7 @@ export interface AssetResponse {
     asset_type: string;
     url: string;
     prompt?: string;
+    thumbnail_url?: string;
 }
 
 export interface ChatResponse {
@@ -70,9 +71,10 @@ export interface ToolCall {
 
 export interface GeneratedAsset {
     id: string;
-    type: 'image' | 'video';
+    asset_type: 'image' | 'video';
     url: string;
     prompt?: string;
+    thumbnail_url?: string;
 }
 
 // API Functions
@@ -185,7 +187,22 @@ export async function getEntities(sessionId: string): Promise<Entity[]> {
         throw new Error('Failed to fetch entities');
     }
 
-    return response.json();
+    const data = await response.json();
+
+    // Backend returns paginated response: {items: [], total: number, ...}
+    // Extract items array for backwards compatibility
+    if (data && Array.isArray(data.items)) {
+        return data.items;
+    }
+
+    // Fallback: if already an array (old format), return as-is
+    if (Array.isArray(data)) {
+        return data;
+    }
+
+    // If neither, return empty array
+    console.warn('Unexpected entities response format:', data);
+    return [];
 }
 
 export async function createEntity(

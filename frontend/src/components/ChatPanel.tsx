@@ -22,16 +22,11 @@ interface ChatPanelProps {
     onPromptConsumed?: () => void;
 }
 
-// Helper to render @mentions, markdown images, and links
+// Helper to render @mentions, markdown images, links, and VIDEOS
 function renderContent(content: string | undefined | null) {
     if (!content || typeof content !== 'string') {
         return content ?? '';
     }
-
-    // Markdown görsellerini ve linkleri parse et
-    // ![alt](url) formatındaki görselleri bul
-    // [text](url) formatındaki linkleri bul
-    // @mention formatındaki tag'leri bul
 
     const elements: React.ReactNode[] = [];
     let lastIndex = 0;
@@ -40,7 +35,9 @@ function renderContent(content: string | undefined | null) {
     // 1. Markdown images: ![alt](url)
     // 2. Markdown links: [text](url)
     // 3. @mentions: @word
-    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)|@[\w_]+/g;
+    // 4. Video URLs (simple detection for standalone URLs ending with video extensions)
+    //    Note: This is a basic regex, might need refinement for complex URLs
+    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)|@[\w_]+|(https?:\/\/[^\s]+\.(?:mp4|mov|webm)(?:\?[^\s]*)?)/g;
 
     let match;
     let key = 0;
@@ -79,23 +76,62 @@ function renderContent(content: string | undefined | null) {
             // Markdown link: [text](url)
             const text = match[3];
             const url = match[4];
-            elements.push(
-                <a
-                    key={key++}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--accent)] underline hover:opacity-80"
-                >
-                    {text}
-                </a>
-            );
+
+            // Check if it's a video link inside markdown syntax
+            if (url.match(/\.(mp4|mov|webm)(\?.*)?$/i)) {
+                elements.push(
+                    <div key={key++} className="mt-2 mb-2">
+                        <video
+                            src={url}
+                            controls
+                            playsInline
+                            className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10"
+                        />
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-[var(--foreground-muted)]">📹 {text}</span>
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
+                                (Yeni sekmede aç)
+                            </a>
+                        </div>
+                    </div>
+                );
+            } else {
+                elements.push(
+                    <a
+                        key={key++}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--accent)] underline hover:opacity-80"
+                    >
+                        {text}
+                    </a>
+                );
+            }
         } else if (match[0].startsWith('@')) {
             // @mention
             elements.push(
                 <span key={key++} className="mention">
                     {match[0]}
                 </span>
+            );
+        } else if (match[5]) {
+            // Standalone Video URL
+            const url = match[5];
+            elements.push(
+                <div key={key++} className="mt-2 mb-2">
+                    <video
+                        src={url}
+                        controls
+                        playsInline
+                        className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10"
+                    />
+                    <div className="flex items-center gap-2 mt-1">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
+                            📹 Videoyu İndir / Aç
+                        </a>
+                    </div>
+                </div>
             );
         }
 
@@ -578,9 +614,9 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                                     <div className="flex-1">
                                         <div className="font-medium mb-2 text-sm">Pepper AI Assistant</div>
                                         <div className="message-bubble message-ai">
-                                            <p className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
+                                            <div className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
                                                 {renderContent(msg.content)}
-                                            </p>
+                                            </div>
 
                                             {/* Only show image_url if it's NOT already in content as markdown */}
                                             {msg.image_url && !msg.content?.includes(msg.image_url) && (

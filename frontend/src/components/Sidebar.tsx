@@ -444,17 +444,21 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             try {
                 const entities = await getEntities(sessionId);
 
+                // getEntities artık her zaman array döndürüyor (API düzeltildi)
+                // Yine de güvenlik için kontrol ekle
+                const entityList = Array.isArray(entities) ? entities : [];
+
                 // Entity'leri türlerine göre ayır
-                const chars = entities
+                const chars = entityList
                     .filter((e: Entity) => e.entity_type === 'character')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
-                const locs = entities
+                const locs = entityList
                     .filter((e: Entity) => e.entity_type === 'location')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
-                const ward = entities
+                const ward = entityList
                     .filter((e: Entity) => e.entity_type === 'wardrobe')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name, imageUrl: e.reference_image_url }));
-                const brandList = entities
+                const brandList = entityList
                     .filter((e: Entity) => e.entity_type === 'brand')
                     .map((e: Entity) => ({ id: e.id, name: e.tag || e.name }));
 

@@ -182,6 +182,16 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 - [x] get_library_docs tool - Agent için güncel API bilgisi
 - [x] 40+ popüler kütüphane için önceden tanımlı ID'ler
 - [x] HTTP API entegrasyonu (Python native)
+- [x] **Video Asset Fixes** (8 Şubat) ⭐ BUGFIX
+  - [x] Backend `asset_type` handling (video vs image)
+  - [x] Frontend `AssetsPanel` video rendering & hover playback (AbortError fix)
+  - [x] Frontend `SavedImagesModal` video support (grid + preview)
+  - [x] Frontend `ChatPanel` video rendering (console error fix)
+- [x] **Video Asset Fixes** (8 Şubat) ⭐ BUGFIX
+  - [x] Backend `asset_type` handling (video vs image)
+  - [x] Frontend `AssetsPanel` video rendering & hover playback (AbortError fix)
+  - [x] Frontend `SavedImagesModal` video support (grid + preview)
+  - [x] Frontend `ChatPanel` video rendering (console error fix)
 
 ### Öncelik: Deploy (Sırada)
 - [ ] Railway backend deploy
@@ -290,6 +300,16 @@ git add . && git commit -m "mesaj" && git push
 
 ## 📋 EKSİKLER / YAPILACAKLAR
 
+### 🟢 Migration Fix (8 Şubat 2026) ⚡ BUGFIX
+- [x] **`user_preferences` tablosu migration eksikti** - Faz 2'de model eklendi ama migration yapılmamıştı
+  - Alembic migration oluşturuldu ve uygulandı
+  - Database transaction hatası (`InFailedSQLTransactionError`) düzeltildi
+- [x] **Frontend pagination uyumsuzluğu** - Backend `/entities/` artık paginated response döndürüyor
+  - `api.ts` güncellendi: `{items: [], total: ...}` formatını destekliyor
+  - `Sidebar.tsx` güncellendi: Array kontrolü eklendi
+
+> ⚠️ **NOT:** Faz 1-4 kodları korundu, sadece eksik migration uygulandı.
+
 ### 🔴 Kritik (Deploy Öncesi)
 1. **Railway Backend Deploy** - Beklemede
 2. **Vercel Frontend Deploy** - Beklemede
@@ -303,7 +323,9 @@ git add . && git commit -m "mesaj" && git push
 1. ~~Search/Filter~~ ✅ Entity arama eklendi
 2. ~~**Bulk Operations**~~ ✅ AssetsPanel'de çoklu seçim ve silme eklendi (checkbox sistemi)
 3. **Keyboard Shortcuts** - Hızlı erişim kısayolları
+3. **Keyboard Shortcuts** - Hızlı erişim kısayolları
 4. **Notification System** - Toast mesajları
+5. ~~**Video Playback Fixes**~~ ✅ AssetsPanel ve SavedImagesModal video desteği düzeltildi
 
 ---
 

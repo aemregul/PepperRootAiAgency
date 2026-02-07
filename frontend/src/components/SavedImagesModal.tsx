@@ -17,6 +17,7 @@ interface SavedImage {
     name: string;
     imageUrl: string;
     createdAt?: Date;
+    type: 'image' | 'video';
 }
 
 export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: SavedImagesModalProps) {
@@ -40,12 +41,16 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                 const entities = await getEntities(sessionId);
                 const savedImages: SavedImage[] = entities
                     .filter((e: Entity) => e.entity_type === 'wardrobe' && e.reference_image_url)
-                    .map((e: Entity) => ({
-                        id: e.id,
-                        name: e.name || e.tag || 'Untitled',
-                        imageUrl: e.reference_image_url!,
-                        createdAt: e.created_at ? new Date(e.created_at) : undefined
-                    }));
+                    .map((e: Entity) => {
+                        const isVideo = e.reference_image_url?.match(/\.(mp4|mov|webm)(\?.*)?$/i);
+                        return {
+                            id: e.id,
+                            name: e.name || e.tag || 'Untitled',
+                            imageUrl: e.reference_image_url!,
+                            createdAt: e.created_at ? new Date(e.created_at) : undefined,
+                            type: isVideo ? 'video' : 'image'
+                        };
+                    });
                 setImages(savedImages);
             } catch (error) {
                 console.error('Saved images fetch error:', error);
@@ -246,14 +251,36 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                     className="group relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-transparent hover:border-[var(--accent)] transition-all shadow-md hover:shadow-xl"
                                     style={{ background: "var(--card)" }}
                                 >
-                                    <img
-                                        src={image.imageUrl}
-                                        alt={image.name}
-                                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                                    />
+                                    {image.type === 'video' ? (
+                                        <video
+                                            src={image.imageUrl}
+                                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                            muted
+                                            loop
+                                            playsInline
+                                            onMouseOver={e => {
+                                                const p = e.currentTarget.play();
+                                                if (p !== undefined) {
+                                                    p.catch(error => {
+                                                        if (error.name !== 'AbortError') console.error("Video play error:", error);
+                                                    });
+                                                }
+                                            }}
+                                            onMouseOut={e => {
+                                                e.currentTarget.pause();
+                                                e.currentTarget.currentTime = 0;
+                                            }}
+                                        />
+                                    ) : (
+                                        <img
+                                            src={image.imageUrl}
+                                            alt={image.name}
+                                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                        />
+                                    )}
 
                                     {/* Overlay on hover */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                         <div className="absolute bottom-0 left-0 right-0 p-3">
                                             <p className="text-white text-sm font-medium truncate">{image.name}</p>
                                             <p className="text-white/60 text-xs mt-0.5">Sürükle → Chat'e bırak</p>
@@ -372,11 +399,20 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                         onClick={() => setSelectedImage(null)}
                     >
                         <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-                            <img
-                                src={selectedImage.imageUrl}
-                                alt={selectedImage.name}
-                                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-                            />
+                            {selectedImage.type === 'video' ? (
+                                <video
+                                    src={selectedImage.imageUrl}
+                                    controls
+                                    autoPlay
+                                    className="max-w-full max-h-[85vh] object-contain shadow-2xl"
+                                />
+                            ) : (
+                                <img
+                                    src={selectedImage.imageUrl}
+                                    alt={selectedImage.name}
+                                    className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                                />
+                            )}
 
                             {/* Actions */}
                             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-black/70">

@@ -112,6 +112,7 @@ async def _process_chat(
     
     response_content = agent_result.get("response", "")
     images = agent_result.get("images", [])
+    videos = agent_result.get("videos", [])
     entities_created = agent_result.get("entities_created", [])
     
     # Assistant yanıtını kaydet
@@ -121,8 +122,9 @@ async def _process_chat(
         content=response_content,
         metadata_={
             "images": images,
+            "videos": videos,
             "entities_created": [e.get("tag") for e in entities_created if isinstance(e, dict)]
-        } if images or entities_created else {}
+        } if images or videos or entities_created else {}
     )
     db.add(assistant_message)
     await db.commit()
@@ -136,6 +138,15 @@ async def _process_chat(
             asset_type="image",
             url=img.get("url", ""),
             prompt=img.get("prompt", "")
+        ))
+        
+    for vid in videos:
+        assets.append(AssetResponse(
+            id=None,
+            asset_type="video",
+            url=vid.get("url", ""),
+            prompt=vid.get("prompt", ""),
+            thumbnail_url=vid.get("thumbnail_url")
         ))
     
     # Entities response listesi oluştur

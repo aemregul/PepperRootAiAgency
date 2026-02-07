@@ -353,6 +353,7 @@ Herhangi bir işlem başarısız olursa:
         result = {
             "response": "",
             "images": [],
+            "videos": [],  # Videoları da topla
             "entities_created": [],
             "_resolved_entities": [],  # İç kullanım için, @tag ile çözümlenen entity'ler
             "_current_reference_image": reference_image  # Mevcut referans görsel (base64)
@@ -458,6 +459,14 @@ Herhangi bir işlem başarısız olursa:
                     result["images"].append({
                         "url": tool_result["image_url"],
                         "prompt": tool_args.get("prompt", "")
+                    })
+                
+                # Video üretildiyse ekle
+                if tool_result.get("success") and tool_result.get("video_url"):
+                    result["videos"].append({
+                        "url": tool_result["video_url"],
+                        "prompt": tool_args.get("prompt", ""),
+                        "thumbnail_url": tool_result.get("thumbnail_url") # Varsa thumbnail de ekle
                     })
                 
                 # Entity oluşturulduysa ekle
@@ -1044,16 +1053,35 @@ Konuşma:
             )
             
             if result.get("success"):
+                video_url = result.get("video_url")
+                model_name = result.get("model", "kling-3.0-pro")
+                
+                # 📦 Asset'i veritabanına kaydet (görüntü gibi video da kaydedilmeli)
+                entity_ids = [str(getattr(e, 'id', None)) for e in resolved_entities if getattr(e, 'id', None)] if resolved_entities else None
+                await asset_service.save_asset(
+                    db=db,
+                    session_id=session_id,
+                    url=video_url,
+                    asset_type="video",
+                    prompt=prompt,
+                    model_name=model_name,
+                    model_params={
+                        "duration": duration,
+                        "aspect_ratio": aspect_ratio,
+                        "source_image": image_url
+                    },
+                    entity_ids=entity_ids
+                )
+                
                 # 📊 İstatistik kaydet
                 user_id = await get_user_id_from_session(db, session_id)
-                model_name = result.get("model", "kling-3.0-pro")
                 await StatsService.track_video_generation(db, user_id, model_name)
                 
                 return {
                     "success": True,
-                    "video_url": result.get("video_url"),
+                    "video_url": video_url,
                     "model": model_name,
-                    "message": f"Video başarıyla üretildi ({duration}s).",
+                    "message": f"Video başarıyla üretildi ({duration}s) ve kaydedildi.",
                     "agent_decision": "Image-to-video" if image_url else "Text-to-video"
                 }
             else:
