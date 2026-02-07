@@ -193,3 +193,53 @@ def image_to_video(
     except Exception as e:
         self.update_state(state="FAILED", meta={"error": str(e)})
         raise self.retry(exc=e)
+
+
+@shared_task(
+    bind=True,
+    name="app.tasks.video_tasks.generate_long_video",
+    max_retries=2,
+    soft_time_limit=7200,  # 2 saat (uzun videolar için)
+    time_limit=7500,
+)
+def generate_long_video(self, job_id: str) -> dict:
+    """
+    Uzun video üret (3+ dakika).
+    
+    LongVideoService'i kullanarak segment-based generation yapar.
+    """
+    from app.services.long_video_service import long_video_service
+    
+    try:
+        self.update_state(state="PROCESSING", meta={"progress": 5, "message": "Uzun video işleniyor..."})
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(
+                long_video_service.process_job(job_id)
+            )
+            
+            if result.get("success"):
+                # Bildirim gönder
+                from app.tasks.notification_tasks import notify_generation_complete
+                job = long_video_service.jobs.get(job_id)
+                if job:
+                    notify_generation_complete.delay(
+                        user_id=job.user_id,
+                        session_id=job.session_id,
+                        asset_type="long_video",
+                        asset_url=result.get("video_url"),
+                        prompt=f"Long video ({job.total_duration}s)"
+                    )
+            
+            return result
+            
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        self.update_state(state="FAILED", meta={"error": str(e)})
+        raise self.retry(exc=e)
+
