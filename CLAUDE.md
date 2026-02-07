@@ -362,7 +362,7 @@ git add . && git commit -m "mesaj" && git push
 - [x] Conversation summarization ✅ (7 Şubat 21:50)
 
 **Faz 2: Hafıza (Gelecek Hafta)**
-- [ ] User preferences store (DB tablosu)
+- [x] User preferences store (DB tablosu) ✅ (7 Şubat 21:55)
 - [ ] Redis session memory genişletme
 - [ ] Episodic memory (Mem0 veya custom)
 
