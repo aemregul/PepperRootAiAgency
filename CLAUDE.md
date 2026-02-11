@@ -300,118 +300,25 @@ git add . && git commit -m "mesaj" && git push
 
 ## 📋 EKSİKLER / YAPILACAKLAR
 
-### 🟢 Migration Fix (8 Şubat 2026) ⚡ BUGFIX
-- [x] **`user_preferences` tablosu migration eksikti** - Faz 2'de model eklendi ama migration yapılmamıştı
-  - Alembic migration oluşturuldu ve uygulandı
-  - Database transaction hatası (`InFailedSQLTransactionError`) düzeltildi
-- [x] **Frontend pagination uyumsuzluğu** - Backend `/entities/` artık paginated response döndürüyor
-  - `api.ts` güncellendi: `{items: [], total: ...}` formatını destekliyor
-  - `Sidebar.tsx` güncellendi: Array kontrolü eklendi
-
-> ⚠️ **NOT:** Faz 1-4 kodları korundu, sadece eksik migration uygulandı.
-
-### 🔴 Kritik (Deploy Öncesi)
-1. **Railway Backend Deploy** - Beklemede
-2. **Vercel Frontend Deploy** - Beklemede
-3. **Uçtan Uca Final Test** - Image editing pipeline test edilmeli
-
-### 🟡 Önemli (Kullanılabilirlik)
-1. ~~**CORS Delete Fix**~~ ✅ Entity silme CORS hatası - Düzeltildi, test edildi
-2. ~~**Plugin Removal**~~ ✅ AdminPanelModal'da "Kaldır" butonu mevcut ve çalışıyor
-
-### 🟢 İyileştirme (Nice to Have)
-1. ~~Search/Filter~~ ✅ Entity arama eklendi
-2. ~~**Bulk Operations**~~ ✅ AssetsPanel'de çoklu seçim ve silme eklendi (checkbox sistemi)
-3. **Keyboard Shortcuts** - Hızlı erişim kısayolları
-3. **Keyboard Shortcuts** - Hızlı erişim kısayolları
-4. **Notification System** - Toast mesajları
-5. ~~**Video Playback Fixes**~~ ✅ AssetsPanel ve SavedImagesModal video desteği düzeltildi
 
 ---
 
-## 🧠 AGENT ZEKA GELİŞTİRME ROADMAP (7 Şubat 2026)
+## � SON GELİŞMELER (11 Şubat 2026 - 12:20)
 
-> **KRİTİK:** Mevcut agent yeterince akıllı değil. Aşağıdaki iyileştirmeler yapılmalı.
+### 🟢 Kritik Düzeltmeler (Bug Fixes)
+1. **Video Editing V2 Migration:**
+   - `AgentOrchestrator`, `FalPluginV2` kullanacak şekilde güncellendi.
+   - `AttributeError: 'FalPlugin' object has no attribute 'execute'` hatası çözüldü.
+   - Geriye dönük uyumluluk için `FalPluginV2`'ye `upload_base64_image` vb. eklendi.
+2. **Frontend Hydration Fix:**
+   - `ChatPanel.tsx` içindeki `<p>` içinde `div` (video/image) nest etme hatası giderildi.
 
-### 🔴 KRİTİK GEREKSİNİMLER (Kullanıcıdan)
-
-| # | Gereksinim | Açıklama | Durum |
-|---|------------|----------|-------|
-| 1 | **Memory Sistemi** | Agent geçmişi hatırlamıyor, hafıza YOK | ❌ Eksik |
-| 2 | **Roadmap Oluşturma** | Agent kendi için plan/roadmap yapabilmeli | ❌ Eksik |
-| 3 | **Ölçeklenebilirlik** | 100+ görsel, çok proje açıldığında patlamama | ❌ Test edilmedi |
-| 4 | **3 Dakikalık Video** | Uzun video üretimi (~3 dk) | ❌ Eksik |
-
-### 📚 ÖNERİLEN ÇÖZÜMLER (Araştırma Sonucu)
-
-#### 1. MEMORY SİSTEMİ
-| Çözüm | Açıklama | Zorluk |
-|-------|----------|--------|
-| **Conversation Summary** | Her 10 mesajda konuşmayı özetle, context window tasarrufu | Kolay (1 gün) |
-| **User Preferences** | Kullanıcı tercihlerini DB'de sakla (aspect ratio, stil, vb.) | Kolay (2 gün) |
-| **Episodic Memory (Mem0)** | "User liked X", "Project Y created" gibi olayları hatırla | Orta (1 hafta) |
-| **Redis Session Cache** | Kısa vadeli hafıza (zaten var, genişletilmeli) | Kolay (1 gün) |
-
-#### 2. REASONING & PLANNING
-| Çözüm | Açıklama | Zorluk |
-|-------|----------|--------|
-| **Chain of Thought** | System prompt'a "önce düşün" talimatları ekle | Kolay (2 saat) |
-| **ReAct Pattern** | Thought → Action → Observation döngüsü | Orta (3 gün) |
-| **Plan-and-Execute** | Önce plan yap, sonra uygula, her adımda gözden geçir | Zor (1 hafta) |
-| **Few-Shot Examples** | Örnek tool akışları system prompt'a ekle | Kolay (4 saat) |
-
-#### 3. ÖLÇEKLENEBİLİRLİK
-| Çözüm | Açıklama | Zorluk |
-|-------|----------|--------|
-| **Lazy Loading** | Görselleri sayfalayarak yükle (pagination) | Orta (2 gün) |
-| **Image Compression** | Thumbnail'ler için sıkıştırma | Kolay (1 gün) |
-| **Background Processing** | Uzun işleri Celery/Redis Queue ile arkaplan | Orta (3 gün) |
-| **DB Query Optimization** | Index'ler, eager loading | Kolay (1 gün) |
-
-#### 4. UZUN VİDEO (3 DK)
-| Çözüm | Açıklama | Zorluk |
-|-------|----------|--------|
-| **Video Stitching** | Kısa klipleri birleştir (FFmpeg) | Orta (3 gün) |
-| **Segment Generation** | 10 sn'lik parçalar üret, birleştir | Orta (1 hafta) |
-| **Kling 3.0 API** | Fal.ai'nin en uzun video desteğini araştır | Araştırma |
-
-### 🎯 ÖNCELİK SIRASI (Önerilen)
-
-**Faz 1: Temel Zeka (Bu Hafta) ✅ TAMAMLANDI**
-- [x] Chain of Thought system prompt güncellemesi ✅ (7 Şubat 21:35)
-- [x] Few-shot tool examples ekleme ✅ (7 Şubat 21:35)
-- [x] Conversation summarization ✅ (7 Şubat 21:50)
-
-**Faz 2: Hafıza (Gelecek Hafta) ✅ TAMAMLANDI**
-- [x] User preferences store (DB tablosu) ✅ (7 Şubat 21:55)
-- [x] Redis session memory genişletme ✅ (7 Şubat 22:30)
-- [x] Episodic memory ✅ (7 Şubat 22:35)
-
-**Faz 3: Ölçek (2. Hafta) ✅ TAMAMLANDI**
-- [x] Graceful degradation (ResilienceService) ✅ (7 Şubat 22:05)
-- [x] Lazy loading + pagination ✅ (7 Şubat 22:40)
-- [x] **Production Celery Infrastructure** ✅ (7 Şubat 22:55)
-  - Priority queues, Beat scheduler, Flower monitoring
-  - Docker Compose (Postgres, Redis, API, Workers, Beat)
-  - video_tasks, image_tasks, cleanup_tasks, notification_tasks
-- [x] DB optimizasyonları (index'ler) ✅ (7 Şubat 22:45)
-
-**Faz 4: Uzun Video (3. Hafta) ✅ TAMAMLANDI**
-- [x] Video stitching altyapısı (FFmpeg) ✅ (7 Şubat 23:00)
-- [x] Segment-based generation ✅ (7 Şubat 23:00)
-- [x] LongVideoService + Celery entegrasyonu ✅ (7 Şubat 23:00)
+### � Bekleyen İşler / Handover Notes
+1. **Deploy:** Railway (Backend) ve Vercel (Frontend) deploy işlemleri başlatılmalı.
+2. **Test:** Kullanıcı "siteye reset attım" dediği için Video Editing özelliği canlı ortamda son bir kez test edilmeli.
+   - Komut: "Videodaki kediyi sil"
+   - Beklenen: LTX veya Fallback (Frame extract -> Generate) çalışmalı.
 
 ---
 
-## ✅ SON COMMITLER
-
-```
-feat: Add Pinecone semantic search and Context7 MCP integration
-feat: Add bulk selection and delete to AssetsPanel
-dc2ed1e - fix: Upload images to fal.ai before editing
-01990a6 - feat: True inpainting with fal.ai object-removal API
-b45fff8 - feat: Smart image editing with GPT-4o + Nano Banana + Face Swap
-a5d262f - feat: Add save/bookmark functionality and make action buttons always visible
-380f5be - fix: Prevent duplicate image display in chat messages
-```
 

@@ -113,6 +113,19 @@ AGENT_TOOLS_ANTHROPIC = [
         }
     },
     {
+        "name": "edit_video",
+        "description": "Mevcut bir videoyu düzenler. Nesne kaldırma/değiştirme (inpainting), stil değiştirme (v2v) veya talimatlı düzenleme yapar. Asistan otomatik olarak en iyi yöntemi seçer.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "video_url": {"type": "string", "description": "Düzenlenecek videonun URL'si"},
+                "prompt": {"type": "string", "description": "Düzenleme talimatı (örn: 'kadını sil', 'anime yap')"},
+                "image_url": {"type": "string", "description": "Videonun referans görseli/thumbnail'i (Varsa mutlaka gönderilmeli, daha iyi sonuç verir)"}
+            },
+            "required": ["video_url", "prompt"]
+        }
+    },
+    {
         "name": "edit_image",
         "description": "Mevcut bir görseli düzenler.",
         "input_schema": {

@@ -31,6 +31,7 @@ class AssetService:
         model_params: Optional[dict] = None,
         parent_asset_id: Optional[uuid.UUID] = None,
         entity_ids: Optional[list[uuid.UUID]] = None,
+        thumbnail_url: Optional[str] = None,
     ) -> GeneratedAsset:
         """
         Yeni asset kaydet.
@@ -44,6 +45,7 @@ class AssetService:
             model_params: Model parametreleri
             parent_asset_id: Türetilen asset ID (edit/upscale için)
             entity_ids: İlişkili entity ID'leri
+            thumbnail_url: Video için thumbnail URL (edit işlemleri için kritik)
         
         Returns:
             GeneratedAsset: Kaydedilen asset
@@ -56,6 +58,7 @@ class AssetService:
             model_name=model_name,
             model_params=model_params or {},
             parent_asset_id=parent_asset_id,
+            thumbnail_url=thumbnail_url,
         )
         
         db.add(asset)

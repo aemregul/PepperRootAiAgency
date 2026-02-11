@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image } from "lucide-react";
+import { useToast } from "./ToastProvider";
 import { sendMessage, createSession, checkHealth, getSessionHistory } from "@/lib/api";
 
 interface Message {
@@ -10,6 +11,7 @@ interface Message {
     content: string;
     timestamp: Date;
     image_url?: string;
+    video_url?: string;
 }
 
 interface ChatPanelProps {
@@ -155,12 +157,14 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
     const [error, setError] = useState<string | null>(null);
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
+    const [attachedVideoUrl, setAttachedVideoUrl] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const [offlineQueue, setOfflineQueue] = useState<{ message: string, timestamp: number }[]>([]);
     const [isOffline, setIsOffline] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const toast = useToast();
 
     // === AUTO-SAVE DRAFT TO LOCALSTORAGE ===
     const DRAFT_KEY = `pepper_draft_${initialSessionId || 'default'}`;
@@ -257,9 +261,24 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
             return;
         }
 
-        // Asset image drop (referans görsel olarak)
+        // Asset drop (image or video)
         const assetUrl = e.dataTransfer.getData('application/x-asset-url');
+        const assetType = e.dataTransfer.getData('application/x-asset-type'); // 'video' | 'image'
+
         if (assetUrl) {
+            // Eğer video ise URL referansı olarak ekle (dosya indirme yapma)
+            if (assetType === 'video' || assetUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i)) {
+                setAttachedVideoUrl(assetUrl);
+                // Clear any image attachment
+                setAttachedFile(null);
+                setFilePreview(null);
+
+                inputRef.current?.focus();
+                toast.success("Video eklendi");
+                return;
+            }
+
+            // Image ise (eski mantıkla devam - dosyayı indirip attach et)
             try {
                 // URL'den dosya oluştur
                 const response = await fetch(assetUrl);
@@ -275,6 +294,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                 inputRef.current?.focus();
             } catch (error) {
                 console.error('Error loading dropped image:', error);
+                toast.error("Görsel yüklenemedi");
             }
             return;
         }
@@ -300,6 +320,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
     const removeAttachment = () => {
         setAttachedFile(null);
         setFilePreview(null);
+        setAttachedVideoUrl(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -397,11 +418,17 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
             content: input,
             timestamp: new Date(),
             image_url: filePreview || undefined,
+            video_url: attachedVideoUrl || undefined
         };
 
         setMessages((prev) => [...prev, userMessage]);
 
-        const currentInput = input;
+        // Append video URL to content for backend if exists
+        const contentToSend = attachedVideoUrl
+            ? `${input}\n\n[Referans Video](${attachedVideoUrl})`
+            : input;
+
+        const currentInput = contentToSend;
         const currentFile = attachedFile;
 
         setInput("");
@@ -604,9 +631,21 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                                             className="w-32 h-32 object-cover rounded-lg mb-2"
                                         />
                                     )}
-                                    <p className="text-sm lg:text-[15px] leading-relaxed">
+                                    {msg.video_url && (
+                                        <div className="mb-2">
+                                            <video
+                                                src={msg.video_url}
+                                                controls
+                                                className="w-48 max-w-full rounded-lg border border-[var(--border)] bg-black/10"
+                                            />
+                                            <div className="text-xs mt-1 text-[var(--foreground-muted)] flex items-center gap-1">
+                                                <span>📹 Video Referansı</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="text-sm lg:text-[15px] leading-relaxed">
                                         {renderContent(msg.content)}
-                                    </p>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="flex gap-3">
@@ -677,6 +716,39 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
                                 </div>
                                 <p className="text-xs mt-0.5 truncate" style={{ color: "var(--foreground-muted)" }}>
                                     {attachedFile?.name}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Video Preview */}
+                    {attachedVideoUrl && (
+                        <div className="mb-2 p-2 rounded-lg flex items-center gap-3" style={{ background: "var(--card)" }}>
+                            <div className="relative">
+                                <div className="w-16 h-16 bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                                    <video
+                                        src={attachedVideoUrl}
+                                        className="w-full h-full object-cover opacity-80"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-white text-xs">VIDEO</span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={removeAttachment}
+                                    className="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors z-10 shadow-sm"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                    <span className="text-lg">📹</span>
+                                    Referans Video
+                                </div>
+                                <p className="text-xs mt-0.5 truncate text-[var(--accent)] underline cursor-pointer" onClick={() => window.open(attachedVideoUrl, '_blank')}>
+                                    {attachedVideoUrl.split('/').pop() || 'video.mp4'}
                                 </p>
                             </div>
                         </div>

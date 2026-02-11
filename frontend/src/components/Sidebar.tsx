@@ -214,9 +214,15 @@ function SavedImagesSection({ items, onDelete }: SavedImagesSectionProps) {
     };
 
     const handleDragStart = (e: React.DragEvent, item: { id: string; name: string; imageUrl?: string }) => {
-        e.dataTransfer.setData('text/plain', item.imageUrl || item.name);
-        e.dataTransfer.setData('application/x-image-url', item.imageUrl || '');
+        const url = item.imageUrl || '';
+        e.dataTransfer.setData('text/plain', url || item.name);
+        e.dataTransfer.setData('application/x-asset-url', url); // Changed from x-image-url
         e.dataTransfer.setData('application/x-entity-tag', item.name);
+
+        // Detect type
+        const isVideo = url.match(/\.(mp4|mov|webm)(\?.*)?$/i);
+        e.dataTransfer.setData('application/x-asset-type', isVideo ? 'video' : 'image');
+
         e.dataTransfer.effectAllowed = 'copy';
     };
 

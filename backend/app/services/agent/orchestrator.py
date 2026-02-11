@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.services.agent.tools import AGENT_TOOLS
-from app.services.plugins.fal_plugin import FalPlugin
+from app.services.plugins.fal_plugin_v2 import FalPluginV2
 from app.services.entity_service import entity_service
 from app.services.asset_service import asset_service
 from app.services.stats_service import StatsService
@@ -38,7 +38,7 @@ class AgentOrchestrator:
     
     def __init__(self):
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        self.fal_plugin = FalPlugin()
+        self.fal_plugin = FalPluginV2()
         self.model = "gpt-4o"
         
         self.system_prompt = """Sen Pepper Root AI Agency'nin AKILLI asistanısın.
@@ -268,6 +268,25 @@ Herhangi bir işlem başarısız olursa:
         if entity_context:
             full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
         
+        
+        # 🧠 AKTİF OTURUM BAĞLAMI (Working Memory)
+        # Son üretilen assetleri context'e ekle, böylece "bunu düzenle" denildiğinde ne olduğu belli olur.
+        try:
+            recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
+            if recent_assets:
+                memory_context = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
+                memory_context += "Kullanıcı 'bunu düzenle', 'son görseli değiştir', 'videoyu farklı yap' derse BURADAKİ URL'leri kullan:\n"
+                
+                for idx, asset in enumerate(recent_assets, 1):
+                    asset_type_icon = "🎬" if asset.asset_type == "video" else "🖼️"
+                    thumb_info = f" (Thumbnail: {asset.thumbnail_url})" if asset.thumbnail_url else ""
+                    memory_context += f"{idx}. [{asset.asset_type.upper()}] {asset_type_icon} '{asset.prompt[:50]}...' \n   👉 URL: {asset.url}{thumb_info}\n"
+                
+                full_system_prompt += memory_context
+                print(f"🧠 Working Memory eklendi: {len(recent_assets)} asset")
+        except Exception as wm_error:
+            print(f"⚠️ Working memory hatası: {wm_error}")
+
         # 🧠 KULLANICI TERCİHLERİNİ EKLE (Memory - Faz 2)
         try:
             user_id = await get_user_id_from_session(db, session_id)
@@ -538,7 +557,18 @@ Herhangi bir işlem başarısız olursa:
         
         # YENİ ARAÇLAR
         elif tool_name == "generate_video":
-            return await self._generate_video(db, session_id, tool_input, resolved_entities or [])
+            # Video üretimi sonrası thumbnail kaydı için özel işlem
+            result = await self._generate_video(db, session_id, tool_input, resolved_entities or [])
+            
+            # Eğer başarılıysa ve thumbnail varsa DB'ye güncelle (veya save sırasında hallet)
+            # Not: _generate_video içinde zaten save_asset çağrılıyor, orayı güncellemeliyiz.
+            return result
+        
+        elif tool_name == "edit_video":
+            # Video düzenleme işlemi
+            # Not: edit_video doğrudan FalPluginV2 üzerinden çalışır, ekstra DB işlemi gerekmez (plugin içinde return ediyor zaten)
+            # Ancak orchestrator tarafında image/video listesine eklenmesi için return yapısı uygun olmalı.
+            return await self.fal_plugin.execute("edit_video", tool_input)
         
         elif tool_name == "edit_image":
             return await self._edit_image(tool_input)
@@ -1070,7 +1100,8 @@ Konuşma:
                         "aspect_ratio": aspect_ratio,
                         "source_image": image_url
                     },
-                    entity_ids=entity_ids
+                    entity_ids=entity_ids,
+                    thumbnail_url=result.get("thumbnail_url")
                 )
                 
                 # 📊 İstatistik kaydet

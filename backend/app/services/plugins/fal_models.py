@@ -16,6 +16,7 @@ class ModelCategory(str, Enum):
     IMAGE_EDITING = "image_editing"
     FACE_CONSISTENCY = "face_consistency"
     VIDEO_GENERATION = "video_generation"
+    VIDEO_EDITING = "video_editing"
     UPSCALING = "upscaling"
     UTILITY = "utility"
 
@@ -246,6 +247,44 @@ VIDEO_GENERATION_MODELS = [
     ),
 ]
 
+# ===============================
+# VİDEO DÜZENLEME MODELLERİ (YENİ)
+# ===============================
+
+VIDEO_EDITING_MODELS = [
+    FalModel(
+        name="Flux Inpainting (Flow)",
+        endpoint="fal-ai/flux-general/inpainting",
+        category=ModelCategory.VIDEO_EDITING,
+        priority=Priority.PRIMARY,
+        description="Nesne kaldırma ve değiştirme için profesyonel Flow modeli (Kling ile birleşir).",
+        best_for=["inpainting", "remove_object", "replace", "fix"],
+        supports_reference=True,
+        estimated_cost=0.03
+    ),
+    FalModel(
+        name="LTX-Video (V2V)",
+        endpoint="fal-ai/ltx-video/video-to-video",
+        category=ModelCategory.VIDEO_EDITING,
+        priority=Priority.PRIMARY,
+        description="Videonun stilini ve atmosferini değiştirmek için (Video-to-Video).",
+        best_for=["style_transfer", "filter", "atmosphere", "transform"],
+        supports_reference=True,
+        estimated_cost=0.10
+    ),
+    FalModel(
+        name="OmniGen (Instruction)",
+        endpoint="fal-ai/omnigen-v1",
+        category=ModelCategory.VIDEO_EDITING,
+        priority=Priority.ALTERNATIVE,
+        description="Basit talimatlarla kare düzenleme.",
+        best_for=["instruction", "simple_edit"],
+        estimated_cost=0.02
+    ),
+]
+
+
+
 
 # ===============================
 # UPSCALING MODELLERİ
@@ -327,6 +366,7 @@ ALL_MODELS = {
     ModelCategory.IMAGE_EDITING: IMAGE_EDITING_MODELS,
     ModelCategory.FACE_CONSISTENCY: FACE_CONSISTENCY_MODELS,
     ModelCategory.VIDEO_GENERATION: VIDEO_GENERATION_MODELS,
+    ModelCategory.VIDEO_EDITING: VIDEO_EDITING_MODELS,
     ModelCategory.UPSCALING: UPSCALING_MODELS,
     ModelCategory.UTILITY: UTILITY_MODELS,
 }

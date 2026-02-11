@@ -30,6 +30,7 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
     const [editingName, setEditingName] = useState("");
     const editInputRef = useRef<HTMLInputElement>(null);
     const toast = useToast();
+    const [isDragging, setIsDragging] = useState(false);
 
     // Fetch saved images from entities
     useEffect(() => {
@@ -140,14 +141,23 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
     // Drag start for chat drop
     const handleDragStart = (e: React.DragEvent, image: SavedImage) => {
         e.dataTransfer.setData('text/plain', image.imageUrl);
-        e.dataTransfer.setData('application/x-image-url', image.imageUrl);
+        e.dataTransfer.setData('application/x-asset-url', image.imageUrl);
+        e.dataTransfer.setData('application/x-asset-type', image.type); // 'video' | 'image'
         e.dataTransfer.effectAllowed = 'copy';
+
+        // Hide modal content to allow dropping on chat
+        setTimeout(() => setIsDragging(true), 0);
+    };
+
+    const handleDragEnd = () => {
+        setIsDragging(false);
+        onClose(); // Panel'i kapat (Kullanıcı isteği: "eklendiğinde panel geri açılıyor o işlemi engelleyelim")
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-200 ${isDragging ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -247,6 +257,7 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                     key={image.id}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, image)}
+                                    onDragEnd={handleDragEnd}
                                     onClick={() => setSelectedImage(image)}
                                     className="group relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-transparent hover:border-[var(--accent)] transition-all shadow-md hover:shadow-xl"
                                     style={{ background: "var(--card)" }}
@@ -292,7 +303,7 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleCopyUrl(image.imageUrl); }}
                                             className="p-1.5 rounded-lg bg-black/60 hover:bg-black/80 transition-colors"
-                                            title="URL Kopyala"
+                                            title="URL Kopyala (Chat'e sürükleyin)"
                                         >
                                             <Copy size={14} className="text-white" />
                                         </button>
@@ -315,6 +326,7 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                     key={image.id}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, image)}
+                                    onDragEnd={handleDragEnd}
                                     onClick={() => editingId !== image.id && setSelectedImage(image)}
                                     className="flex items-center gap-4 p-3 rounded-xl cursor-pointer hover:bg-[var(--card)] transition-colors border"
                                     style={{ borderColor: "var(--border)" }}

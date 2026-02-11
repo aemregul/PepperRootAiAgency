@@ -169,6 +169,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
     const handleDragStart = (e: React.DragEvent, asset: Asset) => {
         e.dataTransfer.setData('text/plain', asset.url);
         e.dataTransfer.setData('application/x-asset-url', asset.url);
+        e.dataTransfer.setData('application/x-asset-type', asset.type); // 'video' | 'image'
         e.dataTransfer.setData('application/x-asset-id', asset.id);
         e.dataTransfer.effectAllowed = 'copy';
     };
