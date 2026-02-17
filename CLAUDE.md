@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (17 Şubat 2026 - 23:30)
+## 📊 Genel Durum (18 Şubat 2026 - 02:00)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -283,11 +283,11 @@ git add . && git commit -m "mesaj" && git push
 - **Secondary LLM:** Claude Sonnet 4 (Vision için)
 - **Cache:** Redis (alpine container)
 - fal-client v0.12.0
-- Modeller: Nano Banana Pro, Kling 2.5 Turbo Pro, Topaz, Bria RMBG
+- Modeller: Nano Banana Pro, Nano Banana Pro Edit, GPT Image 1, FLUX Kontext Pro, Kling 2.5 Turbo Pro, Topaz, BiRefNet, Bria RMBG
 
 ---
 
-## 🎯 SON DURUM (17 Şubat 2026 - 23:30)
+## 🎯 SON DURUM (18 Şubat 2026 - 02:00)
 
 **🎉 TÜM FAZLAR TAMAMLANDI!**
 
@@ -297,7 +297,8 @@ git add . && git commit -m "mesaj" && git push
 - ✅ **Faz 4: Uzun Video** - Segment-based generation, FFmpeg stitching
 - ✅ **Faz 5: Agent Intelligence Upgrade** - Yüz tutarlılığı, video edit fix, multi-shot
 - ✅ **Faz 6: Advanced Features** - WebSocket, QC, Memory, Style, Campaign, Multi-Agent, Voice
-- ✅ **Faz 7: UI Redesign + Lokalizasyon** - Sidebar yeniden tasarım, Türkçe lokalizasyon ← YENİ
+- ✅ **Faz 7: UI Redesign + Lokalizasyon** - Sidebar yeniden tasarım, Türkçe lokalizasyon
+- 🔄 **Faz 8: Görsel Üretim Kalitesi** - A/B test, model pipeline optimizasyonu ← DEVAM EDİYOR
 
 **Toplam Kod:** 6000+ satır
 
@@ -305,12 +306,37 @@ git add . && git commit -m "mesaj" && git push
 
 ## 📋 EKSİKLER / YAPILACAKLAR
 
+- [ ] Görsel üretim pipeline fine-tuning (uzun prompt timeout sorunu)
 - [ ] Deploy: Railway (Backend) + Vercel (Frontend)
 - [ ] Canlı ortam testleri
 
 ---
 
-## 📝 SON GELİŞMELER (17 Şubat 2026 - 23:30)
+## 📝 SON GELİŞMELER (18 Şubat 2026 - 02:00)
+
+### 🖼️ Görsel Üretim Pipeline Yenileme (18 Şubat) ⭐ YENİ
+
+1. **Model A/B Testi (4 model karşılaştırıldı):**
+   - `fal-ai/gpt-image-1/edit-image` — En iyi yüz koruma, fotorealistik ama yapay hissi var
+   - `fal-ai/flux-pro/kontext` — İyi yüz koruma, daha işlenmiş görünüm
+   - `fal-ai/instantid` — Başarısız sonuçlar
+   - `fal-ai/ip-adapter-face-id` — Başarısız sonuçlar
+
+2. **Yeni 3 Aşamalı Pipeline (`_smart_generate_with_face`):**
+   - **Ön İşlem:** BiRefNet arka plan kaldırma (referans fotoğraftaki kırmızı arka planın sızmasını önler)
+   - **Aşama 1:** Nano Banana Pro Edit — Grid eklentisiyle aynı endpoint (`/edit`), en iyi fotorealizm
+   - **Aşama 2:** GPT Image 1 Edit — ChatGPT'nin kullandığı model (fallback)
+   - **Aşama 3:** FLUX Kontext Pro — Son alternatif
+
+3. **Chat Input İyileştirmesi:**
+   - `<input>` → `<textarea>` değişimi (çok satırlı giriş)
+   - Auto-resize (max 200px)
+   - Shift+Enter ile yeni satır, Enter ile gönder
+   - **Bug fix:** Mesaj gönderdikten sonra textarea yüksekliği sıfırlanıyor
+
+### 📌 Bilinen Sorunlar (Devam Edecek)
+- [ ] Uzun prompt'larla görsel üretim timeout olabiliyor (BiRefNet + Nano Banana pipeline ~45-60s)
+- [ ] AI "biraz bekleteceğim" deyip geri dönüş yapmama sorunu (pipeline timeout kaynaklı)
 
 ### 🎨 UI Redesign + Türkçe Lokalizasyon (17 Şubat)
 

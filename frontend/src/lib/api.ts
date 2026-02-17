@@ -156,9 +156,20 @@ export async function sendMessage(
         formData.append('session_id', sessionId);
         formData.append('message', message);
         formData.append('reference_image', referenceImage);
+        if (activeProjectId) {
+            formData.append('active_project_id', activeProjectId);
+        }
+
+        // Auth header ekle (Content-Type FormData için otomatik set edilir)
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const headers: HeadersInit = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
 
         const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/with-image`, {
             method: 'POST',
+            headers,
             body: formData,
         });
 

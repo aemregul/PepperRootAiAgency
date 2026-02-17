@@ -302,7 +302,31 @@ Kullanıcı görsel gönderip düzenleme isterse (gözlük kaldır, arka plan de
 - ASLA "görseli düzenleyemem" veya "tanımlama yapamam" DEME!
 - Mesajda https:// ile başlayan URL varsa → edit_image çağır!
 
+## 🎨 MODEL ŞEFFAFLIĞI — ÇOK ÖNEMLİ!
 
+Görsel veya video ürettikten sonra MUTLAKA hangi yöntemi kullandığını açıkla!
+
+Tool sonucunda `method_used` ve `quality_notes` bilgileri gelecek. Bu bilgileri kullanıcıya doğal bir şekilde aktar:
+
+**Örnek yanıtlar:**
+- "İşte görsel çıktın! 🎨 Bunu **Nano Banana Pro** modeli ile ürettim."
+- "Görseli **FLUX Kontext** ile oluşturdum. Yüz entegrasyonunu doğal olarak modelin kendi içinde yaptı, face swap kullanmadım."
+- "İlk denemede **FLUX Kontext** ile ürettim ama yüz benzerliği tam yakalanmadı, bu sebeple **Face Swap** ile düzelttim. İşte sonucu:"
+- "Bu görseli **Nano Banana Pro** ile oluşturup ardından **Face Swap** uyguladım çünkü yüz detayları bu şekilde daha iyi sonuç veriyor."
+
+## 🗣️ DOĞAL SOHBET TARZI — ÇOK ÖNEMLİ!
+
+Sen bir chatbot değilsin, gerçek bir yaratıcı partnersin. Doğal konuş:
+- Sonuçları kuru bir şekilde sunma, fikirlerini de paylaş
+- Hangi modeli neden seçtiğini kısaca açıkla
+- Sonuçtan memnun değilsen bunu dürüstçe söyle
+- Alternatif öneriler sun ("İstersen farklı bir açıdan deneyebilirim" gibi)
+
+**KÖTÜ (Yapma):**
+"İşte görsel."
+
+**İYİ (Yap):**
+"İşte ormandaki görsel çıktın! 🌲 Bunu FLUX Kontext ile ürettim, yüz entegrasyonu doğal olarak yapıldı. Beğenmediysen farklı bir açıdan veya ışık ayarıyla tekrar deneyebilirim."
 
 Herhangi bir işlem başarısız olursa:
 
@@ -726,6 +750,12 @@ Herhangi bir işlem başarısız olursa:
         elif tool_name == "edit_image":
             return await self._edit_image(tool_input)
         
+        elif tool_name == "outpaint_image":
+            return await self._outpaint_image(tool_input)
+        
+        elif tool_name == "apply_style":
+            return await self._apply_style(tool_input)
+        
         elif tool_name == "upscale_image":
             return await self._upscale_image(tool_input)
         
@@ -960,7 +990,7 @@ Konuşma:
             # AKILLI SİSTEM: Referans görsel varsa
             print(f"🎯 Referans görsel durumu: {face_reference_url is not None}")
             if face_reference_url:
-                # Akıllı üretim: Nano Banana → kontrol → Face Swap fallback
+                # Akıllı 3 aşamalı üretim: Kontext Native → Nano Banana + Face Swap → Base
                 result = await self.fal_plugin.smart_generate_with_face(
                     prompt=prompt,
                     face_image_url=face_reference_url,
@@ -970,7 +1000,8 @@ Konuşma:
                 
                 if result.get("success"):
                     method = result.get("method_used", "unknown")
-                    quality_note = result.get("quality_check", "")
+                    quality_notes = result.get("quality_notes", "")
+                    model_display = result.get("model_display_name", method)
                     image_url = result.get("image_url")
                     
                     # 📦 Asset'i veritabanına kaydet
@@ -985,7 +1016,8 @@ Konuşma:
                         model_params={
                             "aspect_ratio": aspect_ratio,
                             "resolution": resolution,
-                            "face_reference_used": True
+                            "face_reference_used": True,
+                            "attempts": result.get("attempts", [])
                         },
                         entity_ids=entity_ids
                     )
@@ -997,10 +1029,13 @@ Konuşma:
                     return {
                         "success": True,
                         "image_url": image_url,
-                        "base_image_url": result.get("base_image_url"),  # Alternatif (Nano Banana)
+                        "base_image_url": result.get("base_image_url"),
                         "model": method,
-                        "message": f"Görsel üretildi. {quality_note}",
-                        "agent_decision": f"Referans görsel algılandı. Yöntem: {method}"
+                        "model_display_name": model_display,
+                        "quality_notes": quality_notes,
+                        "attempts": result.get("attempts", []),
+                        "message": f"Görsel üretildi. Yöntem: {model_display}. {quality_notes}",
+                        "agent_decision": f"Referans görsel algılandı. Kullanılan yöntem: {model_display}"
                     }
                 else:
                     return {
@@ -1044,6 +1079,8 @@ Konuşma:
                         "success": True,
                         "image_url": image_url,
                         "model": "nano-banana-pro",
+                        "model_display_name": "Nano Banana Pro",
+                        "quality_notes": "Referans görsel olmadan Nano Banana Pro ile üretildi.",
                         "message": "Görsel başarıyla üretildi (Nano Banana Pro).",
                         "agent_decision": "Referans görsel yok, Nano Banana Pro kullanıldı"
                     }
@@ -1754,6 +1791,56 @@ SADECE değiştirilen hali tanımla, orijinali değil."""
                 "success": False,
                 "error": str(e)
             }
+    
+    async def _outpaint_image(self, params: dict) -> dict:
+        """Görseli genişlet (outpainting)."""
+        try:
+            image_url = params.get("image_url")
+            
+            if not image_url:
+                return {"success": False, "error": "image_url gerekli"}
+            
+            print(f"🔲 Outpainting başlatılıyor...")
+            
+            plugin_result = await self.fal_plugin.execute("outpaint_image", params)
+            
+            if plugin_result.success and plugin_result.data:
+                return {
+                    "success": True,
+                    "image_url": plugin_result.data.get("image_url"),
+                    "model": "outpaint",
+                    "message": "Görsel başarıyla genişletildi."
+                }
+            return {"success": False, "error": plugin_result.error or "Outpainting başarısız"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _apply_style(self, params: dict) -> dict:
+        """Görsele sanatsal stil uygula (style transfer)."""
+        try:
+            image_url = params.get("image_url")
+            style = params.get("style", "impressionism")
+            
+            if not image_url:
+                return {"success": False, "error": "image_url gerekli"}
+            
+            print(f"🎨 Style Transfer başlatılıyor: {style}")
+            
+            plugin_result = await self.fal_plugin.execute("apply_style", params)
+            
+            if plugin_result.success and plugin_result.data:
+                return {
+                    "success": True,
+                    "image_url": plugin_result.data.get("image_url"),
+                    "style_applied": style,
+                    "model": "style-transfer",
+                    "message": f"'{style}' stili başarıyla uygulandı."
+                }
+            return {"success": False, "error": plugin_result.error or "Stil aktarımı başarısız"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     async def _upscale_image(self, params: dict) -> dict:
         """Görsel kalitesini artır."""

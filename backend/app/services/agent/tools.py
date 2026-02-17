@@ -23,7 +23,7 @@ def convert_to_openai_tools(anthropic_tools: list) -> list:
 AGENT_TOOLS_ANTHROPIC = [
     {
         "name": "generate_image",
-        "description": "Kullanıcının isteğine göre AI görseli üretir (Nano Banana Pro). Karakter, mekan veya herhangi bir sahne çizmek için kullanılır. Eğer @tag ile referans verilen bir entity varsa, onun özelliklerini prompt'a ekle.",
+        "description": "Kullanıcının isteğine göre AI görseli üretir. Smart Router otomatik olarak en iyi modeli seçer: metin/logo/tipografi içeren promptlar için FLUX 2 Flex, genel görseller için Nano Banana Pro. Bir model başarısız olursa otomatik fallback yapılır. Eğer @tag ile referans verilen bir entity varsa, onun özelliklerini prompt'a ekle.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -35,6 +35,11 @@ AGENT_TOOLS_ANTHROPIC = [
                     "type": "string",
                     "enum": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9", "4:5", "5:4"],
                     "description": "Görselin en-boy oranı."
+                },
+                "model": {
+                    "type": "string",
+                    "enum": ["fal-ai/nano-banana-pro", "fal-ai/flux-2-flex"],
+                    "description": "Opsiyonel: Belirli bir model seçimi. Belirtilmezse Smart Router otomatik seçer. FLUX 2 Flex metin render'da daha iyi, Nano Banana Pro fotogerçekçi."
                 },
                 "resolution": {
                     "type": "string",
@@ -100,7 +105,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_video",
-        "description": "Video üretir. Kling 3.0 Pro kullanılır.",
+        "description": "Video üretir. Smart Router otomatik olarak en iyi modeli seçer: sinematik/gerçekçi sahneler için Veo 3.1, genel için Kling 3.0 Pro. Başarısız olursa otomatik fallback yapılır.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -145,7 +150,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "edit_image",
-        "description": "Mevcut bir görseli düzenler.",
+        "description": "Mevcut bir görseli akıllı düzenleme ile düzenler. FLUX Kontext Pro (en iyi lokal düzenleme), Object Removal, OmniGen ve Flux Inpainting arasında otomatik seçim yapar. Kıyafet değiştirme, nesne ekleme/çıkarma, renk değiştirme gibi işlemler için ideal.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -412,6 +417,35 @@ AGENT_TOOLS_ANTHROPIC = [
                 "voice": {"type": "string", "enum": ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], "description": "TTS ses tonu (varsayılan: 'nova')"}
             },
             "required": ["video_url", "audio_type"]
+        }
+    },
+    {
+        "name": "outpaint_image",
+        "description": "Görseli genişletir (outpainting). Görselin kenarlarına yeni içerik ekleyerek boyutunu büyütür. Kırpılmış görselleri genişletme, yatay→dikey dönüşüm, panoramik genişletme için kullan. Yön belirtilmezse her yöne 256px genişletir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {"type": "string", "description": "Genişletilecek görselin URL'si"},
+                "prompt": {"type": "string", "description": "Genişletilen alana ne eklenmeli (opsiyonel)"},
+                "left": {"type": "integer", "description": "Sola genişletme miktarı (piksel)"},
+                "right": {"type": "integer", "description": "Sağa genişletme miktarı (piksel)"},
+                "top": {"type": "integer", "description": "Yukarı genişletme miktarı (piksel)"},
+                "bottom": {"type": "integer", "description": "Aşağı genişletme miktarı (piksel)"}
+            },
+            "required": ["image_url"]
+        }
+    },
+    {
+        "name": "apply_style",
+        "description": "Görsele sanatsal stil uygular (style transfer). Empresyonizm, kübizm, sürrealizm, anime, çizgi film, yağlı boya, suluboya, pixel art gibi stiller uygulanabilir. Moodboard stili aktarımı için de kullanılabilir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {"type": "string", "description": "Stil uygulanacak görselin URL'si"},
+                "style": {"type": "string", "description": "Uygulanacak stil (örn: 'impressionism', 'anime', 'oil painting', 'watercolor', 'pixel art', 'cyberpunk')"},
+                "prompt": {"type": "string", "description": "Ek stil açıklaması (opsiyonel)"}
+            },
+            "required": ["image_url", "style"]
         }
     }
 ]

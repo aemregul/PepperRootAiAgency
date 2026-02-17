@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image } from "lucide-react";
+import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn } from "lucide-react";
 import { useToast } from "./ToastProvider";
 import { sendMessage, createSession, checkHealth, getSessionHistory } from "@/lib/api";
 
@@ -25,7 +25,7 @@ interface ChatPanelProps {
 }
 
 // Helper to render @mentions, markdown images, links, and VIDEOS
-function renderContent(content: string | undefined | null) {
+function renderContent(content: string | undefined | null, onImageClick?: (url: string) => void) {
     if (!content || typeof content !== 'string') {
         return content ?? '';
     }
@@ -59,10 +59,9 @@ function renderContent(content: string | undefined | null) {
                     key={key++}
                     src={url}
                     alt={alt}
-                    className="mt-2 mb-2 rounded-lg max-w-full max-h-64 object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => window.open(url, '_blank')}
+                    className="mt-2 mb-2 rounded-lg max-w-full max-h-64 object-contain cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                    onClick={() => onImageClick ? onImageClick(url) : window.open(url, '_blank')}
                     onError={(e) => {
-                        // Görsel yüklenemezse link olarak göster
                         const target = e.currentTarget;
                         target.style.display = 'none';
                         const fallback = document.createElement('a');
@@ -159,11 +158,14 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const [attachedVideoUrl, setAttachedVideoUrl] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+    const [loadingStatus, setLoadingStatus] = useState<string>("Düşünüyor...");
+    const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [offlineQueue, setOfflineQueue] = useState<{ message: string, timestamp: number }[]>([]);
     const [isOffline, setIsOffline] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
     const toast = useToast();
 
     // === AUTO-SAVE DRAFT TO LOCALSTORAGE ===
@@ -400,7 +402,8 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || isLoading || !sessionId) return;
+        const hasContent = input.trim() || attachedFile || attachedVideoUrl;
+        if (!hasContent || isLoading || !sessionId) return;
 
         // If offline, queue the message
         if (isOffline || !navigator.onLine) {
@@ -415,7 +418,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         const userMessage: Message = {
             id: Date.now().toString(),
             role: "user",
-            content: input,
+            content: input || (attachedFile ? "[Referans Görsel]" : ""),
             timestamp: new Date(),
             image_url: filePreview || undefined,
             video_url: attachedVideoUrl || undefined
@@ -432,11 +435,71 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         const currentFile = attachedFile;
 
         setInput("");
+        // Reset textarea height after clearing
+        if (inputRef.current) {
+            inputRef.current.style.height = '24px';
+        }
         // Clear draft from localStorage after successful send start
         localStorage.removeItem(DRAFT_KEY);
         removeAttachment(); // Dosyayı temizle
         setIsLoading(true);
         setError(null);
+
+        // Smart loading status based on message content
+        const lowerMsg = currentInput.toLowerCase();
+        const hasImage = !!currentFile;
+
+        let statusPhases: { text: string; delay: number }[] = [];
+
+        if (lowerMsg.match(/görsel|resim|fotoğraf|image|çiz|oluştur.*görsel|generate.*image|illustration|poster|logo/)) {
+            statusPhases = [
+                { text: "🎨 Prompt analiz ediliyor...", delay: 0 },
+                { text: "🖌️ Görsel oluşturuluyor...", delay: 3000 },
+                { text: "✨ Son rötuşlar yapılıyor...", delay: 12000 },
+            ];
+        } else if (lowerMsg.match(/video|animasyon|klip|sinema|cinematic/)) {
+            statusPhases = [
+                { text: "🎬 Video senaryosu hazırlanıyor...", delay: 0 },
+                { text: "🎥 Video üretiliyor...", delay: 3000 },
+                { text: "🎞️ Video işleniyor...", delay: 15000 },
+            ];
+        } else if (lowerMsg.match(/düzenle|edit|değiştir|kaldır|ekle.*görsel|remove|change/)) {
+            statusPhases = [
+                { text: "🔍 Görsel analiz ediliyor...", delay: 0 },
+                { text: "✏️ Düzenleme yapılıyor...", delay: 3000 },
+                { text: "✨ Sonuç hazırlanıyor...", delay: 10000 },
+            ];
+        } else if (hasImage) {
+            statusPhases = [
+                { text: "📷 Görsel inceleniyor...", delay: 0 },
+                { text: "🧠 Analiz ediliyor...", delay: 2000 },
+                { text: "💬 Yanıt hazırlanıyor...", delay: 5000 },
+            ];
+        } else if (lowerMsg.match(/tanı|kaydet|karakter|entity|lokasyon|mekan/)) {
+            statusPhases = [
+                { text: "🧠 Bilgi analiz ediliyor...", delay: 0 },
+                { text: "💾 Kayıt yapılıyor...", delay: 2000 },
+            ];
+        } else {
+            statusPhases = [
+                { text: "💭 Düşünüyor...", delay: 0 },
+                { text: "📝 Yanıt yazılıyor...", delay: 4000 },
+            ];
+        }
+
+        // Set initial status
+        setLoadingStatus(statusPhases[0].text);
+
+        // Schedule phase transitions
+        const timers: NodeJS.Timeout[] = [];
+        statusPhases.slice(1).forEach((phase) => {
+            const timer = setTimeout(() => setLoadingStatus(phase.text), phase.delay);
+            timers.push(timer);
+        });
+        loadingTimerRef.current = timers[timers.length - 1] || null;
+
+        // Store timers for cleanup
+        const cleanupTimers = () => timers.forEach(t => clearTimeout(t));
 
         try {
             const response = await sendMessage(sessionId, currentInput, currentFile || undefined, activeProjectId);
@@ -485,6 +548,8 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
             setMessages((prev) => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
+            setLoadingStatus("Düşünüyor...");
+            cleanupTimers();
         }
     };
 
@@ -628,7 +693,8 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                         <img
                                             src={msg.image_url}
                                             alt="Referans görsel"
-                                            className="w-32 h-32 object-cover rounded-lg mb-2"
+                                            className="w-32 h-32 object-cover rounded-lg mb-2 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                            onClick={() => setLightboxImage(msg.image_url!)}
                                         />
                                     )}
                                     {msg.video_url && (
@@ -644,7 +710,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                         </div>
                                     )}
                                     <div className="text-sm lg:text-[15px] leading-relaxed">
-                                        {renderContent(msg.content)}
+                                        {renderContent(msg.content, setLightboxImage)}
                                     </div>
                                 </div>
                             ) : (
@@ -654,7 +720,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                         <div className="font-medium mb-2 text-sm">Pepper AI Assistant</div>
                                         <div className="message-bubble message-ai">
                                             <div className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
-                                                {renderContent(msg.content)}
+                                                {renderContent(msg.content, setLightboxImage)}
                                             </div>
 
                                             {/* Only show image_url if it's NOT already in content as markdown */}
@@ -662,7 +728,8 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                                 <img
                                                     src={msg.image_url}
                                                     alt="Üretilen görsel"
-                                                    className="mt-3 rounded-lg max-w-full"
+                                                    className="mt-3 rounded-lg max-w-full cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                                    onClick={() => setLightboxImage(msg.image_url!)}
                                                 />
                                             )}
                                         </div>
@@ -675,9 +742,17 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                     {isLoading && (
                         <div className="flex gap-3">
                             <span className="text-xl shrink-0">🫑</span>
-                            <div className="message-bubble message-ai flex items-center gap-2">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span className="text-sm">Düşünüyor...</span>
+                            <div className="message-bubble message-ai">
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent)" }} />
+                                    <span
+                                        className="text-sm"
+                                        style={{ transition: "opacity 0.3s ease" }}
+                                        key={loadingStatus}
+                                    >
+                                        {loadingStatus}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -686,117 +761,92 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                 </div>
             </div>
 
-            {/* Input */}
+            {/* Input — ChatGPT Style */}
             <div
                 className="p-3 lg:p-4 shrink-0"
                 style={{ background: "var(--background-secondary)" }}
             >
                 <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-                    {/* File Preview */}
-                    {filePreview && (
-                        <div className="mb-2 p-2 rounded-lg flex items-center gap-3" style={{ background: "var(--card)" }}>
-                            <div className="relative">
-                                <img
-                                    src={filePreview}
-                                    alt="Referans görsel"
-                                    className="w-16 h-16 object-cover rounded-lg"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={removeAttachment}
-                                    className="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
-                                >
-                                    <X size={12} />
-                                </button>
-                            </div>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                    <Image size={14} style={{ color: "var(--accent)" }} />
-                                    Referans Görsel
-                                </div>
-                                <p className="text-xs mt-0.5 truncate" style={{ color: "var(--foreground-muted)" }}>
-                                    {attachedFile?.name}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Video Preview */}
-                    {attachedVideoUrl && (
-                        <div className="mb-2 p-2 rounded-lg flex items-center gap-3" style={{ background: "var(--card)" }}>
-                            <div className="relative">
-                                <div className="w-16 h-16 bg-black rounded-lg overflow-hidden flex items-center justify-center">
-                                    <video
-                                        src={attachedVideoUrl}
-                                        className="w-full h-full object-cover opacity-80"
+                    <div
+                        className="chat-input rounded-2xl overflow-hidden"
+                        style={{
+                            background: "var(--card)",
+                            border: "1px solid var(--border)",
+                        }}
+                    >
+                        {/* Inline Image Preview — ChatGPT Style */}
+                        {filePreview && (
+                            <div className="p-3 pb-0">
+                                <div className="relative inline-block">
+                                    <img
+                                        src={filePreview}
+                                        alt="Referans görsel"
+                                        className="w-36 h-36 object-cover rounded-xl"
+                                        style={{ border: "1px solid var(--border)" }}
                                     />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-white text-xs">VİDEO</span>
+                                    {/* Overlay Buttons */}
+                                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
+                                            style={{ background: "rgba(0,0,0,0.5)" }}
+                                            title="Görseli değiştir"
+                                        >
+                                            <Paperclip size={13} className="text-white" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={removeAttachment}
+                                            className="p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
+                                            style={{ background: "rgba(0,0,0,0.5)" }}
+                                            title="Görseli kaldır"
+                                        >
+                                            <X size={13} className="text-white" />
+                                        </button>
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={removeAttachment}
-                                    className="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors z-10 shadow-sm"
-                                >
-                                    <X size={12} />
-                                </button>
                             </div>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                    <span className="text-lg">📹</span>
-                                    Referans Video
+                        )}
+
+                        {/* Inline Video Preview */}
+                        {attachedVideoUrl && (
+                            <div className="p-3 pb-0">
+                                <div className="relative inline-block">
+                                    <div
+                                        className="w-36 h-24 bg-black rounded-xl overflow-hidden flex items-center justify-center"
+                                        style={{ border: "1px solid var(--border)" }}
+                                    >
+                                        <video
+                                            src={attachedVideoUrl}
+                                            className="w-full h-full object-cover opacity-80"
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <span className="text-white text-xs font-medium bg-black/50 px-2 py-1 rounded">📹 VİDEO</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={removeAttachment}
+                                        className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
+                                        style={{ background: "rgba(0,0,0,0.5)" }}
+                                        title="Videoyu kaldır"
+                                    >
+                                        <X size={13} className="text-white" />
+                                    </button>
                                 </div>
-                                <p className="text-xs mt-0.5 truncate text-[var(--accent)] underline cursor-pointer" onClick={() => window.open(attachedVideoUrl, '_blank')}>
-                                    {attachedVideoUrl.split('/').pop() || 'video.mp4'}
-                                </p>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    <div className="chat-input flex items-center gap-2 p-2">
-                        <button
-                            type="button"
-                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors shrink-0"
-                            title="Sesli giriş"
-                        >
-                            <Mic size={20} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            placeholder={isDragOver ? "Buraya bırak..." : isConnected ? "Mesajınızı yazın..." : "Backend bağlantısı bekleniyor..."}
-                            className={`flex-1 bg-transparent outline-none text-sm lg:text-[15px] px-2 ${isDragOver ? 'text-[var(--accent)]' : ''}`}
-                            style={{ color: "var(--foreground)" }}
-                            disabled={isLoading || !isConnected}
-                        />
-
-                        <div className="flex items-center gap-1 shrink-0">
-                            {/* Plugin Yap Button */}
+                        {/* Text Input Row */}
+                        <div className="flex items-center gap-2 p-2">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    const pluginMessage = "Plugin oluşturma modunu başlat. Şu ana kadar bu sohbette kullandığım karakter, lokasyon, zaman, kamera açıları ve stil ayarlarını analiz et ve bana uygun bir Creative Plugin önerisi sun.";
-                                    setInput(pluginMessage);
-                                }}
-                                className="p-2 rounded-lg transition-all hover:shadow-md"
-                                style={{
-                                    background: "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%)",
-                                    border: "1px solid rgba(139, 92, 246, 0.3)"
-                                }}
-                                title="Bu sohbetten otomatik plugin oluştur"
+                                onClick={() => fileInputRef.current?.click()}
+                                className={`p-2 rounded-lg transition-colors shrink-0 ${attachedFile ? 'bg-[var(--accent)]/20' : 'hover:bg-[var(--background-secondary)]'}`}
+                                title="Referans görsel ekle"
                             >
-                                <Sparkles size={18} className="text-purple-400" />
-                            </button>
-                            <button
-                                type="button"
-                                className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                title="Emoji"
-                            >
-                                <Smile size={20} style={{ color: "var(--foreground-muted)" }} />
+                                <Paperclip size={20} style={{ color: attachedFile ? 'var(--accent)' : 'var(--foreground-muted)' }} />
                             </button>
                             <input
                                 ref={fileInputRef}
@@ -805,29 +855,114 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                 onChange={handleFileSelect}
                                 className="hidden"
                             />
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className={`p-2 rounded-lg transition-colors ${attachedFile ? 'bg-[var(--accent)]/20' : 'hover:bg-[var(--card)]'}`}
-                                title="Referans görsel ekle"
-                            >
-                                <Paperclip size={20} style={{ color: attachedFile ? 'var(--accent)' : 'var(--foreground-muted)' }} />
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={!input.trim() || isLoading || !isConnected}
-                                className="p-2 rounded-lg transition-all duration-200 disabled:opacity-40"
-                                style={{
-                                    background: input.trim() && isConnected ? "var(--accent)" : "transparent",
-                                    color: input.trim() && isConnected ? "var(--background)" : "var(--foreground-muted)"
+
+                            <textarea
+                                ref={inputRef}
+                                value={input}
+                                onChange={(e) => {
+                                    setInput(e.target.value);
+                                    // Auto-resize
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
                                 }}
-                            >
-                                <Send size={18} />
-                            </button>
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        if (input.trim() || attachedFile || attachedVideoUrl) {
+                                            handleSubmit(e as unknown as React.FormEvent);
+                                        }
+                                    }
+                                }}
+                                placeholder={isDragOver ? "Buraya bırak..." : isConnected ? "Herhangi bir şey sor" : "Backend bağlantısı bekleniyor..."}
+                                className={`flex-1 bg-transparent outline-none text-sm lg:text-[15px] px-1 resize-none ${isDragOver ? 'text-[var(--accent)]' : ''}`}
+                                style={{ color: "var(--foreground)", height: '24px', maxHeight: '200px', overflowY: 'auto' }}
+                                disabled={isLoading || !isConnected}
+                                rows={1}
+                            />
+
+                            <div className="flex items-center gap-1 shrink-0">
+                                {/* Plugin Yap Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const pluginMessage = "Plugin oluşturma modunu başlat. Şu ana kadar bu sohbette kullandığım karakter, lokasyon, zaman, kamera açıları ve stil ayarlarını analiz et ve bana uygun bir Creative Plugin önerisi sun.";
+                                        setInput(pluginMessage);
+                                    }}
+                                    className="p-2 rounded-lg transition-all hover:shadow-md"
+                                    style={{
+                                        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%)",
+                                        border: "1px solid rgba(139, 92, 246, 0.3)"
+                                    }}
+                                    title="Bu sohbetten otomatik plugin oluştur"
+                                >
+                                    <Sparkles size={18} className="text-purple-400" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="p-2 rounded-lg hover:bg-[var(--background-secondary)] transition-colors"
+                                    title="Sesli giriş"
+                                >
+                                    <Mic size={20} style={{ color: "var(--foreground-muted)" }} />
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={(!input.trim() && !attachedFile && !attachedVideoUrl) || isLoading || !isConnected}
+                                    className="p-2 rounded-full transition-all duration-200 disabled:opacity-40"
+                                    style={{
+                                        background: (input.trim() || attachedFile || attachedVideoUrl) && isConnected ? "var(--accent)" : "var(--foreground-muted)",
+                                        color: "var(--background)"
+                                    }}
+                                >
+                                    <Send size={16} />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </form>
             </div>
+
+            {/* Lightbox Modal */}
+            {lightboxImage && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ background: "rgba(0, 0, 0, 0.85)", backdropFilter: "blur(8px)" }}
+                    onClick={() => setLightboxImage(null)}
+                    onKeyDown={(e) => e.key === 'Escape' && setLightboxImage(null)}
+                    tabIndex={0}
+                    ref={(el) => el?.focus()}
+                >
+                    {/* Close Button */}
+                    <button
+                        onClick={() => setLightboxImage(null)}
+                        className="absolute top-4 right-4 p-2 rounded-full transition-colors hover:bg-white/20"
+                        style={{ background: "rgba(255,255,255,0.1)" }}
+                    >
+                        <X size={24} className="text-white" />
+                    </button>
+
+                    {/* Open in New Tab */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(lightboxImage!, '_blank');
+                        }}
+                        className="absolute top-4 right-16 p-2 rounded-full transition-colors hover:bg-white/20"
+                        style={{ background: "rgba(255,255,255,0.1)" }}
+                        title="Yeni sekmede aç"
+                    >
+                        <ZoomIn size={24} className="text-white" />
+                    </button>
+
+                    {/* Image */}
+                    <img
+                        src={lightboxImage!}
+                        alt="Büyütülmüş görsel"
+                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ animation: "fadeIn 0.2s ease-out" }}
+                    />
+                </div>
+            )}
         </div>
     );
 }

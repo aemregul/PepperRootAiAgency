@@ -2,9 +2,20 @@
 fal.ai Plugin V2 - Yeni plugin sistemine uyumlu fal.ai adapter.
 
 Bu plugin PluginBase'den türetilir ve plugin_loader tarafından yönetilir.
+
+V3 Upgrade (17 Şubat 2026):
+- Smart Model Router: İstek tipine göre en iyi modeli otomatik seç
+- Auto-Retry Fallback: Başarısız olursa alternatif modelle dene
+- FLUX 2 Flex: Metin/tipografi render için
+- FLUX Kontext: Akıllı lokal görsel düzenleme
+- Veo 3.1: Google'ın en kaliteli video modeli
+- Outpainting: Görseli genişletme
+- Style Transfer: Sanatsal stil uygulama
 """
 import os
 import time
+import asyncio
+import logging
 from typing import Optional, Any
 import fal_client
 
@@ -13,6 +24,8 @@ from app.services.plugins.plugin_base import (
     PluginBase, PluginInfo, PluginResult, PluginCategory
 )
 from app.services.plugins.fal_models import ALL_MODELS, ModelCategory as FalModelCategory
+
+logger = logging.getLogger(__name__)
 
 
 class FalPluginV2(PluginBase):
@@ -37,8 +50,8 @@ class FalPluginV2(PluginBase):
         return PluginInfo(
             name="fal_ai",
             display_name="fal.ai",
-            version="2.0.0",
-            description="Görsel ve video üretimi için fal.ai AI modelleri",
+            version="3.0.0",
+            description="Görsel ve video üretimi için fal.ai AI modelleri (Smart Router + Auto-Retry)",
             category=PluginCategory.IMAGE_GENERATION,
             author="Pepper Root",
             requires_api_key=True,
@@ -51,6 +64,8 @@ class FalPluginV2(PluginBase):
                 "upscaling",
                 "face_swap",
                 "background_removal",
+                "outpainting",
+                "style_transfer",
             ],
             config_schema={
                 "default_model": {"type": "string", "default": "fal-ai/nano-banana-pro"},
@@ -69,6 +84,8 @@ class FalPluginV2(PluginBase):
             "remove_background",
             "face_swap",
             "smart_generate_with_face",
+            "outpaint_image",
+            "apply_style",
         ]
     
     async def execute(self, action: str, params: dict) -> PluginResult:
@@ -108,6 +125,10 @@ class FalPluginV2(PluginBase):
                 result = await self._face_swap(params)
             elif action == "smart_generate_with_face":
                 result = await self._smart_generate_with_face(params)
+            elif action == "outpaint_image":
+                result = await self._outpaint_image(params)
+            elif action == "apply_style":
+                result = await self._apply_style(params)
             else:
                 return PluginResult(
                     success=False,
@@ -141,14 +162,90 @@ class FalPluginV2(PluginBase):
             return False
     
     # ===============================
+    # SMART MODEL ROUTER
+    # ===============================
+    
+    # Model fallback zincirleri — bir model başarısız olursa sıradaki denenir
+    IMAGE_MODEL_CHAIN = [
+        "fal-ai/nano-banana-pro",
+        "fal-ai/flux-2-flex",
+    ]
+    
+    VIDEO_MODEL_CHAIN = [
+        {"i2v": "fal-ai/kling-video/v3/pro/image-to-video", "t2v": "fal-ai/kling-video/v3/pro/text-to-video"},
+        {"i2v": "fal-ai/veo3.1/image-to-video", "t2v": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"},
+    ]
+    
+    EDIT_MODEL_CHAIN = [
+        "fal-ai/flux-pro/kontext",
+        "fal-ai/omnigen-v1",
+        "fal-ai/flux-general/inpainting",
+    ]
+    
+    def _select_image_model(self, prompt: str) -> str:
+        """
+        Smart Model Router — prompt'a göre en iyi görsel modelini seç.
+        
+        - Metin/logo/tipografi → FLUX 2 Flex (metin render'da en iyi)
+        - Fotogerçekçi/genel → Nano Banana Pro (hız + kalite dengesi)
+        """
+        prompt_lower = prompt.lower()
+        
+        # Metin/tipografi/logo gerektiren promptlar
+        text_keywords = [
+            "text", "logo", "typography", "yazı", "metin", "slogan",
+            "poster", "banner", "afiş", "kart", "card", "title",
+            "heading", "başlık", "label", "etiket", "sign", "tabela",
+            "writing", "font", "letter", "harf",
+        ]
+        
+        if any(kw in prompt_lower for kw in text_keywords):
+            logger.info("🎯 Smart Router: FLUX 2 Flex seçildi (tipografi)")
+            return "fal-ai/flux-2-flex"
+        
+        # Varsayılan: Nano Banana Pro
+        logger.info("🎯 Smart Router: Nano Banana Pro seçildi (varsayılan)")
+        return "fal-ai/nano-banana-pro"
+    
+    def _select_video_model(self, prompt: str, has_image: bool) -> str:
+        """
+        Smart Video Model Router.
+        
+        - Genel → Kling 3.0 Pro (varsayılan, en güvenilir)
+        - Sinematik/gerçekçi → Veo 3.1 (Google'ın en iyisi)
+        """
+        prompt_lower = prompt.lower()
+        mode = "i2v" if has_image else "t2v"
+        
+        # Sinematik/gerçekçi istekler
+        cinematic_keywords = [
+            "cinematic", "sinematik", "realistic", "gerçekçi",
+            "film", "movie", "documentary", "belgesel",
+            "slow motion", "yavaş çekim", "epic",
+        ]
+        
+        if has_image and any(kw in prompt_lower for kw in cinematic_keywords):
+            logger.info("🎯 Smart Router: Veo 3.1 seçildi (sinematik)")
+            return "fal-ai/veo3.1/image-to-video"
+        
+        # Varsayılan: Kling 3.0 Pro
+        return self.VIDEO_MODEL_CHAIN[0][mode]
+    
+    # ===============================
     # PRIVATE METHODS
     # ===============================
     
     async def _generate_image(self, params: dict) -> dict:
-        """Nano Banana Pro ile görsel üret."""
+        """
+        Akıllı Görsel Üretim — Smart Router + Auto-Retry Fallback.
+        
+        1. Smart Router prompt'a göre en iyi modeli seçer
+        2. Başarısız olursa fallback zincirine geçer
+        """
         prompt = params.get("prompt", "")
         aspect_ratio = params.get("aspect_ratio", "1:1")
         resolution = params.get("resolution", "1K")
+        preferred_model = params.get("model")  # Opsiyonel: Agent belirli model isteyebilir
         
         # Resolution mapping
         resolution_map = {
@@ -172,74 +269,131 @@ class FalPluginV2(PluginBase):
             w, h = res_config[aspect_type]
             image_size = {"width": w, "height": h}
         
-        try:
-            result = await fal_client.subscribe_async(
-                "fal-ai/nano-banana-pro",
-                arguments={
-                    "prompt": prompt,
-                    "image_size": image_size,
-                    "num_images": 1,
-                },
-                with_logs=True,
-            )
-            
-            if result and "images" in result and len(result["images"]) > 0:
-                return {
-                    "success": True,
-                    "image_url": result["images"][0]["url"],
-                    "model": "nano-banana-pro",
-                }
-            else:
-                return {"success": False, "error": "Görsel üretilemedi"}
+        # Smart Model Router: En iyi modeli seç
+        selected_model = preferred_model or self._select_image_model(prompt)
+        
+        # Auto-Retry Fallback zinciri oluştur
+        models_to_try = [selected_model]
+        for m in self.IMAGE_MODEL_CHAIN:
+            if m not in models_to_try:
+                models_to_try.append(m)
+        
+        last_error = None
+        for model_id in models_to_try:
+            try:
+                logger.info(f"🖼️ Görsel üretim deneniyor: {model_id}")
                 
-        except Exception as e:
-            print(f"❌ FAL.AI HATA: {str(e)}")  # Debug log
-            return {"success": False, "error": str(e)}
+                # FLUX 2 Flex farklı parametre yapısı kullanır
+                if "flux-2" in model_id:
+                    arguments = {
+                        "prompt": prompt,
+                        "image_size": image_size,
+                        "num_images": 1,
+                        "num_inference_steps": 28,
+                        "guidance_scale": 3.5,
+                    }
+                else:
+                    arguments = {
+                        "prompt": prompt,
+                        "image_size": image_size,
+                        "num_images": 1,
+                    }
+                
+                result = await fal_client.subscribe_async(
+                    model_id,
+                    arguments=arguments,
+                    with_logs=True,
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    logger.info(f"✅ Görsel üretildi: {model_id}")
+                    return {
+                        "success": True,
+                        "image_url": result["images"][0]["url"],
+                        "model": model_id.split("/")[-1],
+                        "model_id": model_id,
+                    }
+                    
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"⚠️ {model_id} başarısız: {e}. Sonraki model deneniyor...")
+                continue
+        
+        return {"success": False, "error": f"Tüm modeller başarısız. Son hata: {last_error}"}
     
     async def _generate_video(self, params: dict) -> dict:
-        """Kling 3.0 Pro ile video üret."""
+        """
+        Akıllı Video Üretim — Smart Router + Auto-Retry Fallback.
+        
+        Modeller:
+        - Kling 3.0 Pro: Genel amaçlı, güvenilir (varsayılan)
+        - Veo 3.1: Sinematik/gerçekçi sahneler için
+        """
         prompt = params.get("prompt", "")
         image_url = params.get("image_url")  # Opsiyonel - image-to-video
         duration = params.get("duration", "5")  # 5 veya 10 saniye
+        preferred_model = params.get("model")  # Opsiyonel: Agent belirli model isteyebilir
         
-        try:
-            arguments = {
-                "prompt": prompt,
-                "duration": duration,
-                "aspect_ratio": params.get("aspect_ratio", "16:9"),
-            }
-            
-            if image_url:
-                arguments["image_url"] = image_url
-            
-            result = await fal_client.subscribe_async(
-                "fal-ai/kling-video/v3/pro/image-to-video" if image_url 
-                else "fal-ai/kling-video/v3/pro/text-to-video",
-                arguments=arguments,
-                with_logs=True,
-            )
-            
-            if result and "video" in result:
-                return {
-                    "success": True,
-                    "video_url": result["video"]["url"],
-                    "thumbnail_url": result["video"].get("thumbnail_url"),
-                    "model": "kling-3.0-pro",
-                }
-            else:
-                return {"success": False, "error": "Video üretilemedi"}
+        has_image = bool(image_url)
+        
+        # Smart Router: en iyi video modelini seç
+        selected_model = preferred_model or self._select_video_model(prompt, has_image)
+        
+        # Fallback zinciri oluştur
+        mode = "i2v" if has_image else "t2v"
+        models_to_try = [selected_model]
+        for chain_entry in self.VIDEO_MODEL_CHAIN:
+            model = chain_entry[mode]
+            if model not in models_to_try:
+                models_to_try.append(model)
+        
+        last_error = None
+        for model_id in models_to_try:
+            try:
+                logger.info(f"🎥 Video üretim deneniyor: {model_id}")
                 
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+                arguments = {
+                    "prompt": prompt,
+                    "duration": duration,
+                    "aspect_ratio": params.get("aspect_ratio", "16:9"),
+                }
+                
+                if image_url:
+                    arguments["image_url"] = image_url
+                
+                result = await fal_client.subscribe_async(
+                    model_id,
+                    arguments=arguments,
+                    with_logs=True,
+                )
+                
+                if result and "video" in result:
+                    model_name = model_id.split("/")[-1] if "/" in model_id else model_id
+                    logger.info(f"✅ Video üretildi: {model_id}")
+                    return {
+                        "success": True,
+                        "video_url": result["video"]["url"],
+                        "thumbnail_url": result["video"].get("thumbnail_url"),
+                        "model": model_name,
+                        "model_id": model_id,
+                    }
+                    
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"⚠️ {model_id} başarısız: {e}. Sonraki model deneniyor...")
+                continue
+        
+        return {"success": False, "error": f"Tüm video modelleri başarısız. Son hata: {last_error}"}
     
     async def _edit_image(self, params: dict) -> dict:
         """
-        Akıllı Görsel Düzenleme.
+        Akıllı Görsel Düzenleme — FLUX Kontext + Auto-Retry.
         
         Sırasıyla dener:
         1. Object Removal (eğer "kaldır/sil" denildiyse)
-        2. OmniGen (Genel düzenleme)
-        3. Flux Inpainting/Img2Img (Fallback)
+        2. FLUX Kontext Pro (Akıllı lokal düzenleme — en iyi)
+        3. OmniGen (Genel düzenleme)
+        4. Flux Inpainting (Fallback)
         """
         original_prompt = params.get("prompt", "")
         image_url = params.get("image_url", "")
@@ -250,9 +404,9 @@ class FalPluginV2(PluginBase):
             try:
                 from app.services.prompt_translator import translate_to_english
                 english_prompt, _ = await translate_to_english(original_prompt)
-                print(f"🎨 Edit Prompt: '{original_prompt}' -> '{english_prompt}'")
+                logger.info(f"🎨 Edit Prompt: '{original_prompt}' -> '{english_prompt}'")
             except Exception as trans_error:
-                print(f"⚠️ Prompt çeviri hatası: {trans_error}. Orijinal prompt kullanılıyor.")
+                logger.warning(f"Prompt çeviri hatası: {trans_error}. Orijinal prompt kullanılıyor.")
             
             # 2. "Silme" isteği mi?
             removal_keywords = ["remove", "delete", "erase", "take off", "clear", "gone"]
@@ -264,7 +418,7 @@ class FalPluginV2(PluginBase):
                 for word in ["remove", "delete", "erase", "take off", "the", "from", "image", "photo", "picture", "please"]:
                     object_to_remove = object_to_remove.lower().replace(word, "").strip()
                 
-                print(f"🗑️ Object Removal deneniyor: '{object_to_remove}'")
+                logger.info(f"🗑️ Object Removal deneniyor: '{object_to_remove}'")
                 
                 try:
                     result = await fal_client.subscribe_async(
@@ -284,10 +438,33 @@ class FalPluginV2(PluginBase):
                             "method_used": "object_removal"
                         }
                 except Exception as e:
-                    print(f"⚠️ Object Removal hatası: {e}")
+                    logger.warning(f"Object Removal hatası: {e}")
 
-            # 3. OmniGen (Instruction Based)
-            print(f"✨ OmniGen deneniyor: '{english_prompt}'")
+            # 3. FLUX Kontext Pro (Akıllı Lokal Düzenleme — en iyi)
+            logger.info(f"🎯 FLUX Kontext deneniyor: '{english_prompt}'")
+            try:
+                result = await fal_client.subscribe_async(
+                    "fal-ai/flux-pro/kontext",
+                    arguments={
+                        "prompt": english_prompt,
+                        "image_url": image_url,
+                        "guidance_scale": 3.5,
+                    },
+                    with_logs=True,
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    return {
+                        "success": True,
+                        "image_url": result["images"][0]["url"],
+                        "model": "flux-kontext-pro",
+                        "method_used": "kontext"
+                    }
+            except Exception as e:
+                logger.warning(f"FLUX Kontext hatası: {e}")
+
+            # 4. OmniGen (Instruction Based Fallback)
+            logger.info(f"✨ OmniGen deneniyor: '{english_prompt}'")
             try:
                 edit_prompt = f"<img><|image_1|></img> {english_prompt}"
                 result = await fal_client.subscribe_async(
@@ -311,14 +488,106 @@ class FalPluginV2(PluginBase):
                         "method_used": "omnigen"
                     }
             except Exception as e:
-                 print(f"⚠️ OmniGen hatası: {e}")
+                logger.warning(f"OmniGen hatası: {e}")
 
-            # 4. Fallback: Flux Inpainting (Eğer silme ise keywords ile)
-            print("🔧 Flux Inpainting Fallback...")
+            # 5. Fallback: Flux Inpainting
+            logger.info("🔧 Flux Inpainting Fallback...")
             return await self._inpainting_flux(image_url, english_prompt if english_prompt else original_prompt)
                 
         except Exception as e:
-            print(f"❌ EDIT IMAGE HATA: {str(e)}")
+            logger.error(f"EDIT IMAGE KRİTİK HATA: {str(e)}")
+            return {"success": False, "error": str(e)}
+    
+    async def _outpaint_image(self, params: dict) -> dict:
+        """
+        Görseli genişletme (Outpainting).
+        
+        Görseli belirtilen yönlere doğru genişletir (sol, sağ, üst, alt).
+        Panoramik genişletme, aspect ratio dönüşümü için kullanılır.
+        """
+        image_url = params.get("image_url", "")
+        prompt = params.get("prompt", "")
+        # Genişletme miktarları (piksel)
+        left = params.get("left", 0)
+        right = params.get("right", 0)
+        top = params.get("top", 0)
+        bottom = params.get("bottom", 0)
+        
+        # Eğer yön belirtilmemişse, otomatik genişlet (her yöne 256px)
+        if left == 0 and right == 0 and top == 0 and bottom == 0:
+            left = right = top = bottom = 256
+        
+        try:
+            logger.info(f"🔲 Outpainting: L={left} R={right} T={top} B={bottom}")
+            
+            result = await fal_client.subscribe_async(
+                "fal-ai/image-apps-v2/outpaint",
+                arguments={
+                    "image_url": image_url,
+                    "prompt": prompt,
+                    "left": left,
+                    "right": right,
+                    "top": top,
+                    "bottom": bottom,
+                },
+                with_logs=True,
+            )
+            
+            if result and "image" in result:
+                return {
+                    "success": True,
+                    "image_url": result["image"]["url"],
+                    "model": "outpaint",
+                    "method_used": "outpainting"
+                }
+            else:
+                return {"success": False, "error": "Outpainting başarısız"}
+                
+        except Exception as e:
+            logger.error(f"Outpainting hatası: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def _apply_style(self, params: dict) -> dict:
+        """
+        Sanatsal Stil Aktarımı (Style Transfer).
+        
+        Görsele artistik stil uygular:
+        - Empresyonizm, kübizm, sürrealizm, anime, çizgi film...
+        - Moodboard'dan stil aktarımı
+        """
+        image_url = params.get("image_url", "")
+        style = params.get("style", "impressionism")  # Stil adı veya açıklaması
+        prompt = params.get("prompt", "")
+        
+        # Style prompt oluştur
+        style_prompt = prompt if prompt else f"Apply {style} art style to this image"
+        
+        try:
+            logger.info(f"🎨 Style Transfer: '{style}' uygulanıyor")
+            
+            result = await fal_client.subscribe_async(
+                "fal-ai/image-apps-v2/style-transfer",
+                arguments={
+                    "image_url": image_url,
+                    "style": style,
+                    "prompt": style_prompt,
+                },
+                with_logs=True,
+            )
+            
+            if result and "image" in result:
+                return {
+                    "success": True,
+                    "image_url": result["image"]["url"],
+                    "model": "style-transfer",
+                    "style_applied": style,
+                    "method_used": "style_transfer"
+                }
+            else:
+                return {"success": False, "error": "Stil aktarımı başarısız"}
+                
+        except Exception as e:
+            logger.error(f"Style Transfer hatası: {e}")
             return {"success": False, "error": str(e)}
     
     async def _upscale_image(self, params: dict) -> dict:
@@ -424,51 +693,209 @@ class FalPluginV2(PluginBase):
     
     async def _smart_generate_with_face(self, params: dict) -> dict:
         """
-        Akıllı görsel üretim - yüz tutarlılığı ile.
+        Akıllı görsel üretim — yüz kimliği korumalı.
         
-        1. Nano Banana ile görsel üret
-        2. Yüz kontrolü yap
-        3. Gerekirse face swap uygula
+        Grid eklentisindeki kaliteyi chat'e taşıyan strateji:
+        0. Arka Plan Kaldırma — Referans fotoğraftan arka planı temizle (kırmızı alan sızmasını önler)
+        1. Nano Banana Pro Edit — Grid eklentisinin kullandığı model (en iyi fotorealizm)
+        2. GPT Image 1 Edit — ChatGPT modeli (güçlü fallback)
+        3. FLUX Kontext Pro — Son alternatif
         """
+        import httpx
+        
         prompt = params.get("prompt", "")
         face_image_url = params.get("face_image_url", "")
         aspect_ratio = params.get("aspect_ratio", "1:1")
         resolution = params.get("resolution", "1K")
         
-        # 1. Base görsel üret
-        base_result = await self._generate_image({
-            "prompt": prompt,
-            "aspect_ratio": aspect_ratio,
-            "resolution": resolution,
-        })
+        attempts = []
         
-        if not base_result.get("success"):
-            return base_result
+        # ═══════════════════════════════════════════════════════════════
+        # ÖN İŞLEM: Arka Plan Kaldırma (BiRefNet)
+        # ═══════════════════════════════════════════════════════════════
+        # Referans fotoğraftaki arka planı (kırmızı EMRE yazısı vs.) temizle.
+        # Bu Gemini/ChatGPT'nin dahili olarak yaptığı işlemin aynısı.
+        clean_face_url = face_image_url
+        logger.info(f"🧹 Arka plan kaldırılıyor (BiRefNet)...")
+        try:
+            bg_result = await fal_client.subscribe_async(
+                "fal-ai/birefnet",
+                arguments={
+                    "image_url": face_image_url,
+                    "model": "General Use (Heavy)",
+                    "operating_resolution": "1024x1024",
+                    "output_format": "png",
+                },
+                with_logs=True,
+            )
+            
+            if bg_result and "image" in bg_result:
+                clean_face_url = bg_result["image"]["url"]
+                logger.info(f"✅ Arka plan kaldırıldı! Temiz referans görseli hazır.")
+            else:
+                logger.warning(f"⚠️ Arka plan kaldırma sonuç döndürmedi, orijinal görsel kullanılacak.")
+        except Exception as e:
+            logger.warning(f"⚠️ Arka plan kaldırma hatası: {e}. Orijinal görsel kullanılacak.")
         
-        base_image_url = base_result["image_url"]
-        
-        # 2. Face swap uygula
-        swap_result = await self._face_swap({
-            "base_image_url": base_image_url,
-            "swap_image_url": face_image_url,
-        })
-        
-        if swap_result.get("success"):
-            return {
-                "success": True,
-                "image_url": swap_result["image_url"],
-                "base_image_url": base_image_url,
-                "method_used": "nano_banana_with_face_swap",
-                "quality_check": "Yüz tutarlılığı sağlandı.",
+        # ═══════════════════════════════════════════════════════════════
+        # AŞAMA 1: Nano Banana Pro Edit — Grid Eklentisinin Modeli
+        # ═══════════════════════════════════════════════════════════════
+        # Grid eklentisinde mükemmel sonuç veren aynı endpoint.
+        # Temiz referans görseli + prompt gönderip fotorealistik sonuç alır.
+        logger.info(f"🎯 Aşama 1: Nano Banana Pro Edit — Grid modeli ile üretim...")
+        try:
+            request_body = {
+                "prompt": prompt,
+                "image_urls": [clean_face_url],
+                "num_images": 1,
+                "aspect_ratio": aspect_ratio,
+                "output_format": "png",
+                "resolution": resolution or "1K",
             }
-        else:
-            # Face swap başarısızsa base görseli döndür
-            return {
-                "success": True,
-                "image_url": base_image_url,
-                "method_used": "nano_banana_only",
-                "quality_check": "Face swap başarısız, base görsel döndürüldü.",
-            }
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    "https://fal.run/fal-ai/nano-banana-pro/edit",
+                    headers={
+                        "Authorization": f"Key {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=request_body
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("images") and len(data["images"]) > 0:
+                        image_url = data["images"][0]["url"]
+                        logger.info(f"✅ Nano Banana Pro Edit başarılı!")
+                        return {
+                            "success": True,
+                            "image_url": image_url,
+                            "base_image_url": image_url,
+                            "method_used": "nano_banana_pro_edit",
+                            "quality_notes": "Nano Banana Pro Edit ile fotorealistik görsel üretildi (Grid eklentisi kalitesinde).",
+                            "model_display_name": "Nano Banana Pro",
+                            "attempts": ["nano_banana_pro_edit (başarılı)"],
+                        }
+                else:
+                    logger.warning(f"⚠️ Nano Banana Pro Edit HTTP {response.status_code}: {response.text[:200]}")
+                    attempts.append(f"nano_banana_pro_edit (HTTP {response.status_code})")
+        except Exception as e:
+            logger.warning(f"⚠️ Nano Banana Pro Edit hatası: {e}")
+            attempts.append(f"nano_banana_pro_edit (hata: {str(e)[:80]})")
+        
+        # ═══════════════════════════════════════════════════════════════
+        # AŞAMA 2: GPT Image 1 Edit — ChatGPT Modeli (Fallback)
+        # ═══════════════════════════════════════════════════════════════
+        gpt_size_map = {
+            "1:1": "1024x1024",
+            "16:9": "1536x1024",
+            "9:16": "1024x1536",
+            "4:3": "1536x1024",
+            "3:4": "1024x1536",
+        }
+        gpt_image_size = gpt_size_map.get(aspect_ratio, "1024x1024")
+        
+        logger.info(f"🖌️ Aşama 2: GPT Image 1 Edit — ChatGPT modeli ile üretim...")
+        try:
+            edit_prompt = f"Create a photorealistic photograph: {prompt}. The person in this photo must look exactly like the person in the reference image — same face, skin tone, hair, and features. IMPORTANT: Do NOT copy the framing, pose, or composition from the reference photo. Instead, create a completely new scene with natural composition matching the described scenario. Show the full body or environment as the scene requires, not just a close-up headshot. Discard the original background entirely."
+            
+            result = await fal_client.subscribe_async(
+                "fal-ai/gpt-image-1/edit-image",
+                arguments={
+                    "prompt": edit_prompt,
+                    "image_urls": [clean_face_url],
+                    "image_size": gpt_image_size,
+                    "quality": "high",
+                    "input_fidelity": "low",
+                    "num_images": 1,
+                    "output_format": "png",
+                },
+                with_logs=True,
+            )
+            
+            if result and "images" in result and len(result["images"]) > 0:
+                image_url = result["images"][0]["url"]
+                logger.info(f"✅ GPT Image 1 Edit başarılı!")
+                return {
+                    "success": True,
+                    "image_url": image_url,
+                    "base_image_url": image_url,
+                    "method_used": "gpt_image_1_edit",
+                    "quality_notes": "GPT Image 1 (ChatGPT modeli) ile yüz kimliği korunarak fotorealistik görsel üretildi.",
+                    "model_display_name": "GPT Image 1",
+                    "attempts": attempts + ["gpt_image_1_edit (başarılı)"],
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ GPT Image 1 Edit hatası: {e}")
+            attempts.append(f"gpt_image_1_edit (hata: {str(e)[:80]})")
+        
+        # ═══════════════════════════════════════════════════════════════
+        # AŞAMA 2: FLUX Kontext Pro — Yüz Kimliği Korumalı Dönüşüm
+        # ═══════════════════════════════════════════════════════════════
+        logger.info(f"🖌️ Aşama 2: FLUX Kontext Pro ile yüz korumalı üretim...")
+        try:
+            kontext_prompt = f"Place this exact person in the following scene, keeping their face, identity, clothing and appearance exactly the same: {prompt}"
+            
+            result = await fal_client.subscribe_async(
+                "fal-ai/flux-pro/kontext",
+                arguments={
+                    "prompt": kontext_prompt,
+                    "image_url": clean_face_url,
+                    "guidance_scale": 4.0,
+                    "output_format": "png",
+                },
+                with_logs=True,
+            )
+            
+            if result and "images" in result and len(result["images"]) > 0:
+                image_url = result["images"][0]["url"]
+                logger.info(f"✅ FLUX Kontext Pro başarılı!")
+                attempts.append("flux_kontext_pro (başarılı)")
+                return {
+                    "success": True,
+                    "image_url": image_url,
+                    "base_image_url": image_url,
+                    "method_used": "flux_kontext_pro",
+                    "quality_notes": "FLUX Kontext Pro ile yüz kimliği korunarak görsel üretildi.",
+                    "model_display_name": "FLUX Kontext Pro",
+                    "attempts": attempts + ["flux_kontext_pro (başarılı)"],
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ FLUX Kontext Pro hatası: {e}")
+            attempts.append(f"flux_kontext_pro (hata: {str(e)[:80]})")
+        
+        # ═══════════════════════════════════════════════════════════════
+        # AŞAMA 3: Nano Banana Pro — Son Çare (Yüz kimliği korunmaz)
+        # ═══════════════════════════════════════════════════════════════
+        logger.info(f"🔄 Aşama 3: Nano Banana Pro — son çare...")
+        try:
+            result = await self._generate_image({
+                "prompt": prompt,
+                "aspect_ratio": aspect_ratio,
+                "resolution": resolution,
+            })
+            
+            if result.get("success"):
+                logger.info(f"✅ Nano Banana Pro başarılı (yüz entegrasyonsuz)")
+                return {
+                    "success": True,
+                    "image_url": result["image_url"],
+                    "base_image_url": result["image_url"],
+                    "method_used": "nano_banana_only",
+                    "quality_notes": "GPT Image 1 ve FLUX Kontext başarısız oldu. Nano Banana Pro ile üretildi (yüz kimliği korunmadı).",
+                    "model_display_name": "Nano Banana Pro",
+                    "attempts": attempts + ["nano_banana_pro (başarılı)"],
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ Nano Banana Pro hatası: {e}")
+            attempts.append(f"nano_banana_pro (hata: {str(e)[:80]})")
+        
+        return {
+            "success": False,
+            "error": "Tüm görsel üretim yöntemleri başarısız oldu.",
+            "attempts": attempts,
+        }
 
 
     async def _extract_frame(self, video_url: str) -> dict:

@@ -278,6 +278,7 @@ async def chat_with_image(
     session_id: str = Form(...),
     message: str = Form(...),
     reference_image: UploadFile = File(...),
+    active_project_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Kullanıcı mesajını referans görsel ile işle (FormData)."""
@@ -289,5 +290,6 @@ async def chat_with_image(
         actual_session_id=session_id,
         actual_message=message,
         reference_image_base64=reference_image_base64,
-        db=db
+        db=db,
+        active_project_id=active_project_id
     )
