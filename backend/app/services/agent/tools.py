@@ -346,6 +346,73 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["library_name"]
         }
+    },
+    {
+        "name": "save_style",
+        "description": "Bir stil/moodboard kaydet. Kaydedilen stil sonraki tüm üretimlerde otomatik uygulanır. Örn: 'cyberpunk stili', 'minimalist beyaz', 'retro 80s'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Stil adı (örn: 'cyberpunk', 'minimalist')"},
+                "description": {"type": "string", "description": "Stilin detaylı açıklaması (İngilizce). Renkler, ton, atmosfer, ışık, doku vb."},
+                "color_palette": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Renk paleti (hex kodları, opsiyonel)"
+                },
+                "reference_image_url": {"type": "string", "description": "Referans görsel URL (opsiyonel)"}
+            },
+            "required": ["name", "description"]
+        }
+    },
+    {
+        "name": "generate_campaign",
+        "description": "Toplu kampanya üretimi. Tek prompt ile birden fazla varyasyon üretir (farklı açılar, formatlar). Instagram, TikTok, YouTube için optimized boyutlarda.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string", "description": "Kampanya açıklaması / ana konsept"},
+                "count": {"type": "integer", "description": "Kaç varyasyon üretilsin (varsayılan: 4, max: 9)"},
+                "formats": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["post", "story", "reel", "cover"]},
+                    "description": "Üretilecek formatlar. post=1:1, story=9:16, reel=9:16, cover=16:9"
+                },
+                "brand_tag": {"type": "string", "description": "Marka entity tag'i (opsiyonel, örn: @nike)"}
+            },
+            "required": ["prompt"]
+        }
+    },
+    {
+        "name": "transcribe_voice",
+        "description": "Sesli mesajı metne çevirir (Whisper API). Kullanıcı ses kaydı gönderdiğinde otomatik kullanılır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "audio_url": {"type": "string", "description": "Ses dosyasının URL'si"},
+                "language": {"type": "string", "description": "Dil kodu (varsayılan: 'tr'). 'tr', 'en', 'auto'"}
+            },
+            "required": ["audio_url"]
+        }
+    },
+    {
+        "name": "add_audio_to_video",
+        "description": "Video'ya ses/müzik ekler veya seslendirme yapar (TTS). Mevcut bir videoya arka plan müziği, seslendirme veya ses efekti ekler.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "video_url": {"type": "string", "description": "Video URL'si"},
+                "audio_type": {
+                    "type": "string",
+                    "enum": ["tts", "music", "effect"],
+                    "description": "Ses tipi: tts=seslendirme, music=müzik, effect=ses efekti"
+                },
+                "text": {"type": "string", "description": "TTS için seslendirme metni (audio_type=tts ise zorunlu)"},
+                "music_style": {"type": "string", "description": "Müzik stili (audio_type=music ise, örn: 'cinematic', 'upbeat', 'ambient')"},
+                "voice": {"type": "string", "enum": ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], "description": "TTS ses tonu (varsayılan: 'nova')"}
+            },
+            "required": ["video_url", "audio_type"]
+        }
     }
 ]
 

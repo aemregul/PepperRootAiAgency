@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (17 Şubat 2026 - 16:07)
+## 📊 Genel Durum (17 Şubat 2026 - 16:50)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -52,6 +52,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 6: Polish + Admin Panel | ✅ Tamamlandı | %100 |
 | Hafta 7: Semantic Search + Context7 | ✅ Tamamlandı | %100 |
 | Hafta 8: Agent Intelligence Upgrade | ✅ Tamamlandı | %100 |
+| Hafta 9: Advanced Features (Phase 2) | ✅ Tamamlandı | %100 |
 
 ---
 
@@ -285,7 +286,7 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (17 Şubat 2026 - 16:07)
+## 🎯 SON DURUM (17 Şubat 2026 - 16:50)
 
 **🎉 TÜM FAZLAR TAMAMLANDI!**
 
@@ -293,9 +294,10 @@ git add . && git commit -m "mesaj" && git push
 - ✅ **Faz 2: Hafıza** - Preferences, Redis, Episodic Memory
 - ✅ **Faz 3: Ölçek** - Resilience, Pagination, DB Index
 - ✅ **Faz 4: Uzun Video** - Segment-based generation, FFmpeg stitching
-- ✅ **Faz 5: Agent Intelligence Upgrade** - Yüz tutarlılığı, video edit fix, multi-shot ← YENİ
+- ✅ **Faz 5: Agent Intelligence Upgrade** - Yüz tutarlılığı, video edit fix, multi-shot
+- ✅ **Faz 6: Advanced Features** - WebSocket, QC, Memory, Style, Campaign, Multi-Agent, Voice ← YENİ
 
-**Toplam Kod:** 3500+ satır
+**Toplam Kod:** 5000+ satır
 
 ---
 
@@ -306,27 +308,61 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 📝 SON GELİŞMELER (17 Şubat 2026 - 16:07)
+## 📝 SON GELİŞMELER (17 Şubat 2026 - 16:50)
 
-### 🧠 Agent Intelligence Upgrade (5 Fix)
+### 🚀 Phase 2: Advanced Features (8 Yeni Özellik)
 
-1. **Yüz Tutarlılığı (Entity Name Matching):**
-   - `entity_service.py` — `resolve_by_name` metodu eklendi
-   - Artık `@emre` yazmak zorunlu değil, "emre" yazınca da entity bulunuyor
-   - Case-insensitive + kelime sınırı kontrolü ile false positive önlenir
-   - `resolve_tags` hem @tag hem isim eşleştirmesi yapıyor (deduplicated)
+1. **WebSocket Real-Time Progress:**
+   - `progress_service.py` — Gerçek zamanlı ilerleme takibi
+   - `ws.py` — WebSocket endpoint (`/ws/progress/{session_id}`)
+   - Uzun video, kampanya gibi işlemlerde anlık bildirim
 
-2. **Video Düzenleme Fix:**
-   - `orchestrator.py` — `edit_video` handler PluginResult→dict dönüşümü
-   - Düzenlenen video artık `save_asset` ile Media Assets'e kaydediliyor
+2. **Auto Quality Control (GPT-4o Vision):**
+   - `quality_control_service.py` — Üretilen görseli otomatik puanla (1-10)
+   - Prompt uygunluk + teknik kalite + yüz benzerliği skoru
+   - Düşük skor → otomatik retry (max 2 deneme)
 
-3. **Uzun Video Üretimi (3 dakika):**
-   - `long_video_service.py` tamamen yeniden yazıldı
-   - Celery kaldırıldı → tamamen async
-   - FalPluginV2 kullanılıyor (eski FalPlugin değil)
-   - fal.ai FFmpeg API ile segment stitching
-   - `tools.py` — `generate_long_video` tool eklendi
-   - `orchestrator.py` — `_generate_long_video` metodu + handler eklendi
+3. **Self-Learning (Prompt Hafızası):**
+   - Başarılı prompt'lar kullanıcı hafızasına kaydedilir
+   - Benzer istek geldiğinde geçmiş başarılı prompt'lardan ilham
+   - Zaman içinde kullanıcının tarzını öğrenir
+
+4. **Cross-Project Memory (Tek Asistan Modeli):**
+   - `conversation_memory_service.py` — Kullanıcı seviyesinde hafıza
+   - Sohbet sonunda otomatik özet (GPT-4o-mini)
+   - Projeler arası bilgi taşıma (tercihler, stiller, entity'ler)
+   - Agent yeni projede "Seni tanıyorum, geçmişte şunları yaptık" der
+
+5. **Style Transfer / Moodboard:**
+   - `save_style` tool — Stil kaydet, sonraki üretimlerde otomatik uygula
+   - Renk paleti, ton, atmosfer hafızası
+
+6. **Batch Campaign Mode:**
+   - `generate_campaign` tool — Tek prompt → 4-9 varyasyon
+   - Multi-format: post (1:1), story (9:16), reel (9:16), cover (16:9)
+   - Marka entegrasyonu (renk paleti + isim)
+
+7. **Multi-Agent Collaboration:**
+   - `multi_agent_service.py` — Creative Agent + QC Agent
+   - Creative: Prompt zenginleştirme, sahne planlama
+   - QC: Tutarlılık kontrolü, iyileştirme önerileri
+
+8. **Voice + Audio:**
+   - `voice_audio_service.py` — Whisper STT + OpenAI TTS
+   - `transcribe_voice` — Sesli komut → metin
+   - `add_audio_to_video` — Video'ya seslendirme/müzik (FFmpeg)
+
+### Yeni Dosyalar:
+```
+backend/app/services/
+├── progress_service.py          ← WebSocket progress
+├── quality_control_service.py   ← Auto QC
+├── conversation_memory_service.py ← Cross-project memory
+├── voice_audio_service.py       ← Voice + Audio
+├── multi_agent_service.py       ← Multi-agent framework
+backend/app/api/routes/
+├── ws.py                        ← WebSocket endpoint
+```
 
 4. **Multi-Shot Prompt Geliştirme:**
    - System prompt 6 → 12 few-shot örneğe genişletildi

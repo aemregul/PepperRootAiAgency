@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.cache import cache
-from app.api.routes import sessions, chat, generate, entities, upload, plugins, admin, grid, auth, system, search
+from app.api.routes import sessions, chat, generate, entities, upload, plugins, admin, grid, auth, system, search, ws
 from app.services.plugins.plugin_loader import initialize_plugins
 
 
@@ -97,6 +97,7 @@ app.include_router(grid.router, prefix=settings.API_PREFIX)
 app.include_router(system.router, prefix=settings.API_PREFIX)
 app.include_router(search.router, prefix=settings.API_PREFIX)
 app.include_router(generate.router, prefix=f"{settings.API_PREFIX}/generate")
+app.include_router(ws.router)  # WebSocket (no prefix)
 
 
 @app.get("/health")

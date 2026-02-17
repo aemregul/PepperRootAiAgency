@@ -404,6 +404,17 @@ Herhangi bir işlem başarısız olursa:
         except Exception as mem_error:
             print(f"⚠️ Episodic memory hatası: {mem_error}")
         
+        # 🧠 KULLANICI SEVİYESİ HAFIZA (Cross-Project Memory)
+        try:
+            if user_id:
+                from app.services.conversation_memory_service import conversation_memory
+                memory_context = await conversation_memory.build_memory_context(user_id)
+                if memory_context:
+                    full_system_prompt += f"\n\n--- 🧠 KULLANICI HAFIZASI (Projeler Arası) ---\nBu kullanıcıyı tanıyorsun. Geçmiş projelerden bildiklerin:\n{memory_context}"
+                    print(f"🧠 Cross-project memory eklendi")
+        except Exception as cmem_error:
+            print(f"⚠️ Conversation memory hatası: {cmem_error}")
+        
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         uploaded_image_url = None
         if reference_image:
@@ -780,6 +791,18 @@ Herhangi bir işlem başarısız olursa:
         
         elif tool_name == "get_library_docs":
             return await self._get_library_docs(tool_input)
+        
+        elif tool_name == "save_style":
+            return await self._save_style(db, session_id, tool_input)
+        
+        elif tool_name == "generate_campaign":
+            return await self._generate_campaign(db, session_id, tool_input)
+        
+        elif tool_name == "transcribe_voice":
+            return await self._transcribe_voice(tool_input)
+        
+        elif tool_name == "add_audio_to_video":
+            return await self._add_audio_to_video(db, session_id, tool_input)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
@@ -1339,6 +1362,168 @@ Konuşma:
                 "success": False,
                 "error": str(e)
             }
+    
+    async def _save_style(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Stil/moodboard kaydet — sonraki üretimlerde otomatik uygulanır."""
+        try:
+            name = params.get("name", "")
+            description = params.get("description", "")
+            color_palette = params.get("color_palette", [])
+            
+            user_id = await get_user_id_from_session(db, session_id)
+            
+            # Kullanıcı hafızasına stil kaydet
+            from app.services.conversation_memory_service import conversation_memory
+            await conversation_memory.update_style_preference(user_id, "active_style", name)
+            await conversation_memory.update_style_preference(user_id, "style_description", description)
+            if color_palette:
+                await conversation_memory.update_style_preference(user_id, "color_palette", ", ".join(color_palette))
+            
+            print(f"🎨 Stil kaydedildi: '{name}'")
+            
+            return {
+                "success": True,
+                "style_name": name,
+                "message": f"'{name}' stili kaydedildi! Bundan sonraki tüm üretimlerde bu stil otomatik uygulanacak."
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _generate_campaign(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Toplu kampanya üretimi — farklı formatlar ve varyasyonlar."""
+        try:
+            prompt = params.get("prompt", "")
+            count = min(params.get("count", 4), 9)
+            formats = params.get("formats", ["post"])
+            brand_tag = params.get("brand_tag")
+            
+            # Format → aspect ratio mapping
+            format_map = {
+                "post": "1:1",
+                "story": "9:16",
+                "reel": "9:16",
+                "cover": "16:9"
+            }
+            
+            # Marka bilgisi varsa ekle
+            brand_context = ""
+            if brand_tag:
+                try:
+                    entity = await entity_service.get_by_tag(db, await get_user_id_from_session(db, session_id), brand_tag)
+                    if entity and entity.attributes:
+                        colors = entity.attributes.get("colors", {})
+                        brand_context = f" Brand colors: {colors}. Brand: {entity.name}."
+                except Exception:
+                    pass
+            
+            # Prompt çevirisi
+            english_prompt = prompt
+            try:
+                from app.services.prompt_translator import translate_to_english
+                english_prompt, _ = await translate_to_english(prompt)
+            except Exception:
+                pass
+            
+            # Varyasyon prompt'ları oluştur
+            variations = [
+                f"{english_prompt}, clean minimalist design, centered composition.{brand_context}",
+                f"{english_prompt}, vibrant dynamic composition, bold typography.{brand_context}",
+                f"{english_prompt}, elegant premium feel, subtle gradients.{brand_context}",
+                f"{english_prompt}, modern flat design, geometric shapes.{brand_context}",
+                f"{english_prompt}, cinematic dramatic lighting, depth of field.{brand_context}",
+                f"{english_prompt}, retro vintage aesthetic, warm tones.{brand_context}",
+                f"{english_prompt}, neon futuristic style, dark background.{brand_context}",
+                f"{english_prompt}, soft pastel colors, dreamy atmosphere.{brand_context}",
+                f"{english_prompt}, high contrast black and white, editorial.{brand_context}",
+            ][:count]
+            
+            # Paralel üretim
+            import asyncio
+            results = []
+            
+            for i, var_prompt in enumerate(variations):
+                fmt = formats[i % len(formats)]
+                aspect_ratio = format_map.get(fmt, "1:1")
+                
+                try:
+                    result = await self.fal_plugin.execute("generate_image", {
+                        "prompt": var_prompt,
+                        "aspect_ratio": aspect_ratio,
+                        "image_size": "landscape_16_9" if aspect_ratio == "16:9" else 
+                                     "portrait_9_16" if aspect_ratio == "9:16" else "square"
+                    })
+                    
+                    if result.success and result.data.get("image_url"):
+                        url = result.data["image_url"]
+                        # Asset kaydet
+                        try:
+                            await asset_service.save_asset(
+                                db=db, session_id=session_id,
+                                url=url, asset_type="image",
+                                prompt=var_prompt,
+                                model_name="campaign",
+                                model_params={"format": fmt, "variation": i + 1}
+                            )
+                        except Exception:
+                            pass
+                        
+                        results.append({
+                            "url": url,
+                            "format": fmt,
+                            "aspect_ratio": aspect_ratio,
+                            "variation": i + 1
+                        })
+                except Exception as e:
+                    print(f"⚠️ Campaign varyasyon {i+1} hatası: {e}")
+            
+            return {
+                "success": True,
+                "images": results,
+                "count": len(results),
+                "message": f"{len(results)} varyasyon üretildi ({', '.join(formats)} formatlarında)."
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _transcribe_voice(self, params: dict) -> dict:
+        """Sesli mesajı metne çevir (Whisper)."""
+        try:
+            from app.services.voice_audio_service import voice_audio_service
+            return await voice_audio_service.transcribe(
+                audio_url=params.get("audio_url", ""),
+                language=params.get("language", "tr")
+            )
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _add_audio_to_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Video'ya ses/müzik ekle."""
+        try:
+            from app.services.voice_audio_service import voice_audio_service
+            result = await voice_audio_service.add_audio_to_video(
+                video_url=params.get("video_url", ""),
+                audio_type=params.get("audio_type", "tts"),
+                text=params.get("text"),
+                music_style=params.get("music_style"),
+                voice=params.get("voice", "nova")
+            )
+            
+            # Başarılıysa asset kaydet
+            if result.get("success") and result.get("video_url"):
+                try:
+                    await asset_service.save_asset(
+                        db=db, session_id=session_id,
+                        url=result["video_url"],
+                        asset_type="video",
+                        prompt=f"Audio added: {params.get('audio_type')}",
+                        model_name="ffmpeg-audio",
+                    )
+                except Exception:
+                    pass
+            
+            return result
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     async def _edit_image(self, params: dict) -> dict:
         """
