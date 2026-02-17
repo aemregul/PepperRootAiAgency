@@ -16,7 +16,7 @@ interface Message {
 
 interface ChatPanelProps {
     sessionId?: string;
-    projectId?: string;
+    activeProjectId?: string;  // Aktif proje — asset'ler buraya kaydedilir
     onSessionChange?: (sessionId: string) => void;
     onNewAsset?: (asset: { url: string; type: string }) => void;
     onEntityChange?: () => void;
@@ -148,7 +148,7 @@ function renderContent(content: string | undefined | null) {
     return elements.length > 0 ? elements : content;
 }
 
-export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed }: ChatPanelProps) {
+export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSessionChange, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -439,7 +439,7 @@ export function ChatPanel({ sessionId: initialSessionId, onSessionChange, onNewA
         setError(null);
 
         try {
-            const response = await sendMessage(sessionId, currentInput, currentFile || undefined);
+            const response = await sendMessage(sessionId, currentInput, currentFile || undefined, activeProjectId);
 
 
             // Backend returns response as MessageResponse object

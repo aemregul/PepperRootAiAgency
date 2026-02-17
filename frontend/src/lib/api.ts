@@ -131,10 +131,24 @@ export async function getSessions(): Promise<Session[]> {
     return response.json();
 }
 
+// Tek Asistan: kullanıcının ana chat session'ını al (yoksa otomatik oluşturulur)
+export async function getMainChatSession(): Promise<{ session_id: string; title: string }> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/main-session`, {
+        headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to get main chat session');
+    }
+
+    return response.json();
+}
+
 export async function sendMessage(
     sessionId: string,
     message: string,
-    referenceImage?: File
+    referenceImage?: File,
+    activeProjectId?: string
 ): Promise<ChatResponse> {
     // Eğer dosya varsa FormData ile /with-image endpoint kullan
     if (referenceImage) {
@@ -163,6 +177,7 @@ export async function sendMessage(
         body: JSON.stringify({
             session_id: sessionId,
             message: message,
+            active_project_id: activeProjectId || null,
         }),
     });
 

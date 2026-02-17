@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { AssetsPanel } from "@/components/AssetsPanel";
 import { NewProjectModal } from "@/components/NewProjectModal";
-import { createSession, getSessions } from "@/lib/api";
+import { createSession, getSessions, getMainChatSession } from "@/lib/api";
 import { FolderPlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -15,84 +15,89 @@ export default function Home() {
   const { user, isLoading: authLoading } = useAuth();
 
   const [assetsCollapsed, setAssetsCollapsed] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [activeProjectId, setActiveProjectId] = useState<string>("samsung");
+
+  // === TEK ASISTAN MİMARİSİ ===
+  // chatSessionId: ana sohbet session (asla değişmez, user başına 1 tane)
+  // activeProjectId: şu an seçili proje (asset + entity container)
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);
 
-  // Refresh triggers - entity veya asset değiştiğinde artır
+  // Refresh triggers
   const [entityRefreshKey, setEntityRefreshKey] = useState(0);
   const [assetRefreshKey, setAssetRefreshKey] = useState(0);
 
-  // Proje sayısı kontrolü için
   const [hasNoProjects, setHasNoProjects] = useState(false);
 
-  // Auth kontrolü - giriş yapmamışsa login'e yönlendir
+  // Auth kontrolü
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
     }
   }, [authLoading, user, router]);
 
-  // Session yönetimi
+  // === ANA CHAT SESSION + PROJE LİSTESİ BAŞLAT ===
   useEffect(() => {
-    const initSession = async () => {
+    const init = async () => {
       try {
+        // 1. Ana chat session al (yoksa otomatik oluşturulur)
+        const mainChat = await getMainChatSession();
+        setChatSessionId(mainChat.session_id);
+
+        // 2. Projeleri yükle
         const sessions = await getSessions();
-        if (sessions.length > 0) {
-          setSessionId(sessions[0].id);
+        // main_chat session'ını proje listesinden çıkar
+        const projects = sessions.filter(s => s.category !== 'main_chat');
+
+        if (projects.length > 0) {
+          setActiveProjectId(projects[0].id);
           setHasNoProjects(false);
         } else {
-          setSessionId(null);
+          setActiveProjectId(null);
           setHasNoProjects(true);
         }
       } catch (error) {
-        console.error("Session başlatılamadı:", error);
+        console.error("Başlatma hatası:", error);
         setHasNoProjects(true);
       } finally {
         setIsLoading(false);
       }
     };
 
-    initSession();
-  }, [entityRefreshKey]); // entityRefreshKey değiştiğinde projeleri yeniden kontrol et
+    if (user) init();
+  }, [user, entityRefreshKey]);
 
-  // Proje (session) değiştiğinde sessionId'yi güncelle
+  // Proje değiştiğinde SADECE activeProjectId güncellenir, chat aynı kalır
   const handleProjectChange = (projectId: string) => {
-    // projectId aslında backend'deki session.id
-    setSessionId(projectId);
     setActiveProjectId(projectId);
     setHasNoProjects(false);
   };
 
-  // Chat'te yeni asset oluşturulduğunda AssetsPanel'i refresh et
   const handleNewAsset = useCallback(() => {
     setAssetRefreshKey(prev => prev + 1);
   }, []);
 
-  // Chat'te yeni entity oluşturulduğunda Sidebar'ı refresh et
   const handleEntityChange = useCallback(() => {
     setEntityRefreshKey(prev => prev + 1);
   }, []);
 
-  // Proje silindiğinde
   const handleProjectDelete = useCallback(() => {
-    setSessionId(null);
+    setActiveProjectId(null);
     setHasNoProjects(true);
-    setEntityRefreshKey(prev => prev + 1); // Projeleri yeniden kontrol et
+    setEntityRefreshKey(prev => prev + 1);
   }, []);
 
-  // Yeni proje oluştur
-  const handleCreateProject = async (name: string) => {
+  const handleCreateProject = async (name: string, description?: string, category?: string) => {
     setIsCreatingProject(true);
     try {
-      const newSession = await createSession(name);
-      setSessionId(newSession.id);
+      const newSession = await createSession(name, description, category);
       setActiveProjectId(newSession.id);
       setHasNoProjects(false);
-      setEntityRefreshKey(prev => prev + 1); // Sidebar'ı güncelle
+      setEntityRefreshKey(prev => prev + 1);
     } catch (error) {
       console.error("Proje oluşturulamadı:", error);
     } finally {
@@ -100,7 +105,6 @@ export default function Home() {
     }
   };
 
-  // Auth veya data yükleniyorsa loading göster
   if (authLoading || isLoading) {
     return (
       <main className="flex h-screen items-center justify-center" style={{ background: "var(--background)" }}>
@@ -112,28 +116,24 @@ export default function Home() {
     );
   }
 
-  // Giriş yapmamışsa boş döndür (zaten /login'e yönlendiriliyor)
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <main className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
+      {/* Sidebar — proje geçişi sadece activeProjectId değiştirir */}
       <Sidebar
-        activeProjectId={activeProjectId}
+        activeProjectId={activeProjectId || ""}
         onProjectChange={handleProjectChange}
         onProjectDelete={handleProjectDelete}
-        sessionId={sessionId}
+        sessionId={activeProjectId}
         refreshKey={entityRefreshKey}
         onSendPrompt={setPendingPrompt}
       />
 
-      {/* Proje yoksa "Proje Oluştur" ekranı, varsa Chat Panel */}
-      {!sessionId || hasNoProjects ? (
+      {/* Chat her zaman görünür (tek sürekli sohbet) */}
+      {!chatSessionId || (!activeProjectId && hasNoProjects) ? (
         <div className="flex-1 flex items-center justify-center" style={{ background: "var(--background)" }}>
           <div className="text-center max-w-md px-6">
-            {/* Icon */}
             <div
               className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6"
               style={{
@@ -143,23 +143,17 @@ export default function Home() {
             >
               <Sparkles size={40} className="text-white" />
             </div>
-
-            {/* Title */}
             <h1 className="text-2xl font-bold mb-3" style={{ color: "var(--foreground)" }}>
-              Pepper Root'a Hoş Geldiniz
+              Pepper Root&apos;a Hoş Geldiniz
             </h1>
-
-            {/* Description */}
             <p className="mb-8" style={{ color: "var(--foreground-muted)" }}>
               AI destekli görsel ve video üretimi için yeni bir proje oluşturun.
-              Karakterler, mekanlar ve yaratıcı pluginler ile çalışmaya başlayın.
+              Tek asistanınız tüm projelerinizde sizi hatırlayacak.
             </p>
-
-            {/* Create Project Button */}
             <button
               onClick={() => setNewProjectModalOpen(true)}
               disabled={isCreatingProject}
-              className="inline-flex items-center gap-3 px-8 py-4 rounded-xl font-medium text-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-3 px-8 py-4 rounded-xl font-medium text-lg transition-all hover:scale-105 disabled:opacity-50"
               style={{
                 background: "var(--accent)",
                 color: "var(--background)",
@@ -178,21 +172,18 @@ export default function Home() {
                 </>
               )}
             </button>
-
-            {/* Tips */}
             <div className="mt-8 p-4 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
               <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                💡 <strong>İpucu:</strong> Sol menüdeki "+" butonuyla da yeni proje oluşturabilirsiniz.
+                💡 <strong>İpucu:</strong> Sol menüdeki &quot;+&quot; butonuyla da yeni proje oluşturabilirsiniz.
               </p>
             </div>
           </div>
         </div>
       ) : (
         <ChatPanel
-          key={`${activeProjectId}-${sessionId}`}
-          projectId={activeProjectId}
-          sessionId={sessionId || undefined}
-          onSessionChange={setSessionId}
+          sessionId={chatSessionId || undefined}
+          activeProjectId={activeProjectId || undefined}
+          onSessionChange={setChatSessionId}
           onNewAsset={handleNewAsset}
           onEntityChange={handleEntityChange}
           pendingPrompt={pendingPrompt}
@@ -200,11 +191,11 @@ export default function Home() {
         />
       )}
 
-      {/* Assets Panel */}
+      {/* Assets Panel — aktif projedeki asset'leri gösterir */}
       <AssetsPanel
         collapsed={assetsCollapsed}
         onToggle={() => setAssetsCollapsed(!assetsCollapsed)}
-        sessionId={sessionId}
+        sessionId={activeProjectId}
         refreshKey={assetRefreshKey}
         onSaveToImages={handleEntityChange}
       />

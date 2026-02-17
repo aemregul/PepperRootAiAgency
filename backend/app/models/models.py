@@ -31,6 +31,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
+    # Tek Asistan: her kullanıcının bir ana chat session'ı var
+    main_chat_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
 

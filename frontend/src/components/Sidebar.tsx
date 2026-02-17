@@ -397,13 +397,16 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             setIsLoadingProjects(true);
             try {
                 const sessions = await getSessions();
-                const projectList = sessions.map(s => ({
-                    id: s.id,
-                    name: s.title,
-                    active: sessionId === s.id,
-                    category: s.category || undefined,
-                    description: s.description || undefined
-                }));
+                // main_chat session'ını proje listesinden çıkar
+                const projectList = sessions
+                    .filter(s => s.category !== 'main_chat')
+                    .map(s => ({
+                        id: s.id,
+                        name: s.title,
+                        active: sessionId === s.id,
+                        category: s.category || undefined,
+                        description: s.description || undefined
+                    }));
                 setProjects(projectList);
             } catch (error) {
                 console.error('Proje yükleme hatası:', error);

@@ -115,6 +115,7 @@ class AssetResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[UUID] = None
+    active_project_id: Optional[UUID] = None  # Asset'ler bu projeye kaydedilir
 
 
 class ChatResponse(BaseModel):

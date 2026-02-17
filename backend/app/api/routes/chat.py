@@ -1,5 +1,6 @@
 """
-Chat API endpoint'leri.
+Chat API endpoint'leri — Tek Asistan Mimarisi.
+Mesajlar ana chat session'a, asset'ler aktif projeye kaydedilir.
 """
 from uuid import UUID
 from typing import Optional
@@ -9,20 +10,67 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import base64
 
 from app.core.database import get_db
-from app.models.models import Session, Message
+from app.core.auth import get_current_user, get_current_user_required
+from app.models.models import Session, Message, User
 from app.schemas.schemas import ChatRequest, ChatResponse, MessageResponse, AssetResponse, EntityResponse
 from app.services.agent.orchestrator import agent
 
 router = APIRouter(prefix="/chat", tags=["Sohbet"])
 
 
+@router.get("/main-session")
+async def get_main_chat_session(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
+):
+    """Kullanıcının ana chat session'ını döndür. Yoksa otomatik oluştur."""
+    
+    # Mevcut main chat session var mı?
+    if current_user.main_chat_session_id:
+        result = await db.execute(
+            select(Session).where(
+                Session.id == current_user.main_chat_session_id,
+                Session.is_active == True
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            return {"session_id": str(existing.id), "title": existing.title}
+    
+    # Yoksa yeni oluştur
+    main_session = Session(
+        user_id=current_user.id,
+        title="Ana Sohbet",
+        description="Tüm projeler için tek asistan sohbeti",
+        category="main_chat"
+    )
+    db.add(main_session)
+    await db.flush()
+    await db.refresh(main_session)
+    
+    # User'a bağla
+    current_user.main_chat_session_id = main_session.id
+    await db.commit()
+    
+    return {"session_id": str(main_session.id), "title": main_session.title}
+
+
 async def _process_chat(
     actual_session_id: Optional[str],
     actual_message: str,
     reference_image_base64: Optional[str],
-    db: AsyncSession
+    db: AsyncSession,
+    active_project_id: Optional[str] = None
 ) -> ChatResponse:
-    """Chat işleme ortak logic."""
+    """Chat işleme ortak logic. Mesajlar session'a, asset'ler active_project'e kaydedilir."""
+    
+    # Asset'ler hangi projeye kaydedilecek?
+    asset_session_id = None
+    if active_project_id:
+        try:
+            asset_session_id = UUID(active_project_id)
+        except ValueError:
+            pass
     
     # Session al veya oluştur
     if actual_session_id:
@@ -99,9 +147,9 @@ async def _process_chat(
     try:
         agent_result = await agent.process_message(
             user_message=actual_message,
-            session_id=session.id,
+            session_id=asset_session_id or session.id,  # Asset'ler aktif projeye
             db=db,
-            conversation_history=conversation_history,  # 🔑 KRİTİK: Sohbet geçmişi
+            conversation_history=conversation_history,
             reference_image=reference_image_base64
         )
     except Exception as e:
@@ -219,7 +267,8 @@ async def chat(
         actual_session_id=str(request.session_id) if request.session_id else None,
         actual_message=request.message,
         reference_image_base64=None,
-        db=db
+        db=db,
+        active_project_id=str(request.active_project_id) if request.active_project_id else None
     )
 
 
