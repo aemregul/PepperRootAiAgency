@@ -130,6 +130,26 @@ async def _process_chat(
     await db.commit()
     await db.refresh(assistant_message)
     
+    # === AUTO SUMMARY: Projeler arası hafıza ===
+    # Her 10 mesajda bir sohbet özeti kaydet
+    total_messages = len(conversation_history) + 2  # +2 = yeni user + assistant
+    if total_messages >= 10 and total_messages % 5 == 0 and session.user_id:
+        try:
+            from app.services.conversation_memory_service import conversation_memory
+            summary_messages = conversation_history[-10:] + [
+                {"role": "user", "content": actual_message},
+                {"role": "assistant", "content": response_content}
+            ]
+            await conversation_memory.save_conversation_summary(
+                user_id=session.user_id,
+                session_id=session.id,
+                messages=summary_messages,
+                project_name=session.title
+            )
+            print(f"💾 Auto-summary kaydedildi (proje: {session.title}, mesaj: {total_messages})")
+        except Exception as e:
+            print(f"⚠️ Auto-summary hatası: {e}")
+    
     # Assets listesi oluştur
     assets = []
     for img in images:

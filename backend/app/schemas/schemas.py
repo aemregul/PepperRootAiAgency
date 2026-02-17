@@ -31,12 +31,17 @@ class UserResponse(UserBase):
 # ============== OTURUM ==============
 
 class SessionCreate(BaseModel):
-    title: Optional[str] = "Yeni Oturum"
+    title: Optional[str] = "Yeni Proje"
+    description: Optional[str] = None
+    category: Optional[str] = None  # reklam, sosyal_medya, film, kişisel
 
 
 class SessionResponse(BaseModel):
     id: UUID
     title: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    cover_image_url: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

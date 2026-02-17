@@ -1,16 +1,27 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, FolderPlus } from "lucide-react";
+import { X, FolderPlus, Tag } from "lucide-react";
 
 interface NewProjectModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (name: string) => void;
+    onSubmit: (name: string, description?: string, category?: string) => void;
 }
+
+const CATEGORIES = [
+    { value: "reklam", label: "📢 Reklam Kampanyası", color: "#ef4444" },
+    { value: "sosyal_medya", label: "📱 Sosyal Medya", color: "#3b82f6" },
+    { value: "film", label: "🎬 Film / Video", color: "#a855f7" },
+    { value: "kisisel", label: "🎨 Kişisel Proje", color: "#22c55e" },
+    { value: "marka", label: "🏷️ Marka / Branding", color: "#f59e0b" },
+    { value: "diger", label: "📂 Diğer", color: "#6b7280" },
+];
 
 export function NewProjectModal({ isOpen, onClose, onSubmit }: NewProjectModalProps) {
     const [projectName, setProjectName] = useState("");
+    const [description, setDescription] = useState("");
+    const [category, setCategory] = useState<string>("");
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -19,13 +30,19 @@ export function NewProjectModal({ isOpen, onClose, onSubmit }: NewProjectModalPr
         }
         if (!isOpen) {
             setProjectName("");
+            setDescription("");
+            setCategory("");
         }
     }, [isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (projectName.trim()) {
-            onSubmit(projectName.trim());
+            onSubmit(
+                projectName.trim(),
+                description.trim() || undefined,
+                category || undefined
+            );
             onClose();
         }
     };
@@ -42,7 +59,7 @@ export function NewProjectModal({ isOpen, onClose, onSubmit }: NewProjectModalPr
 
             {/* Modal */}
             <div
-                className="relative w-full max-w-md rounded-xl shadow-2xl"
+                className="relative w-full max-w-lg rounded-xl shadow-2xl"
                 style={{ background: "var(--card)", border: "1px solid var(--border)" }}
             >
                 {/* Header */}
@@ -60,17 +77,18 @@ export function NewProjectModal({ isOpen, onClose, onSubmit }: NewProjectModalPr
                 </div>
 
                 {/* Content */}
-                <form onSubmit={handleSubmit} className="p-4">
-                    <div className="mb-4">
+                <form onSubmit={handleSubmit} className="p-4 space-y-4">
+                    {/* Proje Adı */}
+                    <div>
                         <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                            Proje Adı
+                            Proje Adı *
                         </label>
                         <input
                             ref={inputRef}
                             type="text"
                             value={projectName}
                             onChange={(e) => setProjectName(e.target.value)}
-                            placeholder="Örn: Samsung Reklam Kampanyası"
+                            placeholder="Örn: Nike Yaz Koleksiyonu"
                             className="w-full px-3 py-2 rounded-lg text-sm outline-none transition-all"
                             style={{
                                 background: "var(--background)",
@@ -80,7 +98,52 @@ export function NewProjectModal({ isOpen, onClose, onSubmit }: NewProjectModalPr
                         />
                     </div>
 
-                    <div className="flex gap-2 justify-end">
+                    {/* Açıklama */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                            Açıklama
+                        </label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Bu proje ne hakkında? Asistan bu bilgiyi hatırlayacak..."
+                            rows={2}
+                            className="w-full px-3 py-2 rounded-lg text-sm outline-none transition-all resize-none"
+                            style={{
+                                background: "var(--background)",
+                                border: "1px solid var(--border)",
+                                color: "var(--foreground)",
+                            }}
+                        />
+                    </div>
+
+                    {/* Kategori */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                            <Tag size={14} className="inline mr-1" />
+                            Kategori
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {CATEGORIES.map((cat) => (
+                                <button
+                                    key={cat.value}
+                                    type="button"
+                                    onClick={() => setCategory(category === cat.value ? "" : cat.value)}
+                                    className="px-3 py-2 rounded-lg text-xs font-medium transition-all text-left"
+                                    style={{
+                                        background: category === cat.value ? `${cat.color}20` : "var(--background)",
+                                        border: `1px solid ${category === cat.value ? cat.color : "var(--border)"}`,
+                                        color: category === cat.value ? cat.color : "var(--foreground-muted)",
+                                    }}
+                                >
+                                    {cat.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Buttons */}
+                    <div className="flex gap-2 justify-end pt-2">
                         <button
                             type="button"
                             onClick={onClose}
@@ -98,7 +161,7 @@ export function NewProjectModal({ isOpen, onClose, onSubmit }: NewProjectModalPr
                                 color: "var(--background)",
                             }}
                         >
-                            Oluştur
+                            Proje Oluştur
                         </button>
                     </div>
                 </form>

@@ -366,6 +366,23 @@ Herhangi bir işlem başarısız olursa:
         if entity_context:
             full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
         
+        # 📂 AKTİF PROJE BAĞLAMI
+        try:
+            session_result = await db.execute(
+                select(SessionModel).where(SessionModel.id == session_id)
+            )
+            active_session = session_result.scalar_one_or_none()
+            if active_session:
+                project_context = f"\n\n--- 📂 AKTİF PROJE ---\nProje Adı: {active_session.title}"
+                if active_session.description:
+                    project_context += f"\nAçıklama: {active_session.description}"
+                if active_session.category:
+                    project_context += f"\nKategori: {active_session.category}"
+                if active_session.project_data:
+                    project_context += f"\nProje Verileri: {active_session.project_data}"
+                full_system_prompt += project_context
+        except Exception as proj_error:
+            print(f"⚠️ Proje context hatası: {proj_error}")
         
         # 🧠 AKTİF OTURUM BAĞLAMI (Working Memory)
         # Son üretilen assetleri context'e ekle, böylece "bunu düzenle" denildiğinde ne olduğu belli olur.

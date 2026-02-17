@@ -26,7 +26,9 @@ async def create_session(
     try:
         new_session = Session(
             user_id=current_user.id if current_user else None,
-            title=session_data.title or "Yeni Oturum"
+            title=session_data.title or "Yeni Proje",
+            description=session_data.description,
+            category=session_data.category
         )
         db.add(new_session)
         await db.commit()
@@ -128,16 +130,20 @@ async def update_session(
     session_data: SessionCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Oturum bilgilerini güncelle (rename)."""
+    """Proje bilgilerini güncelle (rename, description, category)."""
     result = await db.execute(
         select(Session).where(Session.id == session_id)
     )
     session = result.scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=404, detail="Oturum bulunamadı")
+        raise HTTPException(status_code=404, detail="Proje bulunamadı")
     
     if session_data.title:
         session.title = session_data.title
+    if session_data.description is not None:
+        session.description = session_data.description
+    if session_data.category is not None:
+        session.category = session_data.category
     
     await db.commit()
     await db.refresh(session)

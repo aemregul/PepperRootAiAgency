@@ -15,6 +15,9 @@ export interface Message {
 export interface Session {
     id: string;
     title: string;
+    description?: string;
+    category?: string;
+    cover_image_url?: string;
     created_at: string;
     updated_at: string;
 }
@@ -91,11 +94,15 @@ function getAuthHeaders(): HeadersInit {
     return headers;
 }
 
-export async function createSession(title?: string): Promise<Session> {
+export async function createSession(title?: string, description?: string, category?: string): Promise<Session> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ title: title || 'Yeni Oturum' }),
+        body: JSON.stringify({
+            title: title || 'Yeni Proje',
+            description: description || null,
+            category: category || null
+        }),
     });
 
     if (!response.ok) {

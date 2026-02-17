@@ -309,7 +309,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [gridGeneratorOpen, setGridGeneratorOpen] = useState(false);
     const [savedImagesOpen, setSavedImagesOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
-    const [projects, setProjects] = useState<{ id: string; name: string; active: boolean }[]>([]);
+    const [projects, setProjects] = useState<{ id: string; name: string; active: boolean; category?: string; description?: string }[]>([]);
     const [isLoadingEntities, setIsLoadingEntities] = useState(false);
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
     const [entitySearchQuery, setEntitySearchQuery] = useState("");
@@ -400,7 +400,9 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 const projectList = sessions.map(s => ({
                     id: s.id,
                     name: s.title,
-                    active: sessionId === s.id
+                    active: sessionId === s.id,
+                    category: s.category || undefined,
+                    description: s.description || undefined
                 }));
                 setProjects(projectList);
             } catch (error) {
@@ -879,7 +881,18 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                             autoFocus
                                         />
                                     ) : (
-                                        <span className="truncate flex-1">{project.name}</span>
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            {project.category && (
+                                                <span className="w-2 h-2 rounded-full shrink-0" style={{
+                                                    background: project.category === 'reklam' ? '#ef4444' :
+                                                        project.category === 'sosyal_medya' ? '#3b82f6' :
+                                                            project.category === 'film' ? '#a855f7' :
+                                                                project.category === 'marka' ? '#f59e0b' :
+                                                                    project.category === 'kisisel' ? '#22c55e' : '#6b7280'
+                                                }} />
+                                            )}
+                                            <span className="truncate">{project.name}</span>
+                                        </div>
                                     )}
 
                                     <div className="flex items-center gap-1">
@@ -1180,14 +1193,13 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             <NewProjectModal
                 isOpen={newProjectOpen}
                 onClose={() => setNewProjectOpen(false)}
-                onSubmit={async (name) => {
+                onSubmit={async (name, description, category) => {
                     try {
-                        // Backend'de yeni session oluştur
-                        const newSession = await createSession(name);
-                        setProjects([...projects, { id: newSession.id, name, active: false }]);
+                        // Backend'de yeni proje oluştur
+                        const newSession = await createSession(name, description, category);
+                        setProjects([...projects, { id: newSession.id, name, active: false, category, description }]);
                     } catch (error) {
                         console.error('Proje oluşturulamadı:', error);
-                        // Fallback olarak local ekle
                         setProjects([...projects, { id: Date.now().toString(), name, active: false }]);
                     }
                 }}

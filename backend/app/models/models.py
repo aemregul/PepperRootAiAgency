@@ -37,14 +37,21 @@ class User(Base):
 # ============== OTURUM ==============
 
 class Session(Base):
-    """Sohbet/proje oturumu."""
+    """Proje oturumu — her proje bir session'dır."""
     __tablename__ = "sessions"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id"), nullable=True)
-    title: Mapped[str] = mapped_column(String(255), default="Yeni Oturum")
+    title: Mapped[str] = mapped_column(String(255), default="Yeni Proje")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     metadata_: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, default=dict)
+    
+    # Proje metadata alanları
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # reklam, sosyal_medya, film, kişisel
+    cover_image_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    project_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, default=dict)  # Stil, marka, ek veri
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
