@@ -675,9 +675,6 @@ class FalPluginV2(PluginBase):
 
         except Exception as e:
             return {"success": False, "error": f"Video edit kritik hata: {str(e)}"}
-            return {"success": False, "error": "Video dönüşümü başarısız"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
 
     # ===============================
     # PUBLIC COMPATIBILITY WRAPPERS

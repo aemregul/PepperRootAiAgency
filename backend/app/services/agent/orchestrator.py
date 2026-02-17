@@ -81,8 +81,10 @@ Sen pasif bir chatbot DEĞİLSİN. Sen otonom düşünebilen, problem çözebile
 
 **GÖRSEL/VİDEO:**
 - generate_image: AI görsel üret
-- generate_video: Video üret
+- generate_video: Kısa video üret (3-10 saniye)
+- generate_long_video: Uzun video üret (30s - 3 dakika, otomatik segment birleştirme)
 - edit_image: Görsel düzenle
+- edit_video: Video düzenle (nesne kaldır, stil değiştir, talimatlı düzenleme)
 - upscale_image: Kalite artır
 - remove_background: Arka plan kaldır
 - generate_grid: 3x3 grid (9 açı/storyboard)
@@ -132,8 +134,11 @@ Sen pasif bir chatbot DEĞİLSİN. Sen otonom düşünebilen, problem çözebile
 | API/kod bilgisi lazım | get_library_docs | Güncel bilgi için |
 | Görsel düzenle | edit_image | URL varsa hemen kullan |
 | Geçmişi ara | semantic_search | Benzer işleri bul |
+| Kısa video (≤10s) | generate_video | Tek klip yeterli |
+| Uzun video (>10s) | generate_long_video | Segment birleştirme gerekli |
+| Video düzenle | edit_video | Mevcut video üzerinde değişiklik |
 
-### 🚫 YANLIŞ YAPMAYASSIN
+### 🚫 YANLIŞ YAPMAYASIN
 
 - ❌ "sarışın karakter kim?" → list_entities (YANLIŞ!)
 - ✅ "sarışın karakter kim?" → semantic_search("sarışın karakter")
@@ -141,7 +146,13 @@ Sen pasif bir chatbot DEĞİLSİN. Sen otonom düşünebilen, problem çözebile
 - ❌ API bilgisi → tahmin et (YANLIŞ!)  
 - ✅ API bilgisi → get_library_docs("fal-ai")
 
-## 🎯 DÜŞÜNCE ZİNCİRİ ÖRNEKLERİ
+- ❌ "Emre'yi çiz" → generate_image (face swap olmadan!) (YANLIŞ!)
+- ✅ "Emre'yi çiz" → Entity context'ten yüz referansı otomatik eklenir
+
+- ❌ "1 dakikalık video yap" → generate_video(duration="10") (YANLIŞ!)
+- ✅ "1 dakikalık video yap" → generate_long_video(total_duration=60)
+
+## 🎯 DÜŞÜNCE ZİNCİRİ ÖRNEKLERİ (MULTI-SHOT)
 
 ### Örnek 1: "Nike'ın renkleri ne?"
 ```
@@ -160,7 +171,21 @@ UYGULA: create_character(name="Emre", use_current_reference=true)
 DOĞRULA: "Emre kaydedildi, artık @emre ile çağırabilirsin"
 ```
 
-### Örnek 3: "@sahibinden için Instagram reklamı yap"
+### Örnek 3: "Emre'yi ormanda çiz" (@ kullanılmadan!)
+```
+DÜŞÜN: Kullanıcı "Emre" diyor ama @ kullanmamış. Sistem otomatik olarak
+  isim eşleştirmesi yapacak ve @emre entity'sini bulacak.
+  Entity'nin reference_image_url'i varsa yüz tutarlılığı sağlanır.
+PLAN: generate_image çağır, prompt'a karakteri ekle
+UYGULA: generate_image(prompt="Emre in a forest, natural lighting...")
+  → Sistem otomatik olarak:
+    1. "Emre" ismini → @emre entity'si ile eşleştirir
+    2. reference_image_url'i alır
+    3. smart_generate_with_face ile yüz tutarlı görsel üretir
+SONUÇ: Emre'nin yüzüyle ormanda bir fotoğraf
+```
+
+### Örnek 4: "@sahibinden için Instagram reklamı yap"
 ```
 DÜŞÜN: Sahibinden markası için içerik üretmem gerekiyor.
 KONTROL: @sahibinden var mı? Renkleri var mı?
@@ -169,14 +194,61 @@ PLAN: Marka renklerini (sarı/siyah) kullanarak görsel üret
 UYGULA: generate_image(prompt="...sahibinden colors: yellow #FFD700, black...")
 ```
 
-### Örnek 4: "Bu kişinin yüzünü kullanarak Paris'te fotoğraf yap"
+### Örnek 5: "Bu kişinin yüzünü kullanarak Paris'te fotoğraf yap"
 ```
 DÜŞÜN: Referans yüz ile yeni sahne üretmem gerekiyor.
 PLAN: Gönderilen görsel + generate_image (otomatik face swap yapılır)
 UYGULA: generate_image(prompt="person in Paris...", yüz referansı otomatik kullanılır)
 ```
 
-### Örnek 5: "Daha önce yaptığımız sportif karakteri bul" (YENİ!)
+### Örnek 6: "1 dakikalık deniz kıyısı videosu oluştur"
+```
+DÜŞÜN: 60 saniyelik video isteniyor. Bu 10 saniyeden uzun, generate_long_video kullanmalıyım.
+PLAN: generate_long_video kullan, toplam 60 saniye, 6 segment × 10s
+UYGULA: generate_long_video(
+  prompt="Beautiful coastal scenery, waves crashing on rocky shores, golden hour",
+  total_duration=60,
+  aspect_ratio="16:9"
+)
+  → Sistem otomatik olarak:
+    1. 6 farklı sinematik açıdan segment oluşturur
+    2. Paralel olarak 3'er 3'er üretir
+    3. FFmpeg ile birleştirir
+    4. Tek video döndürür
+SONUÇ: 60 saniyelik sinematik deniz kıyısı videosu
+```
+
+### Örnek 7: "3 dakikalık bir reklam filmi yap, sahneleri şöyle olsun..."
+```
+DÜŞÜN: Kullanıcı kendi sahne açıklamalarını veriyor. generate_long_video'ya scenes listesi göndermeliyim.
+PLAN: Sahne açıklamalarını scene_descriptions olarak gönder
+UYGULA: generate_long_video(
+  prompt="Professional advertisement film",
+  total_duration=180,
+  scene_descriptions=[
+    "Opening shot: city skyline at dawn",
+    "Product reveal: sleek design close-up",
+    "Customer testimonial: happy family using product",
+    "Call to action: brand logo with tagline"
+  ]
+)
+```
+
+### Örnek 8: "Bu videodaki kişiyi sil" / "Videoyu anime yap"
+```
+DÜŞÜN: Mevcut videoyu düzenlemem gerekiyor. edit_video kullanmalıyım.
+KONTROL: Video URL'si var mı? Evet.
+UYGULA: edit_video(
+  video_url="https://...",
+  prompt="remove the person" / "convert to anime style"
+)
+  → Sistem otomatik olarak:
+    1. "Kaldır/sil" → Strategy 1 (Inpainting): Kareyi düzenle + yeniden üret
+    2. "Anime/stil" → Strategy 2 (V2V): Video-to-video dönüşüm
+SONUÇ: Düzenlenmiş video
+```
+
+### Örnek 9: "Daha önce yaptığımız sportif karakteri bul"
 ```
 DÜŞÜN: Kullanıcı geçmişte oluşturduğu bir karakteri arıyor ama adını hatırlamıyor.
 PLAN: Doğal dil ile semantic arama yap
@@ -184,12 +256,31 @@ UYGULA: semantic_search(query="sportif karakter", entity_type="character")
 SONUÇ: Benzerlik skoruna göre sonuçları sun
 ```
 
-### Örnek 6: "fal.ai video API nasıl kullanılıyor?"
+### Örnek 10: "fal.ai video API nasıl kullanılıyor?"
 ```
 DÜŞÜN: Kullanıcı API bilgisi istiyor, güncel olmalı.
 PLAN: Context7'den doküman çek
 UYGULA: get_library_docs(library_name="fal-ai", query="video generation")
 SONUÇ: Güncel parametreler ve örnek kod paylaş
+```
+
+### Örnek 11: Hata Kurtarma Zinciri
+```
+SENARYO: Video üretimde 3 segmentten 1'i başarısız oldu.
+SİSTEM: Otomatik olarak:
+  1. Başarılı 2 segmenti birleştirir
+  2. Eksik süreyi belirtir
+  3. "2 segment başarıyla birleştirildi, 1 segment başarısız oldu" der
+SONUÇ: Kısmi başarı durumunda bile sonuç döndürür
+```
+
+### Örnek 12: Doğru Video Tool Seçimi
+```
+"5 saniyelik kedi videosu" → generate_video(prompt="cat playing", duration="5")
+"10 saniyelik araba videosu" → generate_video(prompt="car driving", duration="10")  
+"30 saniyelik tanıtım" → generate_long_video(prompt="...", total_duration=30)
+"1 dakikalık klip" → generate_long_video(prompt="...", total_duration=60)
+"3 dakikalık film" → generate_long_video(prompt="...", total_duration=180)
 ```
 
 ## ⚠️ KRİTİK KURALLAR
@@ -201,6 +292,9 @@ SONUÇ: Güncel parametreler ve örnek kod paylaş
 5. **Türkçe yanıt ver** - Araç parametreleri İngilizce olabilir
 6. **Her adımda düşün** - Sadece emir takip etme, mantıklı düşün
 7. **Doğal dil araması için semantic_search kullan** - list_entities yerine
+8. **Entity isimleri @ olmadan da tanınır** - "Emre" = @emre, "Paris" = @paris
+9. **10 saniyeden uzun video → generate_long_video kullan**
+10. **Mevcut video düzenle → edit_video kullan**
 
 ## 🚨 GÖRSEL DÜZENLEME KURALI
 
@@ -218,16 +312,20 @@ Herhangi bir işlem başarısız olursa:
 2. **Görsel üretilemedi:**
    generate_image farklı prompt → edit_image → search_images → fetch_web_image
 
-3. **Entity bulunamadı:**
+3. **Video üretilemedi:**
+   generate_video farklı prompt → generate_long_video dene → "tekrar deneyeyim mi?" sor
+
+4. **Entity bulunamadı:**
    semantic_search dene → create_entity öner → "oluşturayım mı?" sor
 
-4. **Marka renkleri yok:**
+5. **Marka renkleri yok:**
    research_brand(comprehensive) → logo analizi → "bulduklarım şunlar..." sun
 
 ## 🏷️ TAG SİSTEMİ
 - @isim formatı: @emre, @nike, @paris
 - Entity tipi kayıt sırasında belirlenir
 - @mention kullanıldığında otomatik olarak entity bilgileri eklenir
+- ⚠️ @ olmadan da isim eşleştirmesi yapılır (emre → @emre)
 
 Şimdi her mesajı bu düşünce çerçevesiyle işle ve AKILLI bir asistan ol!
 """
@@ -565,10 +663,37 @@ Herhangi bir işlem başarısız olursa:
             return result
         
         elif tool_name == "edit_video":
-            # Video düzenleme işlemi
-            # Not: edit_video doğrudan FalPluginV2 üzerinden çalışır, ekstra DB işlemi gerekmez (plugin içinde return ediyor zaten)
-            # Ancak orchestrator tarafında image/video listesine eklenmesi için return yapısı uygun olmalı.
-            return await self.fal_plugin.execute("edit_video", tool_input)
+            # Video düzenleme işlemi — PluginResult'ı dict'e dönüştür
+            plugin_result = await self.fal_plugin.execute("edit_video", tool_input)
+            result_data = plugin_result.data or {}
+            if plugin_result.success:
+                video_url = result_data.get("video_url")
+                # Asset olarak kaydet
+                if video_url:
+                    try:
+                        user_id = await get_user_id_from_session(db, session_id)
+                        await asset_service.save_asset(
+                            db=db,
+                            session_id=session_id,
+                            url=video_url,
+                            asset_type="video",
+                            prompt=tool_input.get("prompt", "Video edit"),
+                            model_name=result_data.get("model", "video-edit"),
+                            model_params={"source_video": tool_input.get("video_url")},
+                        )
+                    except Exception as save_err:
+                        print(f"⚠️ Video edit asset kaydetme hatası: {save_err}")
+                return {
+                    "success": True,
+                    "video_url": video_url,
+                    "model": result_data.get("model", "video-edit"),
+                    "method_used": result_data.get("method_used", "unknown"),
+                    "message": "Video başarıyla düzenlendi."
+                }
+            return {"success": False, "error": plugin_result.error or "Video düzenleme başarısız"}
+        
+        elif tool_name == "generate_long_video":
+            return await self._generate_long_video(db, session_id, tool_input)
         
         elif tool_name == "edit_image":
             return await self._edit_image(tool_input)
@@ -1122,6 +1247,94 @@ Konuşma:
                 }
         
         except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """
+        Uzun video üret (30s - 3 dakika).
+        
+        LongVideoService kullanarak segment'lere böl, paralel üret, birleştir.
+        """
+        try:
+            prompt = params.get("prompt", "")
+            total_duration = params.get("total_duration", 60)
+            aspect_ratio = params.get("aspect_ratio", "16:9")
+            scene_descriptions = params.get("scene_descriptions")
+            
+            # Süre doğrulama
+            total_duration = max(30, min(180, total_duration))
+            
+            # Prompt çevirisi
+            english_prompt = prompt
+            try:
+                from app.services.prompt_translator import translate_to_english
+                english_prompt, _ = await translate_to_english(prompt)
+                print(f"🎬 Long Video Prompt: '{prompt}' → '{english_prompt}'")
+            except Exception:
+                pass
+            
+            # Sahne açıklamalarını da çevir
+            translated_scenes = None
+            if scene_descriptions:
+                try:
+                    from app.services.prompt_translator import translate_to_english
+                    translated_scenes = []
+                    for scene in scene_descriptions:
+                        translated, _ = await translate_to_english(scene)
+                        translated_scenes.append(translated)
+                except Exception:
+                    translated_scenes = scene_descriptions
+            
+            user_id = await get_user_id_from_session(db, session_id)
+            
+            # LongVideoService ile üret
+            from app.services.long_video_service import long_video_service
+            result = await long_video_service.create_and_process(
+                user_id=str(user_id),
+                session_id=str(session_id),
+                prompt=english_prompt,
+                total_duration=total_duration,
+                aspect_ratio=aspect_ratio,
+                scene_descriptions=translated_scenes,
+            )
+            
+            if result.get("success") and result.get("video_url"):
+                # Asset olarak kaydet
+                try:
+                    await asset_service.save_asset(
+                        db=db,
+                        session_id=session_id,
+                        url=result["video_url"],
+                        asset_type="video",
+                        prompt=prompt,
+                        model_name="kling-3.0-pro-long",
+                        model_params={
+                            "total_duration": total_duration,
+                            "segments": result.get("segments", 0),
+                            "aspect_ratio": aspect_ratio,
+                        },
+                    )
+                except Exception as save_err:
+                    print(f"⚠️ Long video asset kayıt hatası: {save_err}")
+                
+                return {
+                    "success": True,
+                    "video_url": result["video_url"],
+                    "duration": result.get("duration", total_duration),
+                    "segments": result.get("segments", 0),
+                    "message": f"{result.get('duration', total_duration)} saniyelik uzun video oluşturuldu ({result.get('segments', 0)} segment birleştirildi)."
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Uzun video üretilemedi")
+                }
+                
+        except Exception as e:
+            print(f"❌ Long video üretim hatası: {e}")
             return {
                 "success": False,
                 "error": str(e)

@@ -28,9 +28,10 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
   ├── Yüz → Referans FOTOĞRAF'tan (Nano Banana + Face Swap)
   ├── Tutarlılık → Her üretimde AYNI yüz
   ├── Video → Kling 3.0 Pro ile
-  └── Referans → reference_image_url alanında saklanır
+  ├── Referans → reference_image_url alanında saklanır
+  └── ⚠️ @ olmadan da tanınır! ("johny" → @johny) ← YENİ
 
-@nike = MARKA ⭐ YENİ
+@nike = MARKA
   ├── Renkler → primary/secondary/accent
   ├── Slogan → "Just Do It" vb.
   ├── Sosyal Medya → Instagram, Twitter
@@ -39,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (7 Şubat 2026 - 20:43)
+## 📊 Genel Durum (17 Şubat 2026 - 16:07)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -50,6 +51,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 5: Performance + LLM Migration | ✅ Tamamlandı | %100 |
 | Hafta 6: Polish + Admin Panel | ✅ Tamamlandı | %100 |
 | Hafta 7: Semantic Search + Context7 | ✅ Tamamlandı | %100 |
+| Hafta 8: Agent Intelligence Upgrade | ✅ Tamamlandı | %100 |
 
 ---
 
@@ -283,41 +285,60 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (7 Şubat 2026 - 23:00)
+## 🎯 SON DURUM (17 Şubat 2026 - 16:07)
 
 **🎉 TÜM FAZLAR TAMAMLANDI!**
 
 - ✅ **Faz 1: Temel Zeka** - CoT, Few-Shot, Conv. Summarization
 - ✅ **Faz 2: Hafıza** - Preferences, Redis, Episodic Memory
-- ✅ **Faz 3: Ölçek** - Resilience, Pagination, Celery, DB Index
+- ✅ **Faz 3: Ölçek** - Resilience, Pagination, DB Index
 - ✅ **Faz 4: Uzun Video** - Segment-based generation, FFmpeg stitching
+- ✅ **Faz 5: Agent Intelligence Upgrade** - Yüz tutarlılığı, video edit fix, multi-shot ← YENİ
 
-**Yeni Servisler:** 8 adet
-**Commit Sayısı:** 12+
-**Toplam Kod:** 3000+ satır
+**Toplam Kod:** 3500+ satır
 
 ---
 
 ## 📋 EKSİKLER / YAPILACAKLAR
 
+- [ ] Deploy: Railway (Backend) + Vercel (Frontend)
+- [ ] Canlı ortam testleri
 
 ---
 
-## � SON GELİŞMELER (11 Şubat 2026 - 12:20)
+## 📝 SON GELİŞMELER (17 Şubat 2026 - 16:07)
 
-### 🟢 Kritik Düzeltmeler (Bug Fixes)
-1. **Video Editing V2 Migration:**
-   - `AgentOrchestrator`, `FalPluginV2` kullanacak şekilde güncellendi.
-   - `AttributeError: 'FalPlugin' object has no attribute 'execute'` hatası çözüldü.
-   - Geriye dönük uyumluluk için `FalPluginV2`'ye `upload_base64_image` vb. eklendi.
-2. **Frontend Hydration Fix:**
-   - `ChatPanel.tsx` içindeki `<p>` içinde `div` (video/image) nest etme hatası giderildi.
+### 🧠 Agent Intelligence Upgrade (5 Fix)
 
-### � Bekleyen İşler / Handover Notes
-1. **Deploy:** Railway (Backend) ve Vercel (Frontend) deploy işlemleri başlatılmalı.
-2. **Test:** Kullanıcı "siteye reset attım" dediği için Video Editing özelliği canlı ortamda son bir kez test edilmeli.
-   - Komut: "Videodaki kediyi sil"
-   - Beklenen: LTX veya Fallback (Frame extract -> Generate) çalışmalı.
+1. **Yüz Tutarlılığı (Entity Name Matching):**
+   - `entity_service.py` — `resolve_by_name` metodu eklendi
+   - Artık `@emre` yazmak zorunlu değil, "emre" yazınca da entity bulunuyor
+   - Case-insensitive + kelime sınırı kontrolü ile false positive önlenir
+   - `resolve_tags` hem @tag hem isim eşleştirmesi yapıyor (deduplicated)
+
+2. **Video Düzenleme Fix:**
+   - `orchestrator.py` — `edit_video` handler PluginResult→dict dönüşümü
+   - Düzenlenen video artık `save_asset` ile Media Assets'e kaydediliyor
+
+3. **Uzun Video Üretimi (3 dakika):**
+   - `long_video_service.py` tamamen yeniden yazıldı
+   - Celery kaldırıldı → tamamen async
+   - FalPluginV2 kullanılıyor (eski FalPlugin değil)
+   - fal.ai FFmpeg API ile segment stitching
+   - `tools.py` — `generate_long_video` tool eklendi
+   - `orchestrator.py` — `_generate_long_video` metodu + handler eklendi
+
+4. **Multi-Shot Prompt Geliştirme:**
+   - System prompt 6 → 12 few-shot örneğe genişletildi
+   - Yüz tutarlılığı, uzun video, video edit, hata kurtarma örnekleri
+   - Doğru video tool seçim tablosu (≤10s → generate_video, >10s → generate_long_video)
+
+5. **Dead Code Temizliği:**
+   - `fal_plugin_v2.py` — `_video_to_video` duplicate except bloğu kaldırıldı
+
+### 🟢 Önceki Düzeltmeler (11 Şubat)
+1. Video Editing V2 Migration — `FalPluginV2` uyumluluğu
+2. Frontend Hydration Fix — `ChatPanel.tsx` `<p>` nesting hatası
 
 ---
 

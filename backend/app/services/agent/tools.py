@@ -126,6 +126,24 @@ AGENT_TOOLS_ANTHROPIC = [
         }
     },
     {
+        "name": "generate_long_video",
+        "description": "Uzun video üretir (30 saniye - 3 dakika). Birden fazla kısa klip üretip otomatik birleştirir. Kullanıcı 10 saniyeden uzun video istediğinde bu tool kullanılmalı.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string", "description": "Video senaryosu / ana açıklama"},
+                "total_duration": {"type": "integer", "description": "Hedef süre (saniye). Min: 30, Max: 180. Varsayılan: 60"},
+                "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
+                "scene_descriptions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Opsiyonel: Her sahne için ayrı açıklama listesi. Verilmezse otomatik sinematik sahneler oluşturulur."
+                }
+            },
+            "required": ["prompt"]
+        }
+    },
+    {
         "name": "edit_image",
         "description": "Mevcut bir görseli düzenler.",
         "input_schema": {

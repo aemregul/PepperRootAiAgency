@@ -312,19 +312,22 @@ class EntityService:
             text: Kullanıcı mesajı
         
         Returns:
-            Tag listesi (örn: ['@character_emre', '@location_orman'])
+            Tag listesi (örn: ['@emre', '@orman'])
         """
         pattern = r'@[a-zA-Z0-9_]+'
         return re.findall(pattern, text)
     
-    async def resolve_tags(
+    async def resolve_by_name(
         self,
         db: AsyncSession,
         user_id: uuid.UUID,
         text: str
     ) -> list[Entity]:
         """
-        Metindeki @tag'leri entity'lere çözümle.
+        Mesaj içindeki entity isimlerini tanı (@ olmadan).
+        
+        Kullanıcı "emre'yi ormanda çiz" dediğinde @emre entity'sini bulur.
+        Büyük/küçük harf duyarsız arama yapar.
         
         Args:
             db: Database session
@@ -334,13 +337,68 @@ class EntityService:
         Returns:
             Bulunan Entity listesi
         """
-        tags = self.extract_tags(text)
+        # Kullanıcının tüm entity'lerini al
+        all_entities = await self.list_entities(db, user_id)
+        
+        if not all_entities:
+            return []
+        
+        text_lower = text.lower()
+        found = []
+        
+        for entity in all_entities:
+            name_lower = entity.name.lower()
+            # İsim en az 2 karakter olsun (tek harf false positive verir)
+            if len(name_lower) >= 2 and name_lower in text_lower:
+                # Kelime sınırı kontrolü (parçalı eşleşmeyi önle)
+                # Örn: "gem" kelimesi "gemini" içinde bulunmasın
+                import re as re_module
+                # Türkçe karakterleri de destekle
+                pattern = r'(?<!\w)' + re_module.escape(name_lower) + r'(?!\w)'
+                if re_module.search(pattern, text_lower):
+                    found.append(entity)
+                    print(f"🔍 Entity BULUNDU (isim eşleştirme): '{entity.name}' → {entity.tag}")
+        
+        return found
+    
+    async def resolve_tags(
+        self,
+        db: AsyncSession,
+        user_id: uuid.UUID,
+        text: str
+    ) -> list[Entity]:
+        """
+        Metindeki @tag'leri VE entity isimlerini çözümle.
+        
+        Önce @tag formatını dener, sonra isim eşleştirmesi yapar.
+        Aynı entity iki kez eklenmez.
+        
+        Args:
+            db: Database session
+            user_id: Kullanıcı ID
+            text: Kullanıcı mesajı
+        
+        Returns:
+            Bulunan Entity listesi (deduplicated)
+        """
+        seen_ids = set()
         entities = []
         
+        # 1. @tag formatıyla eşleştir (öncelikli)
+        tags = self.extract_tags(text)
         for tag in tags:
             entity = await self.get_by_tag(db, user_id, tag)
-            if entity:
+            if entity and entity.id not in seen_ids:
                 entities.append(entity)
+                seen_ids.add(entity.id)
+                print(f"🏷️ Entity BULUNDU (@tag): {entity.tag}")
+        
+        # 2. İsim eşleştirmesi (@ olmadan)
+        name_matches = await self.resolve_by_name(db, user_id, text)
+        for entity in name_matches:
+            if entity.id not in seen_ids:
+                entities.append(entity)
+                seen_ids.add(entity.id)
         
         return entities
 
