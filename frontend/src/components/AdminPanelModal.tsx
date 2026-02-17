@@ -169,7 +169,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                             <Shield size={24} style={{ color: "var(--accent)" }} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">Admin Panel</h2>
+                            <h2 className="text-xl font-bold">Yönetim Paneli</h2>
                             <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
                                 Sistem yönetimi ve AI model kontrolü
                             </p>
@@ -381,7 +381,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                                     <div>
                                         <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                                             <Store size={16} style={{ color: "var(--accent)" }} />
-                                            Plugin Marketplace
+                                            Eklenti Mağazası
                                         </h3>
                                         <div className="grid grid-cols-2 gap-3">
                                             {marketplacePlugins.filter(p => !isPluginInstalled(p.id)).map((plugin) => (

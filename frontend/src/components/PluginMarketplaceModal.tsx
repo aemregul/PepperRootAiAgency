@@ -977,7 +977,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                             <Store size={24} className="text-purple-500" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">Plugin Marketplace</h2>
+                            <h2 className="text-xl font-bold">Eklenti Mağazası</h2>
                             <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
                                 Topluluk tarafından oluşturulan Creative Plugin'ler
                             </p>
@@ -996,7 +996,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Plugin ara..."
+                            placeholder="Eklenti ara..."
                             className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm"
                             style={{ background: "var(--background)", border: "1px solid var(--border)" }}
                         />

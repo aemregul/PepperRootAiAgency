@@ -661,7 +661,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                             {msg.image_url && !msg.content?.includes(msg.image_url) && (
                                                 <img
                                                     src={msg.image_url}
-                                                    alt="Generated"
+                                                    alt="Üretilen görsel"
                                                     className="mt-3 rounded-lg max-w-full"
                                                 />
                                             )}
@@ -731,7 +731,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                         className="w-full h-full object-cover opacity-80"
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-white text-xs">VIDEO</span>
+                                        <span className="text-white text-xs">VİDEO</span>
                                     </div>
                                 </div>
                                 <button

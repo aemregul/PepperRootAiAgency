@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (17 Şubat 2026 - 16:50)
+## 📊 Genel Durum (17 Şubat 2026 - 23:30)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -53,6 +53,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 7: Semantic Search + Context7 | ✅ Tamamlandı | %100 |
 | Hafta 8: Agent Intelligence Upgrade | ✅ Tamamlandı | %100 |
 | Hafta 9: Advanced Features (Phase 2) | ✅ Tamamlandı | %100 |
+| Hafta 10: UI Redesign + Localization | ✅ Tamamlandı | %100 |
 
 ---
 
@@ -286,7 +287,7 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (17 Şubat 2026 - 16:50)
+## 🎯 SON DURUM (17 Şubat 2026 - 23:30)
 
 **🎉 TÜM FAZLAR TAMAMLANDI!**
 
@@ -295,9 +296,10 @@ git add . && git commit -m "mesaj" && git push
 - ✅ **Faz 3: Ölçek** - Resilience, Pagination, DB Index
 - ✅ **Faz 4: Uzun Video** - Segment-based generation, FFmpeg stitching
 - ✅ **Faz 5: Agent Intelligence Upgrade** - Yüz tutarlılığı, video edit fix, multi-shot
-- ✅ **Faz 6: Advanced Features** - WebSocket, QC, Memory, Style, Campaign, Multi-Agent, Voice ← YENİ
+- ✅ **Faz 6: Advanced Features** - WebSocket, QC, Memory, Style, Campaign, Multi-Agent, Voice
+- ✅ **Faz 7: UI Redesign + Lokalizasyon** - Sidebar yeniden tasarım, Türkçe lokalizasyon ← YENİ
 
-**Toplam Kod:** 5000+ satır
+**Toplam Kod:** 6000+ satır
 
 ---
 
@@ -308,74 +310,44 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 📝 SON GELİŞMELER (17 Şubat 2026 - 16:50)
+## 📝 SON GELİŞMELER (17 Şubat 2026 - 23:30)
 
-### 🚀 Phase 2: Advanced Features (8 Yeni Özellik)
+### 🎨 UI Redesign + Türkçe Lokalizasyon (17 Şubat)
 
-1. **WebSocket Real-Time Progress:**
-   - `progress_service.py` — Gerçek zamanlı ilerleme takibi
-   - `ws.py` — WebSocket endpoint (`/ws/progress/{session_id}`)
-   - Uzun video, kampanya gibi işlemlerde anlık bildirim
+1. **Sidebar Yeniden Tasarım:**
+   - Daraltılabilir rail (48px) + hover'da genişleme (200px)
+   - CSS-only tooltip yerine inline label sistemi
+   - İkon boyutları büyütüldü (24px ana, 20px özellik butonları)
+   - Flexbox ile mükemmel merkezleme
+   - Smooth geçiş animasyonları
 
-2. **Auto Quality Control (GPT-4o Vision):**
-   - `quality_control_service.py` — Üretilen görseli otomatik puanla (1-10)
-   - Prompt uygunluk + teknik kalite + yüz benzerliği skoru
-   - Düşük skor → otomatik retry (max 2 deneme)
+2. **Kapsamlı Türkçe Lokalizasyon (55+ çeviri):**
+   - `Sidebar.tsx` — Projects→Projeler, Entities→Varlıklar, Characters→Karakterler, Locations→Lokasyonlar, Brands→Markalar, Creative Plugins→Yaratıcı Eklentiler, Marketplace→Eklenti Mağazası
+   - `GridGeneratorModal.tsx` — Tüm ilerleme aşamaları, buton etiketleri, yükleme alanı, mod seçiciler (30+ çeviri)
+   - `AssetsPanel.tsx` — Media Assets→Medya Varlıkları, Refresh→Yenile, VIDEO→VİDEO
+   - `AdminPanelModal.tsx` — Admin Panel→Yönetim Paneli, Plugin Marketplace→Eklenti Mağazası
+   - `PluginMarketplaceModal.tsx` — Plugin Marketplace→Eklenti Mağazası
+   - `ChatPanel.tsx` — VIDEO→VİDEO, alt text çevirileri
+   - `page.tsx` (Landing) — Powered by→gücüyle, Studio→Stüdyo
 
-3. **Self-Learning (Prompt Hafızası):**
-   - Başarılı prompt'lar kullanıcı hafızasına kaydedilir
-   - Benzer istek geldiğinde geçmiş başarılı prompt'lardan ilham
-   - Zaman içinde kullanıcının tarzını öğrenir
+3. **Unified Chat Tasarımı:**
+   - Tek asistan modeli — proje bazlı sohbet
+   - Yeni proje oluşturma modal'ı
+   - Chat paneli yeniden tasarlandı
 
-4. **Cross-Project Memory (Tek Asistan Modeli):**
-   - `conversation_memory_service.py` — Kullanıcı seviyesinde hafıza
-   - Sohbet sonunda otomatik özet (GPT-4o-mini)
-   - Projeler arası bilgi taşıma (tercihler, stiller, entity'ler)
-   - Agent yeni projede "Seni tanıyorum, geçmişte şunları yaptık" der
+### 🚀 Phase 2: Advanced Features (8 Yeni Özellik) — Önceki
 
-5. **Style Transfer / Moodboard:**
-   - `save_style` tool — Stil kaydet, sonraki üretimlerde otomatik uygula
-   - Renk paleti, ton, atmosfer hafızası
-
-6. **Batch Campaign Mode:**
-   - `generate_campaign` tool — Tek prompt → 4-9 varyasyon
-   - Multi-format: post (1:1), story (9:16), reel (9:16), cover (16:9)
-   - Marka entegrasyonu (renk paleti + isim)
-
-7. **Multi-Agent Collaboration:**
-   - `multi_agent_service.py` — Creative Agent + QC Agent
-   - Creative: Prompt zenginleştirme, sahne planlama
-   - QC: Tutarlılık kontrolü, iyileştirme önerileri
-
-8. **Voice + Audio:**
-   - `voice_audio_service.py` — Whisper STT + OpenAI TTS
-   - `transcribe_voice` — Sesli komut → metin
-   - `add_audio_to_video` — Video'ya seslendirme/müzik (FFmpeg)
-
-### Yeni Dosyalar:
-```
-backend/app/services/
-├── progress_service.py          ← WebSocket progress
-├── quality_control_service.py   ← Auto QC
-├── conversation_memory_service.py ← Cross-project memory
-├── voice_audio_service.py       ← Voice + Audio
-├── multi_agent_service.py       ← Multi-agent framework
-backend/app/api/routes/
-├── ws.py                        ← WebSocket endpoint
-```
-
-4. **Multi-Shot Prompt Geliştirme:**
-   - System prompt 6 → 12 few-shot örneğe genişletildi
-   - Yüz tutarlılığı, uzun video, video edit, hata kurtarma örnekleri
-   - Doğru video tool seçim tablosu (≤10s → generate_video, >10s → generate_long_video)
-
-5. **Dead Code Temizliği:**
-   - `fal_plugin_v2.py` — `_video_to_video` duplicate except bloğu kaldırıldı
+1. **WebSocket Real-Time Progress** — `progress_service.py`, `ws.py`
+2. **Auto Quality Control (GPT-4o Vision)** — `quality_control_service.py`
+3. **Self-Learning (Prompt Hafızası)** — Başarılı prompt'lar hafızaya kaydedilir
+4. **Cross-Project Memory** — `conversation_memory_service.py`
+5. **Style Transfer / Moodboard** — `save_style` tool
+6. **Batch Campaign Mode** — `generate_campaign` tool
+7. **Multi-Agent Collaboration** — `multi_agent_service.py`
+8. **Voice + Audio** — `voice_audio_service.py` (Whisper STT + OpenAI TTS)
 
 ### 🟢 Önceki Düzeltmeler (11 Şubat)
 1. Video Editing V2 Migration — `FalPluginV2` uyumluluğu
 2. Frontend Hydration Fix — `ChatPanel.tsx` `<p>` nesting hatası
 
 ---
-
-

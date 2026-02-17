@@ -193,7 +193,7 @@ function DemoModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
                             <div className="w-3 h-3 rounded-full bg-yellow-500" />
                             <div className="w-3 h-3 rounded-full bg-green-500" />
                         </div>
-                        <span className="text-gray-500 text-sm">Pepper Root AI Studio - Demo</span>
+                        <span className="text-gray-500 text-sm">Pepper Root AI Stüdyo - Demo</span>
                     </div>
                 </div>
 
@@ -716,7 +716,7 @@ export default function LandingPage() {
                             <span className="text-2xl">🫑</span>
                             <div>
                                 <span className="text-white font-semibold">Pepper Root AI Agency</span>
-                                <span className="text-gray-500 text-sm block">Powered by Pepper Root.</span>
+                                <span className="text-gray-500 text-sm block">Pepper Root gücüyle.</span>
                             </div>
                         </div>
 

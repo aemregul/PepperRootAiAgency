@@ -183,3 +183,390 @@ body {
 /* Mobile: < 640px */
 /* Tablet: 640px - 1024px */
 /* Desktop: > 1024px */
+
+
+/* ====================================
+   SIDEBAR V2 — Premium Glassmorphism
+   Matches mockup: navy palette,
+   glass cards, green accents
+   ==================================== */
+
+/* Icon Rail — expands on hover to show labels */
+.sidebar-rail {
+  width: 64px;
+  min-width: 64px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 16px 8px;
+  gap: 4px;
+  background: rgba(8, 10, 18, 0.98);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 52;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.sidebar-rail:hover {
+  width: 200px;
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Rail label text — hidden by default, shown on rail hover */
+.rail-label {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: none;
+  opacity: 0;
+  color: inherit;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar-rail:hover .rail-label {
+  display: inline;
+  opacity: 1;
+}
+
+/* Rail logo */
+.rail-logo {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  background: rgba(74, 222, 128, 0.06);
+  flex-shrink: 0;
+}
+
+/* Rail buttons */
+.rail-btn {
+  width: 100%;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sidebar-rail:hover .rail-btn {
+  justify-content: flex-start;
+  padding-left: 16px;
+  gap: 12px;
+}
+
+.rail-btn>svg {
+  flex-shrink: 0;
+}
+
+.rail-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.rail-btn.active {
+  color: var(--accent);
+}
+
+.rail-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+
+/* Feature buttons in rail */
+.rail-feature-btn {
+  width: 100%;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sidebar-rail:hover .rail-feature-btn {
+  justify-content: flex-start;
+  padding-left: 14px;
+  gap: 12px;
+}
+
+.rail-feature-btn>svg {
+  flex-shrink: 0;
+}
+
+.rail-feature-btn:hover {
+  filter: brightness(1.3);
+}
+
+/* Rail spacer */
+.rail-spacer {
+  flex: 1;
+}
+
+/* Rail divider */
+.rail-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 8px 0;
+  flex-shrink: 0;
+}
+
+/* Rail avatar */
+.rail-avatar {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent) 0%, #059669 100%);
+  color: #000;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  flex-shrink: 0;
+}
+
+.rail-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.3);
+}
+
+
+/* ── Sliding Drawer ── */
+.sidebar-drawer {
+  width: 280px;
+  min-width: 280px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 15, 24, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.sidebar-drawer.collapsed {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  border-right: none;
+}
+
+/* Drawer header */
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 16px;
+}
+
+.drawer-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+
+/* ── Project Cards — Premium Glassmorphism ── */
+.project-card-v2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 3px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+}
+
+.project-card-v2:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.project-card-v2.active {
+  background: rgba(74, 222, 128, 0.06);
+  border-color: rgba(74, 222, 128, 0.15);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.05);
+}
+
+/* Green left accent for active card */
+.project-card-v2.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+/* Project thumbnail — bigger, richer */
+.project-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(30, 35, 50, 0.8) 0%, rgba(20, 24, 38, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 22px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.project-card-v2.active .project-thumb {
+  border-color: rgba(74, 222, 128, 0.2);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.1);
+}
+
+/* Project info */
+.project-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.project-card-v2.active .project-name {
+  color: #fff;
+}
+
+.project-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Category badge — small green pill */
+.category-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+/* Date/status text */
+.project-date {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+
+/* ── Entity Items ── */
+.entity-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.entity-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+
+/* ── New Project Button ── */
+.new-project-btn {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(74, 222, 128, 0.06);
+  border: 1px solid rgba(74, 222, 128, 0.12);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.new-project-btn:hover {
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+
+/* ── Responsive (mobile/tablet) ── */
+@media (max-width: 1024px) {
+  .sidebar-rail {
+    width: 56px;
+    min-width: 56px;
+  }
+
+  .sidebar-drawer {
+    position: fixed;
+    left: 56px;
+    top: 0;
+    z-index: 50;
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .rail-btn {
+    width: 36px;
+    height: 36px;
+  }
+}

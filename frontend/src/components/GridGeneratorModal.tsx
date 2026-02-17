@@ -59,7 +59,7 @@ export function GridGeneratorModal({ isOpen, onClose }: GridGeneratorModalProps)
     // ============================================
     const handleFile = (file: File) => {
         if (!file.type.startsWith("image/")) {
-            setError("Please upload a valid image file");
+            setError("Lütfen geçerli bir görsel dosyası yükleyin");
             return;
         }
         const reader = new FileReader();
@@ -99,14 +99,14 @@ export function GridGeneratorModal({ isOpen, onClose }: GridGeneratorModalProps)
     // PROGRESS STAGES
     // ============================================
     const PROGRESS_STAGES = [
-        { percent: 5, message: "ANALYZING IMAGE" },
-        { percent: 15, message: "UNDERSTANDING SCENE" },
-        { percent: 25, message: "DETECTING FEATURES" },
-        { percent: 40, message: "GENERATING VARIATIONS" },
-        { percent: 55, message: "CREATING GRID" },
-        { percent: 70, message: "ENHANCING DETAILS" },
-        { percent: 85, message: "FINAL TOUCHES" },
-        { percent: 95, message: "ALMOST DONE..." },
+        { percent: 5, message: "GÖRSEL ANALİZ EDİLİYOR" },
+        { percent: 15, message: "SAHNE İNCELENİYOR" },
+        { percent: 25, message: "ÖZELLİKLER TESPİT EDİLİYOR" },
+        { percent: 40, message: "VARYASYONLAR ÜRETİLİYOR" },
+        { percent: 55, message: "GRID OLUŞTURULUYOR" },
+        { percent: 70, message: "DETAYLAR İYİLEŞTİRİLİYOR" },
+        { percent: 85, message: "SON DOKUNUŞLAR" },
+        { percent: 95, message: "NEREDEYSE BITTI..." },
     ];
 
     const getStatusMessage = (progress: number): string => {
@@ -115,7 +115,7 @@ export function GridGeneratorModal({ isOpen, onClose }: GridGeneratorModalProps)
                 return PROGRESS_STAGES[i].message;
             }
         }
-        return "STARTING...";
+        return "BAŞLIYOR...";
     };
 
     // ============================================
@@ -153,7 +153,7 @@ Cinematic storyboard quality, consistent character.`;
 
         setLoading(true);
         setLoadingProgress(0);
-        setLoadingStatus("STARTING...");
+        setLoadingStatus("BAŞLIYOR...");
         setError(null);
         setSelected([]);
         setExtractedImages([]);
@@ -188,15 +188,15 @@ Cinematic storyboard quality, consistent character.`;
             if (data.success && data.gridImage) {
                 if (progressInterval) clearInterval(progressInterval);
                 setLoadingProgress(100);
-                setLoadingStatus("COMPLETED!");
+                setLoadingStatus("TAMAMLANDI!");
                 setGridImage(data.gridImage);
                 setGridGenerated(true);
             } else {
-                throw new Error("Image generation failed");
+                throw new Error("Görsel oluşturma başarısız oldu");
             }
         } catch (err) {
             console.error("Grid generation error:", err);
-            setError(err instanceof Error ? err.message : "An error occurred");
+            setError(err instanceof Error ? err.message : "Bir hata oluştu");
         } finally {
             if (progressInterval) clearInterval(progressInterval);
             setLoading(false);
@@ -312,7 +312,7 @@ Cinematic storyboard quality, consistent character.`;
             setSelected([]);
         } catch (err) {
             console.error("Extract error:", err);
-            setError(err instanceof Error ? err.message : "Extraction failed");
+            setError(err instanceof Error ? err.message : "Çıkarma başarısız oldu");
         } finally {
             setExtracting(false);
         }
@@ -418,8 +418,8 @@ Cinematic storyboard quality, consistent character.`;
                         {/* Mode Selector */}
                         <div className="flex bg-[#111] border border-[#222] rounded-xl p-1 gap-1">
                             {[
-                                { key: "angles", label: "ANGLES", icon: Film },
-                                { key: "storyboard", label: "STORYBOARD", icon: Grid3x3 },
+                                { key: "angles", label: "AÇILAR", icon: Film },
+                                { key: "storyboard", label: "HİKAYE TAHTASI", icon: Grid3x3 },
                             ].map((item) => {
                                 const active = topMode === item.key;
                                 const Icon = item.icon;
@@ -457,17 +457,17 @@ Cinematic storyboard quality, consistent character.`;
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 hover:bg-white/5 transition-colors">
                                 <Upload size={48} className="text-gray-600" />
                                 <span className="text-xl font-bold tracking-wider text-white">
-                                    DROP IMAGE HERE
+                                    GÖRSELİ BURAYA BIRAKIN
                                 </span>
                                 <span className="text-sm text-gray-600">
-                                    or click to select
+                                    veya seçmek için tıklayın
                                 </span>
                             </div>
                         ) : (
                             <>
                                 <img
                                     src={image}
-                                    alt="uploaded"
+                                    alt="yüklenen"
                                     className="absolute inset-0 w-full h-full object-contain"
                                 />
                                 {loading && (
@@ -497,7 +497,7 @@ Cinematic storyboard quality, consistent character.`;
                                 {/* Change image overlay */}
                                 {!loading && !gridGenerated && (
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                                        <span className="text-white font-bold tracking-wider">CHANGE IMAGE</span>
+                                        <span className="text-white font-bold tracking-wider">GÖRSELİ DEĞİŞTİR</span>
                                     </div>
                                 )}
                             </>
@@ -518,7 +518,7 @@ Cinematic storyboard quality, consistent character.`;
                             <div className="flex items-center gap-6">
                                 {/* Aspect Ratio */}
                                 <div className="flex flex-col items-center gap-2">
-                                    <span className="text-[10px] tracking-[0.3em] text-gray-600 font-medium">ASPECT RATIO</span>
+                                    <span className="text-[10px] tracking-[0.3em] text-gray-600 font-medium">EN BOY ORANI</span>
                                     <div className="flex bg-[#111] border border-[#222] rounded-xl p-1 gap-1">
                                         {(["16:9", "9:16", "1:1"] as Aspect[]).map((a) => (
                                             <button
@@ -539,7 +539,7 @@ Cinematic storyboard quality, consistent character.`;
 
                                 {/* Prompt Mode */}
                                 <div className="flex flex-col items-center gap-2">
-                                    <span className="text-[10px] tracking-[0.3em] text-gray-600 font-medium">PROMPT MODE</span>
+                                    <span className="text-[10px] tracking-[0.3em] text-gray-600 font-medium">PROMPT MODU</span>
                                     <div className="flex bg-[#111] border border-[#222] rounded-xl p-1 gap-1">
                                         <button
                                             onClick={() => setPromptMode("auto")}
@@ -549,7 +549,7 @@ Cinematic storyboard quality, consistent character.`;
                                                 }`}
                                         >
                                             <Sparkles size={14} />
-                                            AUTO
+                                            OTOMATİK
                                         </button>
                                         <button
                                             onClick={() => setPromptMode("custom")}
@@ -559,7 +559,7 @@ Cinematic storyboard quality, consistent character.`;
                                                 }`}
                                         >
                                             <PenLine size={14} />
-                                            CUSTOM
+                                            ÖZEL
                                         </button>
                                     </div>
                                 </div>
@@ -572,7 +572,7 @@ Cinematic storyboard quality, consistent character.`;
                                         <textarea
                                             value={customPrompt}
                                             onChange={(e) => setCustomPrompt(e.target.value.slice(0, 500))}
-                                            placeholder="Describe your style... warm tones, cinematic lighting, golden hour..."
+                                            placeholder="Stilinizi açıklayın... sıcak tonlar, sinematik ışık, gün batımı..."
                                             className="w-full h-28 resize-none bg-[#111] text-white/90 text-sm px-4 py-3 rounded-xl border border-[#222] focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-gray-700"
                                         />
                                         <div className="absolute bottom-3 right-3 text-[10px] text-gray-700">
@@ -590,13 +590,13 @@ Cinematic storyboard quality, consistent character.`;
                             >
                                 <span className="flex items-center gap-3">
                                     <Zap size={20} />
-                                    {gridGenerated ? "REGENERATE GRID" : "GENERATE GRID"}
+                                    {gridGenerated ? "YENİDEN OLUŞTUR" : "GRID OLUŞTUR"}
                                     <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                                 </span>
                             </button>
 
                             <span className="text-xs text-gray-600">
-                                PROCESSING TIME: ~30-60 SECONDS
+                                İŞLEM SÜRESİ: ~30-60 SANİYE
                             </span>
                         </div>
                     )}
@@ -613,14 +613,14 @@ Cinematic storyboard quality, consistent character.`;
                                     <div className={`w-4 h-4 rounded border ${selected.length === 9 ? "bg-emerald-500 border-emerald-500" : "border-gray-600"} flex items-center justify-center`}>
                                         {selected.length === 9 && <Check size={10} className="text-black" />}
                                     </div>
-                                    SELECT ALL
+                                    TÜMÜNÜ SEÇ
                                 </button>
                                 <button
                                     onClick={downloadGrid}
                                     className="flex items-center gap-2 bg-[#1a1a1a] hover:bg-[#222] border border-[#333] px-4 py-2 rounded-lg text-sm font-medium transition-all"
                                 >
                                     <Download size={16} className="text-white" />
-                                    <span className="text-white tracking-wider">DOWNLOAD GRID (SINGLE PNG)</span>
+                                    <span className="text-white tracking-wider">GRİD'İ İNDİR (TEK PNG)</span>
                                 </button>
                             </div>
 
@@ -652,7 +652,7 @@ Cinematic storyboard quality, consistent character.`;
                                             {isExtracting && (
                                                 <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm border border-yellow-500/50 px-3 py-1.5 rounded text-xs font-medium text-yellow-400 tracking-wide">
                                                     <RefreshCw size={12} className="animate-spin" />
-                                                    EXTRACTING
+                                                    ÇIKARILIYOR
                                                 </div>
                                             )}
 
@@ -696,7 +696,7 @@ Cinematic storyboard quality, consistent character.`;
                             {selected.length > 0 && (
                                 <>
                                     <div className="flex flex-col items-center gap-3">
-                                        <span className="text-[10px] tracking-[0.3em] text-gray-600 font-medium">EXTRACTION QUALITY</span>
+                                        <span className="text-[10px] tracking-[0.3em] text-gray-600 font-medium">ÇIKARMA KALİTESİ</span>
                                         <div className="flex bg-[#111] border border-[#222] rounded-xl p-1 gap-1">
                                             {([1, 2, 4] as Scale[]).map((s) => (
                                                 <button
@@ -723,7 +723,7 @@ Cinematic storyboard quality, consistent character.`;
                                     >
                                         <span className="flex items-center gap-3">
                                             <Download size={20} />
-                                            EXTRACT {selected.length} IMAGE{selected.length > 1 ? "S" : ""}
+                                            {selected.length} GÖRSEL ÇIKAR
                                             <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                                         </span>
                                     </button>
@@ -735,7 +735,7 @@ Cinematic storyboard quality, consistent character.`;
                                 onClick={resetAll}
                                 className="bg-emerald-500 hover:bg-emerald-400 px-16 py-4 rounded-xl text-black font-bold text-lg tracking-wider transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-emerald-500/25"
                             >
-                                GO AGAIN
+                                TEKRAR BAŞLA
                             </button>
                         </div>
                     )}
@@ -751,7 +751,7 @@ Cinematic storyboard quality, consistent character.`;
                             </div>
 
                             <div className="flex items-center gap-3">
-                                <h2 className="text-2xl font-bold tracking-wider text-emerald-400">EXTRACTED IMAGES</h2>
+                                <h2 className="text-2xl font-bold tracking-wider text-emerald-400">ÇIKARILAN GÖRSELLER</h2>
                                 <span className="text-gray-500 text-2xl">({extractedImages.filter(img => img.status === "ready").length})</span>
                             </div>
 
@@ -759,7 +759,7 @@ Cinematic storyboard quality, consistent character.`;
                                 {extracting ? (
                                     <div className="flex items-center gap-2 bg-[#1a1a1a] border border-[#333] px-4 py-2.5 rounded-lg text-sm">
                                         <Loader2 size={16} className="text-gray-400 animate-spin" />
-                                        <span className="text-gray-400 tracking-wider">EXTRACTING...</span>
+                                        <span className="text-gray-400 tracking-wider">ÇIKARILIYOR...</span>
                                     </div>
                                 ) : (
                                     <button
@@ -767,7 +767,7 @@ Cinematic storyboard quality, consistent character.`;
                                         className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
                                     >
                                         <Download size={16} className="text-black" />
-                                        <span className="text-black tracking-wider">DOWNLOAD ALL</span>
+                                        <span className="text-black tracking-wider">TÜMÜNÜ İNDİR</span>
                                     </button>
                                 )}
                             </div>
@@ -798,7 +798,7 @@ Cinematic storyboard quality, consistent character.`;
                                                         downloadSingleImage(img);
                                                     }}
                                                     className="w-10 h-10 rounded-full bg-[#333] hover:bg-[#444] flex items-center justify-center transition-all"
-                                                    title="Download image"
+                                                    title="Görseli indir"
                                                 >
                                                     <Download size={16} className="text-white" />
                                                 </button>

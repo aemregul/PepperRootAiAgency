@@ -351,7 +351,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                         ) : (
                             <img
                                 src={selectedAsset.url}
-                                alt="Full size asset"
+                                alt="Tam boyut görsel"
                                 className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
                             />
                         )}
@@ -443,7 +443,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                         </>
                     ) : (
                         <>
-                            <h2 className="font-medium">Media Assets</h2>
+                            <h2 className="font-medium">Medya Varlıkları</h2>
                             <div className="flex items-center gap-1">
                                 {/* Select Mode Toggle */}
                                 {displayAssets.length > 0 && (
@@ -468,7 +468,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                 </button>
                                 <button
                                     className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                    title="Refresh"
+                                    title="Yenile"
                                 >
                                     <RefreshCw size={16} style={{ color: "var(--foreground-muted)" }} />
                                 </button>
@@ -510,7 +510,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                 {displayAssets[0].thumbnailUrl ? (
                                                     <img
                                                         src={displayAssets[0].thumbnailUrl}
-                                                        alt="Featured video thumbnail"
+                                                        alt="Video önizleme"
                                                         className="w-full h-full object-cover opacity-80"
                                                     />
                                                 ) : (
@@ -538,7 +538,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         ) : (
                                             <img
                                                 src={displayAssets[0].url}
-                                                alt="Featured asset"
+                                                alt="Öne çıkan görsel"
                                                 className="w-full h-full object-cover"
                                             />
                                         )}
@@ -592,7 +592,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     </div>
                                                 </div>
                                                 <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
-                                                    VIDEO • {displayAssets[0].duration}
+                                                    VİDEO • {displayAssets[0].duration}
                                                 </div>
                                             </>
                                         )}
@@ -622,7 +622,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     {asset.thumbnailUrl ? (
                                                         <img
                                                             src={asset.thumbnailUrl}
-                                                            alt="Video thumbnail"
+                                                            alt="Video önizleme"
                                                             className="w-full h-full object-cover"
                                                         />
                                                     ) : (
@@ -650,7 +650,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             ) : (
                                                 <img
                                                     src={asset.url}
-                                                    alt="Generated asset"
+                                                    alt="Üretilen görsel"
                                                     className="w-full h-full object-cover"
                                                 />
                                             )}

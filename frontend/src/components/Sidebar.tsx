@@ -55,8 +55,8 @@ interface SidebarItem {
 
 // Mock data
 const mockProjects = [
-    { id: "1", name: "Samsung Ad Campaign", active: false },
-    { id: "2", name: "Modern Kitchen Promo", active: true },
+    { id: "1", name: "Samsung Reklam Kampanyası", active: false },
+    { id: "2", name: "Modern Mutfak Tanıtımı", active: true },
 ];
 
 const mockCharacters = [
@@ -97,7 +97,7 @@ const mockCreativePlugins: CreativePlugin[] = [
     },
     {
         id: "p2",
-        name: "Outdoor Fashion",
+        name: "Açık Hava Modası",
         description: "Dış mekan moda çekimi için hazır şablon",
         author: "Ben",
         isPublic: true,
@@ -106,7 +106,7 @@ const mockCreativePlugins: CreativePlugin[] = [
             location: { id: "outdoor", name: "Outdoor - Park", settings: "" },
             timeOfDay: "Sabah",
             cameraAngles: ["Geniş Açı (Wide Shot)", "Orta Plan (Medium Shot)"],
-            style: "Editorial"
+            style: "Editoryal"
         },
         createdAt: new Date(),
         downloads: 45,
@@ -780,6 +780,49 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
         }
     };
 
+
+
+    // Category helpers
+    const categoryEmoji = (cat?: string) => {
+        switch (cat) {
+            case 'reklam': return '📢';
+            case 'sosyal_medya': return '📱';
+            case 'film': return '🎬';
+            case 'marka': return '🏷️';
+            case 'kisisel': return '🌱';
+            default: return '📁';
+        }
+    };
+
+    const categoryColor = (cat?: string) => {
+        switch (cat) {
+            case 'reklam': return { bg: 'rgba(239,68,68,0.15)', text: '#ef4444' };
+            case 'sosyal_medya': return { bg: 'rgba(59,130,246,0.15)', text: '#3b82f6' };
+            case 'film': return { bg: 'rgba(168,85,247,0.15)', text: '#a855f7' };
+            case 'marka': return { bg: 'rgba(245,158,11,0.15)', text: '#f59e0b' };
+            case 'kisisel': return { bg: 'rgba(34,197,94,0.15)', text: '#22c55e' };
+            default: return { bg: 'rgba(107,114,128,0.15)', text: '#6b7280' };
+        }
+    };
+
+    const categoryLabel = (cat?: string) => {
+        switch (cat) {
+            case 'reklam': return 'Reklam';
+            case 'sosyal_medya': return 'Sosyal Medya';
+            case 'film': return 'Film';
+            case 'marka': return 'Marka';
+            case 'kisisel': return 'Kişisel';
+            default: return 'Kategori';
+        }
+    };
+
+    // Drawer panel state
+    const [drawerPanel, setDrawerPanel] = useState<'projects' | 'entities' | null>('projects');
+
+    const toggleDrawer = (panel: 'projects' | 'entities') => {
+        setDrawerPanel(prev => prev === panel ? null : panel);
+    };
+
     return (
         <>
             {/* Mobile hamburger button */}
@@ -799,406 +842,424 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 />
             )}
 
-            {/* Sidebar */}
-            <aside
-                className={`
-          fixed lg:relative
-          h-screen w-[240px]
-          flex flex-col
-          z-50
-          transition-transform duration-300
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-          border-r
-        `}
-                style={{
-                    background: "var(--sidebar)",
-                    borderColor: "var(--border)"
-                }}
+            {/* ===== TWO-LAYER SIDEBAR ===== */}
+            <div
+                className={`fixed lg:relative flex z-50 transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+                style={{ height: '100vh' }}
             >
-                {/* Close button (mobile) */}
-                <button
-                    onClick={() => setMobileOpen(false)}
-                    className="lg:hidden absolute top-4 right-4"
-                >
-                    <X size={20} />
-                </button>
+                {/* ── ICON RAIL ── */}
+                <div className="sidebar-rail">
+                    {/* Logo */}
+                    <div className="rail-logo">🫑</div>
 
-                {/* Logo */}
-                <div className="px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-                    <div className="text-center">
-                        <div className="text-lg font-semibold tracking-tight">Pepper Root.</div>
-                        <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                            AI Agency
-                        </div>
-                    </div>
-                </div>
-
-                {/* Projects Section */}
-                <div className="px-2 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center justify-between px-2 mb-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                            <FolderOpen size={14} />
-                            Projects
-                        </div>
-                        <button
-                            onClick={() => setNewProjectOpen(true)}
-                            className="p-1 rounded hover:bg-[var(--card)]"
-                        >
-                            <Plus size={14} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-                    </div>
-
-                    <div className="max-h-40 overflow-y-auto">
-                        {projects.map((project) => {
-                            const isEditing = editingProjectId === project.id;
-                            return (
-                                <div
-                                    key={project.id}
-                                    onClick={() => !isEditing && handleProjectClick(project.id)}
-                                    onDoubleClick={(e) => {
-                                        e.stopPropagation();
-                                        startEditingProject(project.id, project.name);
-                                    }}
-                                    className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-all duration-200 ${project.active
-                                        ? "bg-[var(--accent)] text-[var(--background)] font-medium"
-                                        : "hover:bg-[var(--card)]"
-                                        } ${isEditing ? "" : "cursor-pointer"}`}
-                                >
-                                    {isEditing ? (
-                                        <input
-                                            ref={editInputRef}
-                                            type="text"
-                                            value={editingProjectName}
-                                            onChange={(e) => setEditingProjectName(e.target.value)}
-                                            onBlur={() => saveProjectName(project.id)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') saveProjectName(project.id);
-                                                if (e.key === 'Escape') cancelEditingProject();
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="flex-1 bg-transparent border-b outline-none text-sm"
-                                            style={{
-                                                borderColor: project.active ? "var(--background)" : "var(--accent)",
-                                                color: "inherit"
-                                            }}
-                                            autoFocus
-                                        />
-                                    ) : (
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            {project.category && (
-                                                <span className="w-2 h-2 rounded-full shrink-0" style={{
-                                                    background: project.category === 'reklam' ? '#ef4444' :
-                                                        project.category === 'sosyal_medya' ? '#3b82f6' :
-                                                            project.category === 'film' ? '#a855f7' :
-                                                                project.category === 'marka' ? '#f59e0b' :
-                                                                    project.category === 'kisisel' ? '#22c55e' : '#6b7280'
-                                                }} />
-                                            )}
-                                            <span className="truncate">{project.name}</span>
-                                        </div>
-                                    )}
-
-                                    <div className="flex items-center gap-1">
-                                        {/* Edit Button */}
-                                        {!isEditing && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    startEditingProject(project.id, project.name);
-                                                }}
-                                                className={`p-1 rounded transition-all ${project.active
-                                                    ? "opacity-50 hover:opacity-100 hover:bg-white/20"
-                                                    : "opacity-0 group-hover:opacity-100 hover:bg-[var(--accent)]/20"
-                                                    }`}
-                                                title="Yeniden Adlandır"
-                                            >
-                                                <Pencil size={12} className={project.active ? "" : "text-[var(--accent)]"} />
-                                            </button>
-                                        )}
-
-                                        {/* Delete Button */}
-                                        {!isEditing && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    confirmDeleteProject(project.id);
-                                                }}
-                                                className={`p-1 rounded transition-all ${project.active
-                                                    ? "opacity-50 hover:opacity-100 hover:bg-red-500/30"
-                                                    : "opacity-0 group-hover:opacity-100 hover:bg-red-500/20"
-                                                    }`}
-                                                title="Sil"
-                                            >
-                                                <Trash2 size={14} className={project.active ? "text-red-200" : "text-red-400"} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
+                    {/* Main nav */}
                     <button
-                        onClick={() => setNewProjectOpen(true)}
-                        className="w-full px-3 py-2 text-sm text-left rounded-lg hover:bg-[var(--card)] transition-colors mt-1"
-                        style={{ color: "var(--foreground-muted)" }}
+                        className={`rail-btn ${drawerPanel === 'projects' ? 'active' : ''}`}
+                        onClick={() => toggleDrawer('projects')}
                     >
-                        + New Project
+                        <FolderOpen size={24} />
+                        <span className="rail-label">Projeler</span>
                     </button>
-                </div>
 
-                {/* Scrollable content */}
-                <div className="flex-1 overflow-y-auto px-2 py-2">
-                    {/* Entity Arama */}
-                    <div className="mb-3 px-1">
-                        <div className="relative">
-                            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
-                            <input
-                                type="text"
-                                placeholder="Entity ara..."
-                                value={entitySearchQuery}
-                                onChange={(e) => setEntitySearchQuery(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-[var(--card)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] transition-all"
-                                style={{ color: "var(--foreground)" }}
-                            />
-                            {entitySearchQuery && (
-                                <button
-                                    onClick={() => setEntitySearchQuery("")}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
-                                >
-                                    <X size={12} />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Characters */}
-                    <CollapsibleSection
-                        title="Characters"
-                        icon={<Users size={16} />}
-                        items={filteredCharacters}
-                        onDelete={confirmDeleteCharacter}
-                    />
-
-                    {/* Locations */}
-                    <CollapsibleSection
-                        title="Locations"
-                        icon={<MapPin size={16} />}
-                        items={filteredLocations}
-                        onDelete={confirmDeleteLocation}
-                    />
-
-                    {/* Brands */}
-                    <CollapsibleSection
-                        title="Brands"
-                        icon={<Tag size={16} />}
-                        items={filteredBrands}
-                        onDelete={confirmDeleteBrand}
-                    />
-
-                    {/* Creative Plugins Section - sadece plugin varsa göster */}
-                    {creativePlugins.length > 0 && (
-                        <div className="mt-2">
-                            <div className="flex items-center justify-between px-2 py-1.5">
-                                <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                                    <Puzzle size={14} />
-                                    <span>Creative Plugins</span>
-                                    <span className="text-xs opacity-60">({creativePlugins.length})</span>
-                                </div>
-                            </div>
-                            <div className="space-y-0.5">
-                                {creativePlugins.map((plugin) => (
-                                    <div
-                                        key={plugin.id}
-                                        onClick={() => { setSelectedPlugin(plugin); setPluginDetailOpen(true); }}
-                                        className="flex items-center justify-between px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors group"
-                                        style={{ color: "var(--foreground-muted)" }}
-                                    >
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: plugin.isPublic ? "#8b5cf6" : "var(--accent)" }} />
-                                            <span className="truncate">{plugin.name}</span>
-                                        </div>
-                                        {plugin.isPublic && (
-                                            <span className="text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
-                                                Paylaşıldı
-                                            </span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Bottom section */}
-                <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
-                    {/* Grid Generator - Feature */}
                     <button
+                        className={`rail-btn ${drawerPanel === 'entities' ? 'active' : ''}`}
+                        onClick={() => toggleDrawer('entities')}
+                    >
+                        <Brain size={24} />
+                        <span className="rail-label">Varlıklar</span>
+                    </button>
+
+                    <div className="rail-divider" />
+
+                    {/* Feature tools — each with unique color */}
+                    <button
+                        className="rail-feature-btn"
                         onClick={() => setGridGeneratorOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg mb-2 transition-all hover:shadow-lg hover:shadow-emerald-500/20"
                         style={{
-                            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.15) 100%)",
-                            color: "#10b981",
-                            border: "1px solid rgba(16, 185, 129, 0.3)"
+                            background: 'rgba(74, 222, 128, 0.10)',
+                            border: '1px solid rgba(74, 222, 128, 0.25)',
+                            color: '#4ade80'
                         }}
                     >
-                        <Grid3x3 size={16} />
-                        <span>Grid Generator</span>
+                        <Grid3x3 size={20} />
+                        <span className="rail-label" style={{ color: '#4ade80' }}>Grid Oluşturucu</span>
                     </button>
 
-                    {/* Marketplace - Prominent */}
                     <button
-                        onClick={() => setMarketplaceOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg mb-2 transition-all hover:shadow-lg hover:shadow-purple-500/20"
-                        style={{
-                            background: "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)",
-                            color: "#a78bfa",
-                            border: "1px solid rgba(139, 92, 246, 0.3)"
-                        }}
-                    >
-                        <Store size={16} />
-                        <span>Plugin Marketplace</span>
-                    </button>
-
-                    {/* Saved Images - Gallery */}
-                    <button
+                        className="rail-feature-btn"
                         onClick={() => setSavedImagesOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg mb-2 transition-all hover:shadow-lg hover:shadow-cyan-500/20"
                         style={{
-                            background: "linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)",
-                            color: "#22d3ee",
-                            border: "1px solid rgba(6, 182, 212, 0.3)"
+                            background: 'rgba(56, 189, 248, 0.10)',
+                            border: '1px solid rgba(56, 189, 248, 0.25)',
+                            color: '#38bdf8'
                         }}
                     >
-                        <ImageIcon size={16} />
-                        <span>Kaydedilen Görseller</span>
+                        <ImageIcon size={20} />
+                        <span className="rail-label" style={{ color: '#60a5fa' }}>Kaydedilenler</span>
                     </button>
 
-                    {/* Search */}
                     <button
-                        onClick={() => setSearchOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
+                        className="rail-feature-btn"
+                        onClick={() => setMarketplaceOpen(true)}
+                        style={{
+                            background: 'rgba(168, 85, 247, 0.10)',
+                            border: '1px solid rgba(168, 85, 247, 0.25)',
+                            color: '#a855f7'
+                        }}
                     >
-                        <Search size={16} style={{ color: "var(--foreground-muted)" }} />
-                        <span style={{ color: "var(--foreground-muted)" }}>Search</span>
+                        <Store size={20} />
+                        <span className="rail-label" style={{ color: '#a855f7' }}>Eklenti Mağazası</span>
                     </button>
 
+                    {/* Spacer */}
+                    <div className="rail-spacer" />
+                    <div className="rail-divider" />
 
-                    {/* Settings */}
-                    <button
-                        onClick={() => setSettingsOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
-                    >
-                        <Settings size={16} style={{ color: "var(--foreground-muted)" }} />
-                        <span style={{ color: "var(--foreground-muted)" }}>Settings</span>
+                    {/* Bottom tools */}
+                    <button className="rail-btn" onClick={() => setSearchOpen(true)}>
+                        <Search size={24} />
+                        <span className="rail-label">Ara</span>
                     </button>
 
-                    {/* Trash Bin */}
-                    <button
-                        onClick={() => setTrashOpen(true)}
-                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-1"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Trash2 size={16} style={{ color: "var(--foreground-muted)" }} />
-                            <span style={{ color: "var(--foreground-muted)" }}>Çöp Kutusu</span>
-                        </div>
+                    <button className="rail-btn" onClick={() => setTrashOpen(true)} style={{ position: 'relative' }}>
+                        <Trash2 size={24} />
+                        <span className="rail-label">Çöp Kutusu</span>
                         {trashItems.length > 0 && (
-                            <span
-                                className="px-1.5 py-0.5 text-xs rounded-full"
-                                style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444" }}
-                            >
-                                {trashItems.length}
-                            </span>
+                            <span style={{
+                                position: 'absolute', top: 4, right: 4,
+                                width: 8, height: 8, borderRadius: '50%',
+                                background: '#ef4444'
+                            }} />
                         )}
                     </button>
 
-                    {/* Admin Panel */}
-                    <button
-                        onClick={() => setAdminOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-[var(--card)] mb-2"
-                    >
-                        <Shield size={16} style={{ color: "var(--foreground-muted)" }} />
-                        <span style={{ color: "var(--foreground-muted)" }}>Admin Panel</span>
+                    <button className="rail-btn" onClick={() => setSettingsOpen(true)}>
+                        <Settings size={24} />
+                        <span className="rail-label">Ayarlar</span>
                     </button>
 
-                    {/* User Profile - En altta */}
-                    <div className="relative">
+                    <button className="rail-btn" onClick={() => setAdminOpen(true)}>
+                        <Shield size={24} />
+                        <span className="rail-label">Admin</span>
+                    </button>
+
+                    <button className="rail-btn" onClick={toggleTheme}>
+                        {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
+                        <span className="rail-label">{theme === 'dark' ? 'Açık Tema' : 'Koyu Tema'}</span>
+                    </button>
+
+                    <div className="rail-divider" />
+
+                    {/* User avatar */}
+                    <div style={{ position: 'relative' }}>
                         <div
+                            className="rail-btn"
                             onClick={() => setUserMenuOpen(!userMenuOpen)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--card)] cursor-pointer border-t pt-3 mt-2"
-                            style={{ borderColor: "var(--border)" }}
+                            style={{ cursor: 'pointer', padding: '0 8px' }}
                         >
-                            <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden"
-                                style={{ background: "var(--accent)", color: "var(--background)" }}
-                            >
+                            <div className="rail-avatar">
                                 {user?.avatar_url ? (
-                                    <img src={user.avatar_url} alt={user.full_name || "User"} className="w-full h-full object-cover" />
+                                    <img src={user.avatar_url} alt={user.full_name || "User"} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 ) : (
                                     <span>{(user?.full_name || user?.email || "U")[0].toUpperCase()}</span>
                                 )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium truncate">{user?.full_name || "User"}</div>
-                                <div className="text-xs truncate" style={{ color: "var(--foreground-muted)" }}>
-                                    {user?.email || "Free Plan"}
-                                </div>
-                            </div>
-                            <ChevronDown
-                                size={14}
-                                className={`transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
-                                style={{ color: "var(--foreground-muted)" }}
-                            />
+                            <span className="rail-label">{user?.full_name || 'Profil'}</span>
                         </div>
 
-                        {/* User Dropdown Menu */}
+                        {/* User dropdown */}
                         {userMenuOpen && (
                             <div
-                                className="absolute bottom-full left-0 right-0 mb-1 rounded-lg shadow-lg border overflow-hidden"
-                                style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                                style={{
+                                    position: 'fixed', bottom: 16, left: 72,
+                                    width: 220, borderRadius: 12, overflow: 'hidden',
+                                    background: 'rgba(12, 15, 24, 0.97)', border: '1px solid rgba(255,255,255,0.1)',
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 99999,
+                                    backdropFilter: 'blur(20px)'
+                                }}
                             >
-                                <div className="p-3 border-b" style={{ borderColor: "var(--border)" }}>
-                                    <div className="text-sm font-medium">{user?.full_name || "User"}</div>
-                                    <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                        {user?.email}
-                                    </div>
+                                <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600 }}>{user?.full_name || "User"}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{user?.email}</div>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        setUserMenuOpen(false);
-                                        logout();
+                                    onClick={() => { setUserMenuOpen(false); logout(); }}
+                                    style={{
+                                        width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                                        padding: '8px 12px', fontSize: 13, color: '#ef4444',
+                                        background: 'transparent', border: 'none', cursor: 'pointer'
                                     }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-red-500/10 transition-colors text-red-400"
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                                 >
-                                    <LogOut size={16} />
+                                    <LogOut size={14} />
                                     Çıkış Yap
                                 </button>
                             </div>
                         )}
                     </div>
                 </div>
-            </aside>
 
-            {/* Settings Modal */}
+                {/* ── SLIDING DRAWER ── */}
+                <div className={`sidebar-drawer ${drawerPanel === null ? 'collapsed' : ''}`}>
+                    {/* Close button (mobile) */}
+                    <button
+                        onClick={() => setMobileOpen(false)}
+                        className="lg:hidden absolute top-4 right-4 z-50"
+                    >
+                        <X size={20} />
+                    </button>
+
+                    {/* === PROJECTS PANEL === */}
+                    {drawerPanel === 'projects' && (
+                        <>
+                            <div className="drawer-header">
+                                <h3>Projeler</h3>
+                                <button
+                                    onClick={() => setNewProjectOpen(true)}
+                                    className="rail-btn"
+                                    style={{ width: 28, height: 28 }}
+                                    title="Yeni Proje"
+                                >
+                                    <Plus size={14} />
+                                </button>
+                            </div>
+
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+                                {isLoadingProjects ? (
+                                    <div style={{ textAlign: 'center', padding: 24, color: 'var(--foreground-muted)', fontSize: 12 }}>
+                                        Yükleniyor...
+                                    </div>
+                                ) : projects.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: 24, color: 'var(--foreground-muted)', fontSize: 12 }}>
+                                        Henüz proje yok
+                                    </div>
+                                ) : (
+                                    projects.map((project) => {
+                                        const isEditing = editingProjectId === project.id;
+                                        const colors = categoryColor(project.category);
+                                        return (
+                                            <div
+                                                key={project.id}
+                                                className={`project-card-v2 group ${project.active ? 'active' : ''}`}
+                                                onClick={() => !isEditing && handleProjectClick(project.id)}
+                                                onDoubleClick={(e) => {
+                                                    e.stopPropagation();
+                                                    startEditingProject(project.id, project.name);
+                                                }}
+                                            >
+                                                {/* Thumbnail */}
+                                                <div className="project-thumb">
+                                                    {categoryEmoji(project.category)}
+                                                </div>
+
+                                                {/* Info */}
+                                                <div className="project-info">
+                                                    {isEditing ? (
+                                                        <input
+                                                            ref={editInputRef}
+                                                            type="text"
+                                                            value={editingProjectName}
+                                                            onChange={(e) => setEditingProjectName(e.target.value)}
+                                                            onBlur={() => saveProjectName(project.id)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') saveProjectName(project.id);
+                                                                if (e.key === 'Escape') cancelEditingProject();
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            style={{
+                                                                width: '100%', background: 'transparent',
+                                                                border: 'none', borderBottom: '1px solid var(--accent)',
+                                                                outline: 'none', fontSize: 13, color: 'var(--foreground)',
+                                                                padding: '2px 0'
+                                                            }}
+                                                            autoFocus
+                                                        />
+                                                    ) : (
+                                                        <>
+                                                            <div className="project-name">{project.name}</div>
+                                                            <div className="project-meta">
+                                                                {project.category && (
+                                                                    <span
+                                                                        className="category-badge"
+                                                                        style={{ background: colors.bg, color: colors.text }}
+                                                                    >
+                                                                        {categoryLabel(project.category)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Actions */}
+                                                {!isEditing && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0, transition: 'opacity 0.15s' }}
+                                                        className="group-hover:!opacity-100"
+                                                    >
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); startEditingProject(project.id, project.name); }}
+                                                            className="p-1 rounded hover:bg-[var(--card-hover)]"
+                                                            title="Yeniden Adlandır"
+                                                        >
+                                                            <Pencil size={12} style={{ color: 'var(--foreground-muted)' }} />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); confirmDeleteProject(project.id); }}
+                                                            className="p-1 rounded hover:bg-red-500/20"
+                                                            title="Sil"
+                                                        >
+                                                            <Trash2 size={12} style={{ color: '#ef4444' }} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            {/* New project button at bottom */}
+                            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
+                                <button
+                                    onClick={() => setNewProjectOpen(true)}
+                                    style={{
+                                        width: '100%', padding: '8px 12px', borderRadius: 8,
+                                        background: 'rgba(74, 222, 128, 0.08)', border: '1px solid rgba(74, 222, 128, 0.15)',
+                                        color: 'var(--accent)', fontSize: 13, fontWeight: 500,
+                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(74, 222, 128, 0.15)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(74, 222, 128, 0.08)')}
+                                >
+                                    <Plus size={14} />
+                                    Yeni Proje
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* === ENTITIES PANEL === */}
+                    {drawerPanel === 'entities' && (
+                        <>
+                            <div className="drawer-header">
+                                <h3>Varlıklar</h3>
+                            </div>
+
+                            {/* Entity Search */}
+                            <div style={{ padding: '8px 12px' }}>
+                                <div style={{ position: 'relative' }}>
+                                    <Search size={14} style={{
+                                        position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+                                        color: 'var(--foreground-muted)'
+                                    }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Varlık ara..."
+                                        value={entitySearchQuery}
+                                        onChange={(e) => setEntitySearchQuery(e.target.value)}
+                                        style={{
+                                            width: '100%', padding: '6px 12px 6px 32px',
+                                            fontSize: 12, borderRadius: 8, border: '1px solid var(--border)',
+                                            background: 'var(--card)', color: 'var(--foreground)', outline: 'none'
+                                        }}
+                                    />
+                                    {entitySearchQuery && (
+                                        <button
+                                            onClick={() => setEntitySearchQuery("")}
+                                            style={{
+                                                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                                                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground-muted)'
+                                            }}
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={{ flex: 1, overflowY: 'auto' }}>
+                                {/* Characters */}
+                                <CollapsibleSection
+                                    title="Karakterler"
+                                    icon={<Users size={16} />}
+                                    items={filteredCharacters}
+                                    onDelete={confirmDeleteCharacter}
+                                />
+
+                                {/* Locations */}
+                                <CollapsibleSection
+                                    title="Lokasyonlar"
+                                    icon={<MapPin size={16} />}
+                                    items={filteredLocations}
+                                    onDelete={confirmDeleteLocation}
+                                />
+
+                                {/* Brands */}
+                                <CollapsibleSection
+                                    title="Markalar"
+                                    icon={<Tag size={16} />}
+                                    items={filteredBrands}
+                                    onDelete={confirmDeleteBrand}
+                                />
+
+                                {/* Creative Plugins */}
+                                {creativePlugins.length > 0 && (
+                                    <div style={{ marginTop: 8 }}>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            padding: '8px 16px'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>
+                                                <Puzzle size={14} />
+                                                <span>Yaratıcı Eklentiler</span>
+                                                <span style={{ opacity: 0.6 }}>({creativePlugins.length})</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            {creativePlugins.map((plugin) => (
+                                                <div
+                                                    key={plugin.id}
+                                                    onClick={() => { setSelectedPlugin(plugin); setPluginDetailOpen(true); }}
+                                                    className="entity-item"
+                                                    style={{ paddingLeft: 16 }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                                                        <span style={{
+                                                            width: 6, height: 6, borderRadius: '50%',
+                                                            background: plugin.isPublic ? '#8b5cf6' : 'var(--accent)', flexShrink: 0
+                                                        }} />
+                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plugin.name}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* ===== MODALS ===== */}
             <SettingsModal
                 isOpen={settingsOpen}
                 onClose={() => setSettingsOpen(false)}
             />
 
-            {/* Search Modal */}
             <SearchModal
                 isOpen={searchOpen}
                 onClose={() => setSearchOpen(false)}
                 sessionId={sessionId}
             />
 
-            {/* New Project Modal */}
             <NewProjectModal
                 isOpen={newProjectOpen}
                 onClose={() => setNewProjectOpen(false)}
                 onSubmit={async (name, description, category) => {
                     try {
-                        // Backend'de yeni proje oluştur
                         const newSession = await createSession(name, description, category);
                         setProjects([...projects, { id: newSession.id, name, active: false, category, description }]);
                     } catch (error) {
@@ -1208,13 +1269,11 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 }}
             />
 
-            {/* Admin Panel Modal */}
             <AdminPanelModal
                 isOpen={adminOpen}
                 onClose={() => setAdminOpen(false)}
             />
 
-            {/* Confirm Delete Modal */}
             <ConfirmDeleteModal
                 isOpen={deleteConfirm?.isOpen ?? false}
                 onClose={() => setDeleteConfirm(null)}
@@ -1223,8 +1282,6 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 itemType={deleteConfirm?.itemType ?? "öğe"}
             />
 
-
-            {/* Trash Modal */}
             <TrashModal
                 isOpen={trashOpen}
                 onClose={() => setTrashOpen(false)}
@@ -1235,44 +1292,28 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 onDeleteMultiple={handleDeleteMultiple}
             />
 
-            {/* Plugin Detail Modal */}
             <PluginDetailModal
                 isOpen={pluginDetailOpen}
                 onClose={() => setPluginDetailOpen(false)}
                 plugin={selectedPlugin}
                 onDelete={(id) => setCreativePlugins(creativePlugins.filter(p => p.id !== id))}
                 onUse={(plugin) => {
-                    // Plugin config'ini chat'e gönder
                     if (onSendPrompt && plugin.config) {
                         const parts: string[] = [];
-
-                        // Style varsa ekle
-                        if (plugin.config.style) {
-                            parts.push(`Stil: ${plugin.config.style}`);
-                        }
-
-                        // Camera angles varsa ekle
+                        if (plugin.config.style) parts.push(`Stil: ${plugin.config.style}`);
                         if (plugin.config.cameraAngles && plugin.config.cameraAngles.length > 0) {
                             parts.push(`Açılar: ${plugin.config.cameraAngles.join(", ")}`);
                         }
-
-                        // Time of day varsa ekle
-                        if (plugin.config.timeOfDay) {
-                            parts.push(`Zaman: ${plugin.config.timeOfDay}`);
-                        }
-
-                        // PromptTemplate varsa kullan
+                        if (plugin.config.timeOfDay) parts.push(`Zaman: ${plugin.config.timeOfDay}`);
                         const prompt = plugin.config.promptTemplate
                             ? `[${plugin.name}] ${plugin.config.promptTemplate}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`
                             : `[${plugin.name}] ${parts.join(", ")} tarzında görsel üret`;
-
                         onSendPrompt(prompt);
                     }
                     setPluginDetailOpen(false);
                 }}
             />
 
-            {/* Plugin Marketplace Modal */}
             <PluginMarketplaceModal
                 isOpen={marketplaceOpen}
                 onClose={() => setMarketplaceOpen(false)}
@@ -1280,18 +1321,16 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 myPlugins={creativePlugins}
             />
 
-            {/* Grid Generator Modal */}
             <GridGeneratorModal
                 isOpen={gridGeneratorOpen}
                 onClose={() => setGridGeneratorOpen(false)}
             />
 
-            {/* Saved Images Modal */}
             <SavedImagesModal
                 isOpen={savedImagesOpen}
                 onClose={() => setSavedImagesOpen(false)}
                 sessionId={sessionId}
-                onRefresh={() => { }} // TODO: entity refresh trigger
+                onRefresh={() => { }}
             />
         </>
     );
