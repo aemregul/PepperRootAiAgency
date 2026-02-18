@@ -631,7 +631,9 @@ export interface TrashItemData {
 }
 
 export async function getTrashItems(): Promise<TrashItemData[]> {
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/trash`);
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/trash`, {
+        headers: getAuthHeaders(),
+    });
     if (!response.ok) throw new Error('Failed to fetch trash items');
     return response.json();
 }
@@ -650,6 +652,7 @@ export async function restoreTrashItem(itemId: string): Promise<{
 }> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/trash/${itemId}/restore`, {
         method: 'POST',
+        headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to restore item');
     return response.json();
@@ -658,6 +661,7 @@ export async function restoreTrashItem(itemId: string): Promise<{
 export async function permanentDeleteTrashItem(itemId: string): Promise<boolean> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/trash/${itemId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
     });
     return response.ok;
 }
@@ -666,6 +670,7 @@ export async function permanentDeleteTrashItem(itemId: string): Promise<boolean>
 export async function deleteSession(sessionId: string): Promise<boolean> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
     });
     return response.ok;
 }
@@ -674,7 +679,7 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
 export async function updateSession(sessionId: string, title: string): Promise<Session> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ title }),
     });
     if (!response.ok) throw new Error('Failed to update session');

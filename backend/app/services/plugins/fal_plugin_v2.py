@@ -702,6 +702,7 @@ class FalPluginV2(PluginBase):
         3. FLUX Kontext Pro — Son alternatif
         """
         import httpx
+        import asyncio
         
         prompt = params.get("prompt", "")
         face_image_url = params.get("face_image_url", "")
@@ -718,15 +719,18 @@ class FalPluginV2(PluginBase):
         clean_face_url = face_image_url
         logger.info(f"🧹 Arka plan kaldırılıyor (BiRefNet)...")
         try:
-            bg_result = await fal_client.subscribe_async(
-                "fal-ai/birefnet",
-                arguments={
-                    "image_url": face_image_url,
-                    "model": "General Use (Heavy)",
-                    "operating_resolution": "1024x1024",
-                    "output_format": "png",
-                },
-                with_logs=True,
+            bg_result = await asyncio.wait_for(
+                fal_client.subscribe_async(
+                    "fal-ai/birefnet",
+                    arguments={
+                        "image_url": face_image_url,
+                        "model": "General Use (Heavy)",
+                        "operating_resolution": "1024x1024",
+                        "output_format": "png",
+                    },
+                    with_logs=True,
+                ),
+                timeout=15  # 15 saniye limit
             )
             
             if bg_result and "image" in bg_result:
@@ -753,7 +757,7 @@ class FalPluginV2(PluginBase):
                 "resolution": resolution or "1K",
             }
             
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=45.0) as client:
                 response = await client.post(
                     "https://fal.run/fal-ai/nano-banana-pro/edit",
                     headers={
@@ -800,18 +804,21 @@ class FalPluginV2(PluginBase):
         try:
             edit_prompt = f"Create a photorealistic photograph: {prompt}. The person in this photo must look exactly like the person in the reference image — same face, skin tone, hair, and features. IMPORTANT: Do NOT copy the framing, pose, or composition from the reference photo. Instead, create a completely new scene with natural composition matching the described scenario. Show the full body or environment as the scene requires, not just a close-up headshot. Discard the original background entirely."
             
-            result = await fal_client.subscribe_async(
-                "fal-ai/gpt-image-1/edit-image",
-                arguments={
-                    "prompt": edit_prompt,
-                    "image_urls": [clean_face_url],
-                    "image_size": gpt_image_size,
-                    "quality": "high",
-                    "input_fidelity": "low",
-                    "num_images": 1,
-                    "output_format": "png",
-                },
-                with_logs=True,
+            result = await asyncio.wait_for(
+                fal_client.subscribe_async(
+                    "fal-ai/gpt-image-1/edit-image",
+                    arguments={
+                        "prompt": edit_prompt,
+                        "image_urls": [clean_face_url],
+                        "image_size": gpt_image_size,
+                        "quality": "high",
+                        "input_fidelity": "low",
+                        "num_images": 1,
+                        "output_format": "png",
+                    },
+                    with_logs=True,
+                ),
+                timeout=60  # 60 saniye limit
             )
             
             if result and "images" in result and len(result["images"]) > 0:
@@ -837,15 +844,18 @@ class FalPluginV2(PluginBase):
         try:
             kontext_prompt = f"Place this exact person in the following scene, keeping their face, identity, clothing and appearance exactly the same: {prompt}"
             
-            result = await fal_client.subscribe_async(
-                "fal-ai/flux-pro/kontext",
-                arguments={
-                    "prompt": kontext_prompt,
-                    "image_url": clean_face_url,
-                    "guidance_scale": 4.0,
-                    "output_format": "png",
-                },
-                with_logs=True,
+            result = await asyncio.wait_for(
+                fal_client.subscribe_async(
+                    "fal-ai/flux-pro/kontext",
+                    arguments={
+                        "prompt": kontext_prompt,
+                        "image_url": clean_face_url,
+                        "guidance_scale": 4.0,
+                        "output_format": "png",
+                    },
+                    with_logs=True,
+                ),
+                timeout=45  # 45 saniye limit
             )
             
             if result and "images" in result and len(result["images"]) > 0:

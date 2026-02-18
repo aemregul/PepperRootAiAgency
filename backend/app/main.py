@@ -55,6 +55,26 @@ async def lifespan(app: FastAPI):
     for status in api_status:
         print(f"   {status}")
     
+    # Süresi dolan çöp öğelerini temizle
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.models import TrashItem
+        from sqlalchemy import select, delete
+        from datetime import datetime, timezone
+        
+        async with AsyncSessionLocal() as db:
+            expired_count = await db.execute(
+                delete(TrashItem).where(TrashItem.expires_at < datetime.now(timezone.utc))
+            )
+            await db.commit()
+            deleted = expired_count.rowcount
+            if deleted > 0:
+                print(f"   🗑️ {deleted} süresi dolmuş çöp öğesi temizlendi")
+            else:
+                print(f"   ✅ Çöp kutusu temiz")
+    except Exception as e:
+        print(f"   ⚠️ Çöp temizleme hatası: {e}")
+    
     print(f"✅ {settings.APP_NAME} hazır!")
     
     yield

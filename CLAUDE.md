@@ -306,7 +306,6 @@ git add . && git commit -m "mesaj" && git push
 
 ## 📋 EKSİKLER / YAPILACAKLAR
 
-- [ ] Görsel üretim pipeline fine-tuning (uzun prompt timeout sorunu)
 - [ ] Deploy: Railway (Backend) + Vercel (Frontend)
 - [ ] Canlı ortam testleri
 
@@ -351,6 +350,24 @@ git add . && git commit -m "mesaj" && git push
    - Uzun işlemlerde (görsel/video) açıklayıcı metin korunuyor
    - İlk token geldiğinde loading kaybolur, mesaj kutusu belirir
    - Çift kutu (double-box) sorunu düzeltildi
+
+### 🔒 Auth & Altyapı Düzeltmeleri (19 Şubat) ⭐ YENİ
+
+1. **Auth Header Düzeltmeleri (api.ts):**
+   - `getTrashItems`, `restoreTrashItem`, `permanentDeleteTrashItem` → auth header eklendi
+   - `deleteSession`, `updateSession` → auth header eklendi
+   - Production ortamında auth zorunlu olduğunda patlamayacak
+
+2. **Çöp Kutusu Otomatik Temizleme (main.py):**
+   - Backend başlatıldığında süresi dolmuş `TrashItem` kayıtları otomatik silinir
+   - `expires_at < now()` kontrolü ile temizleme
+
+3. **Pipeline Timeout Koruması (fal_plugin_v2.py):**
+   - BiRefNet arka plan kaldırma: 15s limit
+   - Nano Banana Pro Edit: 45s limit
+   - GPT Image 1 Edit: 60s limit
+   - FLUX Kontext Pro: 45s limit
+   - Her adım timeout olursa bir sonraki fallback'e geçer
 
 
 ### 🖼️ Görsel Üretim Pipeline Yenileme (18 Şubat) ⭐ YENİ
