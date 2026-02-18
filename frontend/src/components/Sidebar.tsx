@@ -294,9 +294,10 @@ interface SidebarProps {
     sessionId?: string | null;
     refreshKey?: number;
     onSendPrompt?: (prompt: string) => void;
+    onAssetRestore?: () => void;  // Çöp kutusundan asset geri yüklenince media panel'ı güncelle
 }
 
-export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt }: SidebarProps) {
+export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt, onAssetRestore }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
     const { user, logout } = useAuth();
     const toast = useToast();
@@ -508,7 +509,8 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     name: i.item_name,
                     type: i.item_type as TrashItem["type"],
                     deletedAt: new Date(i.deleted_at),
-                    originalData: {}
+                    imageUrl: i.original_data?.url || undefined,
+                    originalData: i.original_data || {}
                 }));
                 setTrashItems(trashList);
             } catch (error) {
@@ -738,6 +740,11 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             // Çöp kutusundan kaldır
             setTrashItems(trashItems.filter(t => t.id !== item.id));
             toast.success(`"${item.name}" başarıyla geri yüklendi`);
+
+            // Asset geri yüklendiyse media panel'ı güncelle
+            if (item.type === 'asset') {
+                onAssetRestore?.();
+            }
         } catch (error) {
             console.error('Geri yükleme hatası:', error);
             toast.error('Geri yükleme başarısız oldu');

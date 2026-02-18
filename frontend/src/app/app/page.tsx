@@ -91,6 +91,16 @@ export default function Home() {
     setEntityRefreshKey(prev => prev + 1);
   }, []);
 
+  // Asset silindiğinde çöp kutusunu güncelle
+  const handleAssetDeleted = useCallback(() => {
+    setEntityRefreshKey(prev => prev + 1);  // Sidebar trash'i yeniler
+  }, []);
+
+  // Çöp kutusundan asset geri yüklenince media panel'ı güncelle
+  const handleAssetRestore = useCallback(() => {
+    setAssetRefreshKey(prev => prev + 1);  // AssetsPanel'i yeniler
+  }, []);
+
   const handleCreateProject = async (name: string, description?: string, category?: string) => {
     setIsCreatingProject(true);
     try {
@@ -128,6 +138,7 @@ export default function Home() {
         sessionId={activeProjectId}
         refreshKey={entityRefreshKey}
         onSendPrompt={setPendingPrompt}
+        onAssetRestore={handleAssetRestore}
       />
 
       {/* Chat her zaman görünür (tek sürekli sohbet) */}
@@ -198,6 +209,7 @@ export default function Home() {
         sessionId={activeProjectId}
         refreshKey={assetRefreshKey}
         onSaveToImages={handleEntityChange}
+        onAssetDeleted={handleAssetDeleted}
       />
 
       {/* New Project Modal */}

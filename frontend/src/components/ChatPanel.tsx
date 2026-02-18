@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn } from "lucide-react";
 import { useToast } from "./ToastProvider";
-import { sendMessage, createSession, checkHealth, getSessionHistory } from "@/lib/api";
+import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory } from "@/lib/api";
 
 interface Message {
     id: string;
@@ -445,50 +445,53 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         setIsLoading(true);
         setError(null);
 
-        // Smart loading status based on message content
+        // Smart loading status — sadece uzun işlemlerde göster (görsel/video/düzenleme)
         const lowerMsg = currentInput.toLowerCase();
         const hasImage = !!currentFile;
+        const isLongOperation = hasImage || lowerMsg.match(
+            /görsel|resim|fotoğraf|image|çiz|oluştur.*görsel|generate.*image|illustration|poster|logo|video|animasyon|klip|sinema|cinematic|düzenle|edit|değiştir|kaldır|ekle.*görsel|remove|change|tanı|kaydet|karakter|entity|lokasyon|mekan/
+        );
 
         let statusPhases: { text: string; delay: number }[] = [];
 
-        if (lowerMsg.match(/görsel|resim|fotoğraf|image|çiz|oluştur.*görsel|generate.*image|illustration|poster|logo/)) {
-            statusPhases = [
-                { text: "🎨 Prompt analiz ediliyor...", delay: 0 },
-                { text: "🖌️ Görsel oluşturuluyor...", delay: 3000 },
-                { text: "✨ Son rötuşlar yapılıyor...", delay: 12000 },
-            ];
-        } else if (lowerMsg.match(/video|animasyon|klip|sinema|cinematic/)) {
-            statusPhases = [
-                { text: "🎬 Video senaryosu hazırlanıyor...", delay: 0 },
-                { text: "🎥 Video üretiliyor...", delay: 3000 },
-                { text: "🎞️ Video işleniyor...", delay: 15000 },
-            ];
-        } else if (lowerMsg.match(/düzenle|edit|değiştir|kaldır|ekle.*görsel|remove|change/)) {
-            statusPhases = [
-                { text: "🔍 Görsel analiz ediliyor...", delay: 0 },
-                { text: "✏️ Düzenleme yapılıyor...", delay: 3000 },
-                { text: "✨ Sonuç hazırlanıyor...", delay: 10000 },
-            ];
-        } else if (hasImage) {
-            statusPhases = [
-                { text: "📷 Görsel inceleniyor...", delay: 0 },
-                { text: "🧠 Analiz ediliyor...", delay: 2000 },
-                { text: "💬 Yanıt hazırlanıyor...", delay: 5000 },
-            ];
-        } else if (lowerMsg.match(/tanı|kaydet|karakter|entity|lokasyon|mekan/)) {
-            statusPhases = [
-                { text: "🧠 Bilgi analiz ediliyor...", delay: 0 },
-                { text: "💾 Kayıt yapılıyor...", delay: 2000 },
-            ];
-        } else {
-            statusPhases = [
-                { text: "💭 Düşünüyor...", delay: 0 },
-                { text: "📝 Yanıt yazılıyor...", delay: 4000 },
-            ];
+        if (isLongOperation) {
+            if (lowerMsg.match(/görsel|resim|fotoğraf|image|çiz|oluştur.*görsel|generate.*image|illustration|poster|logo/)) {
+                statusPhases = [
+                    { text: "🎨 Prompt analiz ediliyor...", delay: 0 },
+                    { text: "🖌️ Görsel oluşturuluyor...", delay: 3000 },
+                    { text: "✨ Son rötuşlar yapılıyor...", delay: 12000 },
+                ];
+            } else if (lowerMsg.match(/video|animasyon|klip|sinema|cinematic/)) {
+                statusPhases = [
+                    { text: "🎬 Video senaryosu hazırlanıyor...", delay: 0 },
+                    { text: "🎥 Video üretiliyor...", delay: 3000 },
+                    { text: "🎞️ Video işleniyor...", delay: 15000 },
+                ];
+            } else if (lowerMsg.match(/düzenle|edit|değiştir|kaldır|ekle.*görsel|remove|change/)) {
+                statusPhases = [
+                    { text: "🔍 Görsel analiz ediliyor...", delay: 0 },
+                    { text: "✏️ Düzenleme yapılıyor...", delay: 3000 },
+                    { text: "✨ Sonuç hazırlanıyor...", delay: 10000 },
+                ];
+            } else if (hasImage) {
+                statusPhases = [
+                    { text: "📷 Görsel inceleniyor...", delay: 0 },
+                    { text: "🧠 Analiz ediliyor...", delay: 2000 },
+                    { text: "💬 Yanıt hazırlanıyor...", delay: 5000 },
+                ];
+            } else {
+                statusPhases = [
+                    { text: "🧠 Bilgi analiz ediliyor...", delay: 0 },
+                    { text: "💾 Kayıt yapılıyor...", delay: 2000 },
+                ];
+            }
+            setLoadingStatus(statusPhases[0].text);
         }
 
-        // Set initial status
-        setLoadingStatus(statusPhases[0].text);
+        // Sade metin sohbetlerde metin yerine sadece animasyonlu simge göster
+        if (!isLongOperation) {
+            setLoadingStatus("");
+        }
 
         // Schedule phase transitions
         const timers: NodeJS.Timeout[] = [];
@@ -502,35 +505,136 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         const cleanupTimers = () => timers.forEach(t => clearTimeout(t));
 
         try {
-            const response = await sendMessage(sessionId, currentInput, currentFile || undefined, activeProjectId);
+            // Reference image varsa eski endpoint kullan (FormData gerekli)
+            if (currentFile) {
+                const response = await sendMessage(sessionId, currentInput, currentFile, activeProjectId);
+                const responseContent = typeof response.response === 'string'
+                    ? response.response
+                    : response.response?.content ?? 'Yanıt alınamadı';
+                const assistantMessage: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: "assistant",
+                    content: responseContent,
+                    timestamp: new Date(),
+                    image_url: response.assets?.find((a: { asset_type: string; url: string }) => a.asset_type === 'image')?.url,
+                };
+                setMessages((prev) => [...prev, assistantMessage]);
+                if (response.assets && response.assets.length > 0) {
+                    response.assets.forEach((asset: { url: string; asset_type: string }) => {
+                        onNewAsset?.({ url: asset.url, type: asset.asset_type });
+                    });
+                }
+                if (response.entities_created && response.entities_created.length > 0) {
+                    onEntityChange?.();
+                }
+            } else {
+                // 🔥 SSE Streaming — ChatGPT tarzı token token yanıt
+                const messageId = (Date.now() + 1).toString();
+                let messageCreated = false;
+                let charQueue: string[] = [];
+                let isProcessingQueue = false;
 
+                // Karakter kuyruğunu ChatGPT hızında işle (harf harf)
+                const processCharQueue = () => {
+                    if (isProcessingQueue) return;
+                    isProcessingQueue = true;
 
-            // Backend returns response as MessageResponse object
-            const responseContent = typeof response.response === 'string'
-                ? response.response
-                : response.response?.content ?? 'Yanıt alınamadı';
+                    const flush = () => {
+                        if (charQueue.length === 0) {
+                            isProcessingQueue = false;
+                            return;
+                        }
+                        // Her seferde 1 karakter al (harf harf yazım)
+                        const chars = charQueue.splice(0, 1).join('');
+                        setMessages((prev) =>
+                            prev.map((msg) =>
+                                msg.id === messageId
+                                    ? { ...msg, content: msg.content + chars }
+                                    : msg
+                            )
+                        );
+                        // ChatGPT benzeri hız: normalde 30-45ms, kuyruk birikmişse hızlan
+                        const delay = charQueue.length > 200 ? 8 : charQueue.length > 80 ? 15 : 25 + Math.random() * 5;
+                        setTimeout(flush, delay);
+                    };
+                    flush();
+                };
 
-            const assistantMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: responseContent,
-                timestamp: new Date(),
-                // Response'daki ilk image asset'ini mesaja ekle
-                image_url: response.assets?.find((a: { asset_type: string; url: string }) => a.asset_type === 'image')?.url,
-            };
-
-            setMessages((prev) => [...prev, assistantMessage]);
-
-            // Handle generated assets - trigger refresh
-            if (response.assets && response.assets.length > 0) {
-                response.assets.forEach((asset: { url: string; asset_type: string }) => {
-                    onNewAsset?.({ url: asset.url, type: asset.asset_type });
+                await sendMessageStream(sessionId, currentInput, activeProjectId, {
+                    onToken: (token: string) => {
+                        // İlk token geldiğinde mesaj oluştur ve loading'i kapat
+                        if (!messageCreated) {
+                            messageCreated = true;
+                            setIsLoading(false); // Loading box'ı kapat
+                            cleanupTimers();
+                            const assistantMessage: Message = {
+                                id: messageId,
+                                role: "assistant",
+                                content: "",
+                                timestamp: new Date(),
+                            };
+                            setMessages((prev) => [...prev, assistantMessage]);
+                        }
+                        // Tokeni karakterlere böl ve kuyruğa ekle
+                        charQueue.push(...token.split(''));
+                        processCharQueue();
+                    },
+                    onAssets: (assets) => {
+                        // İlk image'ı mesaja ekle
+                        if (!messageCreated) {
+                            messageCreated = true;
+                            setIsLoading(false);
+                            cleanupTimers();
+                            const assistantMessage: Message = {
+                                id: messageId,
+                                role: "assistant",
+                                content: "",
+                                timestamp: new Date(),
+                            };
+                            setMessages((prev) => [...prev, assistantMessage]);
+                        }
+                        const firstImage = assets.find((a) => a.url);
+                        if (firstImage) {
+                            setMessages((prev) =>
+                                prev.map((msg) =>
+                                    msg.id === messageId
+                                        ? { ...msg, image_url: firstImage.url }
+                                        : msg
+                                )
+                            );
+                        }
+                        // Asset panel'i refresh et
+                        assets.forEach((asset) => {
+                            onNewAsset?.({ url: asset.url, type: 'image' });
+                        });
+                    },
+                    onVideos: (videos) => {
+                        videos.forEach((video) => {
+                            onNewAsset?.({ url: video.url, type: 'video' });
+                        });
+                    },
+                    onEntities: () => {
+                        onEntityChange?.();
+                    },
+                    onStatus: (status: string) => {
+                        setLoadingStatus(status);
+                    },
+                    onError: (error: string) => {
+                        console.error('Stream error:', error);
+                    },
                 });
-            }
 
-            // Handle created entities - trigger sidebar refresh
-            if (response.entities_created && response.entities_created.length > 0) {
-                onEntityChange?.();
+                // Kuyruktaki kalan tokenları flush et
+                await new Promise<void>((resolve) => {
+                    const checkQueue = () => {
+                        if (charQueue.length === 0 && !isProcessingQueue) {
+                            resolve();
+                        } else {
+                            setTimeout(checkQueue, 30);
+                        }
+                    };
+                    checkQueue();
+                });
             }
         } catch (err) {
             console.error("Chat error:", err);
@@ -743,16 +847,38 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                         <div className="flex gap-3">
                             <span className="text-xl shrink-0">🫑</span>
                             <div className="message-bubble message-ai">
-                                <div className="flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent)" }} />
-                                    <span
-                                        className="text-sm"
-                                        style={{ transition: "opacity 0.3s ease" }}
-                                        key={loadingStatus}
-                                    >
-                                        {loadingStatus}
-                                    </span>
-                                </div>
+                                {loadingStatus ? (
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent)" }} />
+                                        <span
+                                            className="text-sm"
+                                            style={{ transition: "opacity 0.3s ease" }}
+                                            key={loadingStatus}
+                                        >
+                                            {loadingStatus}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1 py-1 px-1">
+                                        {[0, 1, 2].map(i => (
+                                            <div
+                                                key={i}
+                                                className="w-2 h-2 rounded-full"
+                                                style={{
+                                                    background: "var(--accent)",
+                                                    opacity: 0.6,
+                                                    animation: `typing-dot 1.4s ease-in-out ${i * 0.2}s infinite`,
+                                                }}
+                                            />
+                                        ))}
+                                        <style>{`
+                                            @keyframes typing-dot {
+                                                0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+                                                30% { transform: translateY(-6px); opacity: 1; }
+                                            }
+                                        `}</style>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -897,13 +1023,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                 >
                                     <Sparkles size={18} className="text-purple-400" />
                                 </button>
-                                <button
-                                    type="button"
-                                    className="p-2 rounded-lg hover:bg-[var(--background-secondary)] transition-colors"
-                                    title="Sesli giriş"
-                                >
-                                    <Mic size={20} style={{ color: "var(--foreground-muted)" }} />
-                                </button>
+                                {/* Mic icon removed — was non-functional */}
                                 <button
                                     type="submit"
                                     disabled={(!input.trim() && !attachedFile && !attachedVideoUrl) || isLoading || !isConnected}

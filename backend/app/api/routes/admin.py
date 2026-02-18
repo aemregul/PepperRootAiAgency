@@ -96,6 +96,7 @@ class TrashItemResponse(BaseModel):
     item_type: str
     item_id: str
     item_name: str
+    original_data: Optional[dict] = None
     deleted_at: datetime
     expires_at: datetime
 
@@ -531,6 +532,7 @@ async def list_trash_items(db: AsyncSession = Depends(get_db)):
         item_type=i.item_type,
         item_id=i.item_id,
         item_name=i.item_name,
+        original_data=i.original_data,
         deleted_at=i.deleted_at,
         expires_at=i.expires_at
     ) for i in items]

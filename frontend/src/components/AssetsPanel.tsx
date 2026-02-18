@@ -64,9 +64,10 @@ interface AssetsPanelProps {
     sessionId?: string | null;
     refreshKey?: number;
     onSaveToImages?: () => void;  // Sidebar'ı refresh etmek için
+    onAssetDeleted?: () => void;  // Asset silindiğinde çöp kutusunu güncellemek için
 }
 
-export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey, onSaveToImages }: AssetsPanelProps) {
+export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey, onSaveToImages, onAssetDeleted }: AssetsPanelProps) {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -121,6 +122,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         if (success) {
             setAssets(prev => prev.filter(a => a.id !== assetId));
             toast.success('Asset silindi');
+            onAssetDeleted?.();  // Çöp kutusunu güncelle
         } else {
             toast.error('Silme başarısız');
         }
@@ -163,6 +165,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         setSelectedIds(new Set());
         setIsSelectMode(false);
         toast.success(`${successCount} asset silindi`);
+        if (successCount > 0) onAssetDeleted?.();  // Çöp kutusunu güncelle
     };
 
     // Drag start for chat drop

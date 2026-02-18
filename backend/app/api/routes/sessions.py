@@ -228,6 +228,21 @@ async def delete_asset(
     )
     db.add(trash_item)
     
+    # İlişkili entity_assets kayıtlarını sil (NOT NULL constraint)
+    from app.models.models import EntityAsset
+    entity_asset_result = await db.execute(
+        select(EntityAsset).where(EntityAsset.asset_id == asset_id)
+    )
+    for ea in entity_asset_result.scalars().all():
+        await db.delete(ea)
+    
+    # Child asset'lerin parent referansını temizle
+    child_result = await db.execute(
+        select(GeneratedAsset).where(GeneratedAsset.parent_asset_id == asset_id)
+    )
+    for child in child_result.scalars().all():
+        child.parent_asset_id = None
+    
     # Asset'i sil
     await db.delete(asset)
-    await db.flush()
+    await db.commit()

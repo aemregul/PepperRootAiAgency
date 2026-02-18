@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { X, Trash2, RotateCcw, Clock, AlertCircle, CheckSquare, Square, Trash } from "lucide-react";
+import { X, Trash2, RotateCcw, Clock, AlertCircle, CheckSquare, Square, Trash, ImageIcon, Video } from "lucide-react";
 
 export interface TrashItem {
     id: string;
     name: string;
     type: "proje" | "karakter" | "lokasyon" | "wardrobe" | "plugin" | "marka" | "session" | "character" | "location" | "brand" | "asset";
     deletedAt: Date;
+    imageUrl?: string;
     originalData: any;
 }
 
@@ -98,12 +99,13 @@ export function TrashModal({
     // Kategori sayıları
     const categoryCounts = {
         all: items.length,
-        proje: items.filter(i => i.type === "proje").length,
-        karakter: items.filter(i => i.type === "karakter").length,
-        lokasyon: items.filter(i => i.type === "lokasyon").length,
+        proje: items.filter(i => i.type === "proje" || i.type === "session").length,
+        karakter: items.filter(i => i.type === "karakter" || i.type === "character").length,
+        lokasyon: items.filter(i => i.type === "lokasyon" || i.type === "location").length,
         wardrobe: items.filter(i => i.type === "wardrobe").length,
+        asset: items.filter(i => i.type === "asset").length,
         plugin: items.filter(i => i.type === "plugin").length,
-        marka: items.filter(i => i.type === "marka").length,
+        marka: items.filter(i => i.type === "marka" || i.type === "brand").length,
     };
 
     const toggleSelection = (id: string) => {
@@ -192,6 +194,7 @@ export function TrashModal({
                     >
                         {[
                             { key: "all" as const, label: "Tümü", color: "#6b7280" },
+                            { key: "asset" as const, label: "Görseller", color: "#f97316" },
                             { key: "proje" as const, label: "Projeler", color: "#22c55e" },
                             { key: "karakter" as const, label: "Karakterler", color: "#8b5cf6" },
                             { key: "lokasyon" as const, label: "Lokasyonlar", color: "#3b82f6" },
@@ -345,12 +348,35 @@ export function TrashModal({
                                     </button>
 
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div
-                                            className="w-2 h-2 rounded-full shrink-0"
-                                            style={{ background: getTypeColor(item.type) }}
-                                        />
+                                        {/* Thumbnail for assets */}
+                                        {item.imageUrl ? (
+                                            <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-[var(--border)]">
+                                                {item.imageUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i) ? (
+                                                    <div className="w-full h-full flex items-center justify-center bg-[var(--card)]">
+                                                        <Video size={24} style={{ color: getTypeColor(item.type) }} />
+                                                    </div>
+                                                ) : (
+                                                    <img
+                                                        src={item.imageUrl}
+                                                        alt={item.name}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).style.display = 'none';
+                                                            (e.target as HTMLImageElement).parentElement!.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--card)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>';
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="w-2 h-2 rounded-full shrink-0"
+                                                style={{ background: getTypeColor(item.type) }}
+                                            />
+                                        )}
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-medium truncate">{item.name}</div>
+                                            <div className="font-medium truncate text-sm">
+                                                {item.imageUrl ? (item.name.length > 40 ? item.name.slice(0, 40) + '…' : item.name) : item.name}
+                                            </div>
                                             <div className="flex items-center gap-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
                                                 <span
                                                     className="px-1.5 py-0.5 rounded"

@@ -5,7 +5,7 @@ Kullanıcı mesajını alır, LLM'e gönderir, araç çağrılarını yönetir.
 import json
 import uuid
 from typing import Optional
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +38,7 @@ class AgentOrchestrator:
     
     def __init__(self):
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.async_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.fal_plugin = FalPluginV2()
         self.model = "gpt-4o"
         
@@ -543,6 +544,266 @@ Herhangi bir işlem başarısız olursa:
             del result["_current_reference_image"]
         
         return result
+    
+    async def process_message_stream(
+        self, 
+        user_message: str, 
+        session_id: uuid.UUID,
+        db: AsyncSession,
+        conversation_history: list = None,
+        reference_image: str = None
+    ):
+        """
+        Streaming versiyonu — SSE event'leri yield eder.
+        Tool call'lar normal çalışır, son metin yanıtı token token stream edilir.
+        """
+        import asyncio
+        
+        if conversation_history is None:
+            conversation_history = []
+        
+        # Aynı ön işleme adımları (process_message ile aynı)
+        if len(conversation_history) > 15:
+            conversation_history = await self._summarize_conversation(conversation_history)
+        
+        entity_context = await self._build_entity_context(db, session_id, user_message)
+        full_system_prompt = self.system_prompt
+        if entity_context:
+            full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
+        
+        # Proje bağlamı
+        try:
+            session_result = await db.execute(
+                select(SessionModel).where(SessionModel.id == session_id)
+            )
+            active_session = session_result.scalar_one_or_none()
+            if active_session:
+                project_context = f"\n\n--- 📂 AKTİF PROJE ---\nProje Adı: {active_session.title}"
+                if active_session.description:
+                    project_context += f"\nAçıklama: {active_session.description}"
+                if active_session.category:
+                    project_context += f"\nKategori: {active_session.category}"
+                if active_session.project_data:
+                    project_context += f"\nProje Verileri: {active_session.project_data}"
+                full_system_prompt += project_context
+        except Exception:
+            pass
+        
+        # Working memory
+        try:
+            recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
+            if recent_assets:
+                memory_context = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
+                memory_context += "Kullanıcı 'bunu düzenle', 'son görseli değiştir' derse BURADAKİ URL'leri kullan:\n"
+                for idx, asset in enumerate(recent_assets, 1):
+                    asset_type_icon = "🎬" if asset.asset_type == "video" else "🖼️"
+                    memory_context += f"{idx}. {asset_type_icon} {asset.asset_type}: {asset.url}\n"
+                    if asset.prompt:
+                        memory_context += f"   Prompt: {asset.prompt[:100]}\n"
+                full_system_prompt += memory_context
+        except Exception:
+            pass
+        
+        # Kullanıcı tercihlerini ekle
+        try:
+            user_id = await get_user_id_from_session(db, session_id)
+            if user_id:
+                user_prefs = await preferences_service.get_all_preferences(str(user_id))
+                if user_prefs:
+                    prefs_context = "\n\n--- 🎨 KULLANICI TERCİHLERİ ---\n"
+                    for key, value in user_prefs.items():
+                        prefs_context += f"- {key}: {value}\n"
+                    full_system_prompt += prefs_context
+        except Exception:
+            pass
+        
+        # Referans görsel
+        uploaded_image_url = None
+        if reference_image:
+            try:
+                upload_result = await self.fal_plugin.upload_base64_image(reference_image)
+                if upload_result.get("success"):
+                    uploaded_image_url = upload_result["url"]
+            except Exception:
+                pass
+        
+        # Mesajları hazırla
+        if uploaded_image_url:
+            image_url_info = f" URL: {uploaded_image_url}]"
+            user_content = [
+                {"type": "image_url", "image_url": {"url": uploaded_image_url}},
+                {"type": "text", "text": user_message + f"\n\n[⚡ REFERANS GÖRSEL GÖNDERİLDİ!{image_url_info}\n\nKullanıcı 'düzenle', 'kaldır', 'değiştir' gibi bir şey isterse → edit_image aracını image_url={uploaded_image_url} ile çağır. Kullanıcı 'kaydet' derse → create_character aracını use_current_reference=true ile çağır.]"}
+            ]
+            messages = conversation_history + [{"role": "user", "content": user_content}]
+        else:
+            messages = conversation_history + [{"role": "user", "content": user_message}]
+        
+        # Sonuç takibi
+        result = {
+            "images": [],
+            "videos": [],
+            "entities_created": [],
+            "_resolved_entities": [],
+            "_current_reference_image": reference_image
+        }
+        
+        user_id = await get_user_id_from_session(db, session_id)
+        resolved = await entity_service.resolve_tags(db, user_id, user_message)
+        result["_resolved_entities"] = resolved
+        result["_user_id"] = user_id
+        
+        # TEK streaming çağrı — tool call varsa biriktirir, yoksa direkt token yield eder
+        stream = await self.async_client.chat.completions.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "system", "content": full_system_prompt}] + messages,
+            tools=AGENT_TOOLS,
+            tool_choice="auto",
+            stream=True
+        )
+        
+        # Tool call chunk'larını biriktir
+        tool_calls_acc = {}  # index -> {id, name, arguments}
+        text_tokens = []
+        has_tool_calls = False
+        
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            
+            # Tool call chunk'ları
+            if delta.tool_calls:
+                has_tool_calls = True
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_calls_acc:
+                        tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
+                    if tc.id:
+                        tool_calls_acc[idx]["id"] = tc.id
+                    if tc.function and tc.function.name:
+                        tool_calls_acc[idx]["name"] = tc.function.name
+                    if tc.function and tc.function.arguments:
+                        tool_calls_acc[idx]["arguments"] += tc.function.arguments
+            
+            # Metin token'ları — direkt yield et (gerçek streaming!)
+            if delta.content:
+                if not has_tool_calls:
+                    yield f"event: token\ndata: {json.dumps(delta.content, ensure_ascii=False)}\n\n"
+                else:
+                    text_tokens.append(delta.content)
+        
+        # Tool call varsa — çalıştır ve sonra final text stream yap
+        if has_tool_calls and tool_calls_acc:
+            yield f"event: status\ndata: Araçlar çalışıyor...\n\n"
+            
+            # tool_calls_acc'yi OpenAI message formatına çevir
+            from types import SimpleNamespace
+            fake_tool_calls = []
+            for idx in sorted(tool_calls_acc.keys()):
+                tc = tool_calls_acc[idx]
+                fake_tc = SimpleNamespace(
+                    id=tc["id"],
+                    function=SimpleNamespace(name=tc["name"], arguments=tc["arguments"]),
+                    type="function"
+                )
+                fake_tool_calls.append(fake_tc)
+            
+            fake_message = SimpleNamespace(
+                tool_calls=fake_tool_calls,
+                content="".join(text_tokens) if text_tokens else None
+            )
+            
+            await self._process_tool_calls_for_stream(
+                fake_message, messages, result, session_id, db, full_system_prompt
+            )
+            
+            # Tool sonuçlarını yield et
+            if result["images"]:
+                yield f"event: assets\ndata: {json.dumps(result['images'], ensure_ascii=False)}\n\n"
+            if result["videos"]:
+                yield f"event: videos\ndata: {json.dumps(result['videos'], ensure_ascii=False)}\n\n"
+            if result["entities_created"]:
+                yield f"event: entities\ndata: {json.dumps(result['entities_created'], ensure_ascii=False, default=str)}\n\n"
+            
+            # Tool call sonrası final yanıt — STREAM olarak
+            final_stream = await self.async_client.chat.completions.create(
+                model=self.model,
+                max_tokens=4096,
+                messages=[{"role": "system", "content": self.system_prompt}] + messages,
+                stream=True
+            )
+            
+            async for chunk in final_stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
+        
+        yield f"event: done\ndata: {{}}\n\n"
+    
+    async def _process_tool_calls_for_stream(
+        self, message, messages, result, session_id, db, system_prompt
+    ):
+        """Tool call'ları çalıştır ve messages listesini güncelle (stream versiyonu)."""
+        
+        for tool_call in message.tool_calls:
+            tool_name = tool_call.function.name
+            tool_args = json.loads(tool_call.function.arguments)
+            
+            print(f"🔧 STREAM TOOL: {tool_name}")
+            
+            tool_result = await self._handle_tool_call(
+                tool_name, tool_args, session_id, db,
+                resolved_entities=result.get("_resolved_entities", []),
+                current_reference_image=result.get("_current_reference_image")
+            )
+            
+            if tool_result.get("success") and tool_result.get("image_url"):
+                result["images"].append({
+                    "url": tool_result["image_url"],
+                    "prompt": tool_args.get("prompt", "")
+                })
+            
+            if tool_result.get("success") and tool_result.get("video_url"):
+                result["videos"].append({
+                    "url": tool_result["video_url"],
+                    "prompt": tool_args.get("prompt", ""),
+                    "thumbnail_url": tool_result.get("thumbnail_url")
+                })
+            
+            if tool_result.get("success") and tool_result.get("entity"):
+                result["entities_created"].append(tool_result["entity"])
+            
+            messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [tool_call.model_dump()]
+            })
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": json.dumps(tool_result, ensure_ascii=False, default=str)
+            })
+        
+        # Devam yanıtı kontrol et (nested tool calls)
+        continue_response = await self.async_client.chat.completions.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "system", "content": system_prompt}] + messages,
+            tools=AGENT_TOOLS,
+            tool_choice="auto"
+        )
+        
+        cont_message = continue_response.choices[0].message
+        
+        # Daha fazla tool call varsa recursive çağır
+        if cont_message.tool_calls:
+            await self._process_tool_calls_for_stream(
+                cont_message, messages, result, session_id, db, system_prompt
+            )
+        elif cont_message.content:
+            # Final text — messages'a ekle böylece stream caller kullanabilir
+            messages.append({"role": "assistant", "content": cont_message.content})
     
     async def _build_entity_context(
         self, 

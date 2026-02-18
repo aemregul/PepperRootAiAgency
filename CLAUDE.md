@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (18 Şubat 2026 - 02:00)
+## 📊 Genel Durum (19 Şubat 2026 - 02:30)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -287,7 +287,7 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (18 Şubat 2026 - 02:00)
+## 🎯 SON DURUM (19 Şubat 2026 - 02:30)
 
 **🎉 TÜM FAZLAR TAMAMLANDI!**
 
@@ -298,7 +298,7 @@ git add . && git commit -m "mesaj" && git push
 - ✅ **Faz 5: Agent Intelligence Upgrade** - Yüz tutarlılığı, video edit fix, multi-shot
 - ✅ **Faz 6: Advanced Features** - WebSocket, QC, Memory, Style, Campaign, Multi-Agent, Voice
 - ✅ **Faz 7: UI Redesign + Lokalizasyon** - Sidebar yeniden tasarım, Türkçe lokalizasyon
-- 🔄 **Faz 8: Görsel Üretim Kalitesi** - A/B test, model pipeline optimizasyonu ← DEVAM EDİYOR
+- ✅ **Faz 8: Streaming + UX Polish** - SSE streaming, asset deletion, trash thumbnails
 
 **Toplam Kod:** 6000+ satır
 
@@ -312,7 +312,46 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 📝 SON GELİŞMELER (18 Şubat 2026 - 02:00)
+## 📝 SON GELİŞMELER (19 Şubat 2026 - 02:30)
+
+### 🔧 Asset Silme & Çöp Kutusu Düzeltmeleri (19 Şubat) ⭐ YENİ
+
+1. **Asset Deletion Bug Fix:**
+   - `IntegrityError` düzeltildi — `entity_assets` NOT NULL constraint hatası
+   - İlişkili `EntityAsset` kayıtları silme öncesi temizleniyor
+   - Child asset `parent_asset_id` referansları temizleniyor
+   - Silinen asset `TrashItem` tablosuna ekleniyor
+
+2. **Çöp Kutusu Thumbnail Desteği:**
+   - Backend `TrashItemResponse`'a `original_data` eklendi (URL bilgisi)
+   - `TrashModal.tsx` artık silinen görselleri 56×56px thumbnail olarak gösteriyor
+   - Video dosyaları için video ikonu, kırık görseller için fallback
+   - "Görseller" filtre tab'ı eklendi
+
+3. **Anlık UI Güncellemeleri (Sayfa Yenilemeden):**
+   - Asset silme → çöp kutusu anında güncellenir (`onAssetDeleted` callback)
+   - Çöpten geri yükleme → media panel anında güncellenir (`onAssetRestore` callback)
+   - `page.tsx` üzerinden bidirectional `refreshKey` mekanizması
+
+### 🚀 SSE Streaming Yeniden Yazıldı (19 Şubat) ⭐ YENİ
+
+1. **Tek Streaming Çağrı Mimarisi:**
+   - Eski: 2 OpenAI çağrısı (non-streaming + streaming) → çift bekleme
+   - Yeni: TEK streaming çağrı, tool call chunk'ları paralel biriktirilir
+   - Tool call yoksa tokenlar direkt yield edilir (gerçek real-time)
+
+2. **ChatGPT Tarzı Harf Harf Animasyon:**
+   - Tokenlar karakterlere bölünüp kuyruk sistemiyle render ediliyor
+   - 25-30ms/karakter hızında doğal yazım efekti
+   - Kuyruk birikmesi durumunda adaptif hızlanma
+
+3. **Loading Göstergesi İyileştirmesi:**
+   - Normal sohbetlerde "Düşünüyor..." metni kaldırıldı
+   - Yerine: 3 zıplayan nokta (●●●) animasyonu
+   - Uzun işlemlerde (görsel/video) açıklayıcı metin korunuyor
+   - İlk token geldiğinde loading kaybolur, mesaj kutusu belirir
+   - Çift kutu (double-box) sorunu düzeltildi
+
 
 ### 🖼️ Görsel Üretim Pipeline Yenileme (18 Şubat) ⭐ YENİ
 

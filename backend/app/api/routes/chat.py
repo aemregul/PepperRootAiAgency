@@ -5,6 +5,7 @@ Mesajlar ana chat session'a, asset'ler aktif projeye kaydedilir.
 from uuid import UUID
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import base64
@@ -292,4 +293,135 @@ async def chat_with_image(
         reference_image_base64=reference_image_base64,
         db=db,
         active_project_id=active_project_id
+    )
+
+
+# SSE Streaming endpoint
+@router.post("/stream")
+async def chat_stream(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Kullanıcı mesajını işle ve SSE ile stream et (ChatGPT tarzı)."""
+    print(f"🔴 STREAM ENDPOINT HIT! message={request.message[:50]}")
+    from sqlalchemy import asc
+    import json
+    
+    actual_session_id = str(request.session_id) if request.session_id else None
+    active_project_id = str(request.active_project_id) if request.active_project_id else None
+    actual_message = request.message
+    
+    # Asset hedef session
+    asset_session_id = None
+    if active_project_id:
+        try:
+            asset_session_id = UUID(active_project_id)
+        except ValueError:
+            pass
+    
+    # Session al
+    if actual_session_id:
+        try:
+            session_uuid = UUID(actual_session_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz session ID")
+        result = await db.execute(select(Session).where(Session.id == session_uuid))
+        session = result.scalar_one_or_none()
+        if not session:
+            raise HTTPException(status_code=404, detail="Oturum bulunamadı")
+    else:
+        session = Session(title="Yeni Sohbet")
+        db.add(session)
+        await db.flush()
+        await db.refresh(session)
+    
+    # Kullanıcı mesajını kaydet
+    user_msg = Message(session_id=session.id, role="user", content=actual_message)
+    db.add(user_msg)
+    await db.flush()
+    await db.refresh(user_msg)
+    
+    # Geçmiş mesajları çek
+    prev_result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session.id)
+        .where(Message.id != user_msg.id)
+        .order_by(asc(Message.created_at))
+    )
+    previous_messages = prev_result.scalars().all()
+    
+    ERROR_PATTERNS = ["kredi", "credit", "yetersiz", "insufficient", "hata", "error", "başarısız", "failed"]
+    conversation_history = []
+    for msg in previous_messages:
+        content = msg.content.lower() if msg.content else ""
+        if msg.role == "assistant" and any(p in content for p in ERROR_PATTERNS):
+            continue
+        conversation_history.append({"role": msg.role, "content": msg.content})
+    
+    if len(conversation_history) > 20:
+        conversation_history = conversation_history[-20:]
+    
+    async def event_generator():
+        full_response = ""
+        all_images = []
+        all_videos = []
+        all_entities = []
+        
+        try:
+            async for event in agent.process_message_stream(
+                user_message=actual_message,
+                session_id=asset_session_id or session.id,
+                db=db,
+                conversation_history=conversation_history
+            ):
+                yield event
+                
+                # Tam yanıtı biriktir (DB'ye kaydetmek için)
+                if event.startswith("event: token"):
+                    data_line = event.split("data: ", 1)[1].strip()
+                    try:
+                        token = json.loads(data_line)
+                        full_response += token
+                    except:
+                        pass
+                elif event.startswith("event: assets"):
+                    data_line = event.split("data: ", 1)[1].strip()
+                    try:
+                        all_images = json.loads(data_line)
+                    except:
+                        pass
+                elif event.startswith("event: videos"):
+                    data_line = event.split("data: ", 1)[1].strip()
+                    try:
+                        all_videos = json.loads(data_line)
+                    except:
+                        pass
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
+        
+        # Yanıtı DB'ye kaydet
+        try:
+            assistant_msg = Message(
+                session_id=session.id,
+                role="assistant",
+                content=full_response or "(stream yanıtı)",
+                metadata_={
+                    "images": all_images,
+                    "videos": all_videos,
+                    "streamed": True
+                } if all_images or all_videos else {"streamed": True}
+            )
+            db.add(assistant_msg)
+            await db.commit()
+        except Exception as e:
+            print(f"⚠️ Stream DB kayıt hatası: {e}")
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
     )

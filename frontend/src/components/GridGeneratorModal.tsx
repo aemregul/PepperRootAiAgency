@@ -341,14 +341,32 @@ Cinematic storyboard quality, consistent character.`;
     const downloadGrid = async () => {
         if (!gridImage) return;
 
-        if (gridImage.startsWith("data:")) {
+        try {
+            let blobUrl: string;
+
+            if (gridImage.startsWith("data:")) {
+                blobUrl = gridImage;
+            } else {
+                // External URL — fetch as blob for proper download
+                const response = await fetch(gridImage);
+                const blob = await response.blob();
+                blobUrl = URL.createObjectURL(blob);
+            }
+
             const link = document.createElement("a");
-            link.href = gridImage;
+            link.href = blobUrl;
             link.download = `grid_${topMode}_${Date.now()}.png`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        } else {
+
+            // Clean up blob URL if we created one
+            if (!gridImage.startsWith("data:")) {
+                URL.revokeObjectURL(blobUrl);
+            }
+        } catch (error) {
+            console.error("Download failed:", error);
+            // Fallback: open in new tab
             window.open(gridImage, "_blank");
         }
     };

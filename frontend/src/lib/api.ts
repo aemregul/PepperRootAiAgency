@@ -200,6 +200,94 @@ export async function sendMessage(
     return response.json();
 }
 
+// SSE Streaming version — ChatGPT-style token-by-token
+export async function sendMessageStream(
+    sessionId: string,
+    message: string,
+    activeProjectId?: string,
+    callbacks?: {
+        onToken?: (token: string) => void;
+        onAssets?: (assets: Array<{ url: string; prompt?: string }>) => void;
+        onVideos?: (videos: Array<{ url: string; prompt?: string; thumbnail_url?: string }>) => void;
+        onEntities?: (entities: unknown[]) => void;
+        onStatus?: (status: string) => void;
+        onDone?: () => void;
+        onError?: (error: string) => void;
+    }
+): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/stream`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+            session_id: sessionId,
+            message: message,
+            active_project_id: activeProjectId || null,
+        }),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Stream failed: ${error}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No readable stream');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE events are separated by double newlines
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+            if (!event.trim()) continue;
+
+            const lines = event.split('\n');
+            let eventType = '';
+            let data = '';
+
+            for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                    eventType = line.slice(7).trim();
+                } else if (line.startsWith('data: ')) {
+                    data = line.slice(6);
+                }
+            }
+
+            switch (eventType) {
+                case 'token':
+                    try { callbacks?.onToken?.(JSON.parse(data)); } catch { /* ignore */ }
+                    break;
+                case 'assets':
+                    try { callbacks?.onAssets?.(JSON.parse(data)); } catch { /* ignore */ }
+                    break;
+                case 'videos':
+                    try { callbacks?.onVideos?.(JSON.parse(data)); } catch { /* ignore */ }
+                    break;
+                case 'entities':
+                    try { callbacks?.onEntities?.(JSON.parse(data)); } catch { /* ignore */ }
+                    break;
+                case 'status':
+                    callbacks?.onStatus?.(data);
+                    break;
+                case 'done':
+                    callbacks?.onDone?.();
+                    break;
+                case 'error':
+                    try { callbacks?.onError?.(JSON.parse(data)); } catch { callbacks?.onError?.(data); }
+                    break;
+            }
+        }
+    }
+}
+
 export async function getSessionHistory(sessionId: string): Promise<MessageResponse[]> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/messages`);
 
@@ -308,6 +396,7 @@ export async function deleteAsset(assetId: string): Promise<boolean> {
     try {
         const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/assets/${assetId}`, {
             method: 'DELETE',
+            headers: getAuthHeaders(),
         });
         return response.ok;
     } catch {
@@ -536,6 +625,7 @@ export interface TrashItemData {
     item_type: string;
     item_id: string;
     item_name: string;
+    original_data?: { url?: string; type?: string; prompt?: string;[key: string]: any };
     deleted_at: string;
     expires_at: string;
 }
