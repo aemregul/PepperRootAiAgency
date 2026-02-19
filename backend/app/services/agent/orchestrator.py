@@ -371,7 +371,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             "videos": [],
             "entities_created": [],
             "_resolved_entities": [],
-            "_current_reference_image": reference_image
+            "_current_reference_image": reference_image,
+            "_uploaded_image_url": uploaded_image_url
         }
         
         user_id = await get_user_id_from_session(db, session_id)
@@ -498,7 +499,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             tool_result = await self._handle_tool_call(
                 tool_name, tool_args, session_id, db,
                 resolved_entities=result.get("_resolved_entities", []),
-                current_reference_image=result.get("_current_reference_image")
+                current_reference_image=result.get("_current_reference_image"),
+                uploaded_reference_url=result.get("_uploaded_image_url")
             )
             
             if tool_result.get("success") and tool_result.get("image_url"):
@@ -648,7 +650,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                     session_id, 
                     db,
                     resolved_entities=result.get("_resolved_entities", []),
-                    current_reference_image=result.get("_current_reference_image")
+                    current_reference_image=result.get("_current_reference_image"),
+                    uploaded_reference_url=result.get("_uploaded_image_url")
                 )
                 
                 # 🔍 DEBUG: Tool çağrısı bitti
@@ -735,13 +738,15 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         session_id: uuid.UUID,
         db: AsyncSession,
         resolved_entities: list = None,
-        current_reference_image: str = None
+        current_reference_image: str = None,
+        uploaded_reference_url: str = None
     ) -> dict:
         """Araç çağrısını işle."""
         
         if tool_name == "generate_image":
             return await self._generate_image(
-                db, session_id, tool_input, resolved_entities or []
+                db, session_id, tool_input, resolved_entities or [],
+                uploaded_reference_url=uploaded_reference_url
             )
         
         elif tool_name == "create_character":
@@ -982,7 +987,8 @@ Konuşma:
         db: AsyncSession, 
         session_id: uuid.UUID, 
         params: dict, 
-        resolved_entities: list = None
+        resolved_entities: list = None,
+        uploaded_reference_url: str = None
     ) -> dict:
         """
         Akıllı görsel üretim sistemi.
@@ -1047,6 +1053,11 @@ Konuşma:
                 from app.services.prompt_translator import enrich_prompt
                 prompt = await enrich_prompt(prompt)
                 print(f"✨ Prompt zenginleştirildi (genel): '{prompt[:80]}...'")
+            
+            # Kullanıcı direkt referans fotoğraf yüklediyse ve entity'den referans gelmemişse
+            if not face_reference_url and uploaded_reference_url:
+                face_reference_url = uploaded_reference_url
+                print(f"   ✅ Yüklenen referans görsel kullanılacak: {face_reference_url[:80]}...")
             
             # AKILLI SİSTEM: Referans görsel varsa
             print(f"🎯 Referans görsel durumu: {face_reference_url is not None}")
