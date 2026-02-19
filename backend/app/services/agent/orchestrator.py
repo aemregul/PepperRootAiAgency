@@ -42,6 +42,9 @@ class AgentOrchestrator:
         self.fal_plugin = FalPluginV2()
         self.model = "gpt-4o"
         
+        # Session-level reference image cache: {session_id: {"url": str, "base64": str}}
+        self._session_reference_images = {}
+        
         self.system_prompt = """Sen Pepper Root AI Agency'nin yaratıcı asistanısın. Türkçe yanıt ver.
 
 ## KİMLİK
@@ -193,9 +196,23 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                 if upload_result.get("success"):
                     uploaded_image_url = upload_result.get("url")
                     print(f"📤 Görsel fal.ai'ye yüklendi: {uploaded_image_url[:60]}...")
+                    # Session'a kaydet — sonraki mesajlarda yeniden kullanılacak
+                    self._session_reference_images[str(session_id)] = {
+                        "url": uploaded_image_url,
+                        "base64": reference_image
+                    }
+                    print(f"💾 Referans görsel session'a kaydedildi")
             except Exception as upload_error:
                 print(f"⚠️ Görsel yükleme hatası: {upload_error}")
-            
+        else:
+            # Yeni görsel yüklenmedi — session'dan önceki referansı al
+            cached = self._session_reference_images.get(str(session_id))
+            if cached:
+                uploaded_image_url = cached["url"]
+                print(f"🔄 Önceki referans görsel session'dan alındı: {uploaded_image_url[:60]}...")
+        
+        # Mesajları hazırla
+        if reference_image and uploaded_image_url:
             # Detect media type from base64 data
             media_type = "image/png"
             if reference_image.startswith("iVBORw"):
@@ -208,13 +225,7 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                 media_type = "image/webp"
             
             # OpenAI Vision API format (GPT-4o)
-            # data URL formatında: data:image/png;base64,...
             data_url = f"data:{media_type};base64,{reference_image}"
-            
-            # AI'a yüklenen URL'yi ver
-            image_url_info = ""
-            if uploaded_image_url:
-                image_url_info = f"\n\n🔗 BU GÖRSELİN URL'Sİ: {uploaded_image_url}\n\nEdit isteklerinde edit_image aracını bu URL ile çağır!"
             
             user_content = [
                 {
@@ -231,6 +242,11 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             ]
             messages = conversation_history + [
                 {"role": "user", "content": user_content}
+            ]
+        elif uploaded_image_url:
+            # Yeni görsel yok ama session'dan referans var — sadece URL bilgisi ekle
+            messages = conversation_history + [
+                {"role": "user", "content": user_message + f"\n\n[ÖNCEKİ REFERANS GÖRSEL URL: {uploaded_image_url}\nBu URL daha önce yüklenen referans görselin fal.ai adresidir. Kullanıcı bu kişiyle ilgili bir istek yaparsa generate_image çağırırken face_reference_url olarak bu URL'i kullan.]"}
             ]
         else:
             messages = conversation_history + [
@@ -358,8 +374,20 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                 upload_result = await self.fal_plugin.upload_base64_image(reference_image)
                 if upload_result.get("success"):
                     uploaded_image_url = upload_result["url"]
+                    # Session'a kaydet — sonraki mesajlarda yeniden kullanılacak
+                    self._session_reference_images[str(session_id)] = {
+                        "url": uploaded_image_url,
+                        "base64": reference_image
+                    }
+                    print(f"💾 Referans görsel session'a kaydedildi (stream)")
             except Exception:
                 pass
+        else:
+            # Yeni görsel yüklenmedi — session'dan önceki referansı al
+            cached = self._session_reference_images.get(str(session_id))
+            if cached:
+                uploaded_image_url = cached["url"]
+                print(f"🔄 Önceki referans görsel session'dan alındı (stream): {uploaded_image_url[:60]}...")
         
         # Mesajları hazırla
         if uploaded_image_url:
