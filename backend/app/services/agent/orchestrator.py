@@ -601,10 +601,15 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                     # Direkt edit_image çağır
                     yield f"event: status\ndata: Görsel düzenleniyor...\n\n"
                     
-                    edit_result = await self._edit_image({
+                    # Orijinal referans görseli face_reference_url olarak ekle
+                    face_ref_url = result.get("_uploaded_image_url")
+                    edit_params = {
                         "image_url": last_image_url,
                         "prompt": english_prompt
-                    })
+                    }
+                    if face_ref_url:
+                        edit_params["face_reference_url"] = face_ref_url
+                    edit_result = await self._edit_image(edit_params)
                     
                     if edit_result.get("success") and edit_result.get("image_url"):
                         result["images"].append({
@@ -976,6 +981,14 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             return await self._generate_long_video(db, session_id, tool_input)
         
         elif tool_name == "edit_image":
+            # Orijinal yüz referansını ekle (face swap için)
+            if uploaded_reference_url:
+                tool_input["face_reference_url"] = uploaded_reference_url
+            elif current_reference_image:
+                # Session'daki referans görseli URL olarak al
+                cached = self._session_reference_images.get(str(session_id)) if hasattr(self, '_session_reference_images') else None
+                if cached and cached.get("url"):
+                    tool_input["face_reference_url"] = cached["url"]
             result = await self._edit_image(tool_input)
             if result.get("success") and result.get("image_url"):
                 try:
@@ -1945,45 +1958,45 @@ Konuşma:
                 except Exception as removal_error:
                     print(f"⚠️ Object Removal hatası: {removal_error}")
             
-            # ---- DÜZENLEME PIPELINE (3 aşamalı) ----
-            # NOT: Tüm modeller orijinal görseli alıp düzenler — sıfırdan üretmez
+            # ---- DÜZENLEME PIPELINE (3 aşamalı + face swap) ----
+            # NOT: Edit modelleri görseli baştan üretebilir, yüz değişebilir.
+            # Bu yüzden başarılı edit sonrası face swap ile orijinal yüzü geri koyuyoruz.
             
             import fal_client
             import asyncio
             
-            # Aşama 1: GPT Image 1 Edit — En iyi talimat anlama + düzenleme
-            try:
-                print(f"   🎨 Aşama 1: GPT Image 1 Edit deneniyor...")
-                result = await asyncio.wait_for(
-                    fal_client.subscribe_async(
-                        "fal-ai/gpt-image-1/edit-image",
-                        arguments={
-                            "image_urls": [image_url],
-                            "prompt": english_instruction,
-                        },
-                        with_logs=True,
-                    ),
-                    timeout=60
-                )
-                
-                if result and "images" in result and len(result["images"]) > 0:
-                    print(f"✅ GPT Image 1 Edit başarılı!")
-                    return {
-                        "success": True,
-                        "image_url": result["images"][0]["url"],
-                        "original_image_url": image_url,
-                        "model": "gpt-image-1-edit",
-                        "method": "fal-ai/gpt-image-1/edit-image",
-                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
-                    }
-            except asyncio.TimeoutError:
-                print(f"   ⚠️ GPT Image 1 Edit timeout (60s)")
-            except Exception as gpt_edit_err:
-                print(f"   ⚠️ GPT Image 1 Edit hatası: {gpt_edit_err}")
+            face_ref = params.get("face_reference_url")  # Orijinal yüz için referans
             
-            # Aşama 2: Nano Banana Pro Edit — Yüz/subject koruma
+            async def _post_edit_face_swap(edited_url: str, face_ref_url: str) -> str:
+                """Edit sonrası orijinal yüzü geri koy."""
+                if not face_ref_url:
+                    return edited_url
+                try:
+                    print(f"   🔄 Face swap: orijinal yüzü geri koyuluyor...")
+                    swap_result = await asyncio.wait_for(
+                        fal_client.subscribe_async(
+                            "fal-ai/face-swap",
+                            arguments={
+                                "base_image_url": edited_url,      # Düzenlenmiş görsel (yeni sahne)
+                                "swap_image_url": face_ref_url,    # Orijinal yüz kaynağı
+                            },
+                            with_logs=True,
+                        ),
+                        timeout=30
+                    )
+                    if swap_result and "image" in swap_result:
+                        print(f"   ✅ Face swap başarılı!")
+                        return swap_result["image"]["url"]
+                    else:
+                        print(f"   ⚠️ Face swap sonuç döndürmedi, orijinal edit kullanılıyor")
+                        return edited_url
+                except Exception as swap_err:
+                    print(f"   ⚠️ Face swap hatası: {swap_err}, orijinal edit kullanılıyor")
+                    return edited_url
+            
+            # Aşama 1: Nano Banana Pro Edit — En iyi genel düzenleme
             try:
-                print(f"   🎨 Aşama 2: Nano Banana Pro Edit deneniyor...")
+                print(f"   🎨 Aşama 1: Nano Banana Pro Edit deneniyor...")
                 result = await asyncio.wait_for(
                     fal_client.subscribe_async(
                         "fal-ai/nano-banana-pro/edit",
@@ -1997,12 +2010,15 @@ Konuşma:
                 )
                 
                 if result and "images" in result and len(result["images"]) > 0:
+                    edited_url = result["images"][0]["url"]
                     print(f"✅ Nano Banana Pro Edit başarılı!")
+                    # Face swap ile orijinal yüzü geri koy
+                    final_url = await _post_edit_face_swap(edited_url, face_ref)
                     return {
                         "success": True,
-                        "image_url": result["images"][0]["url"],
+                        "image_url": final_url,
                         "original_image_url": image_url,
-                        "model": "nano-banana-pro-edit",
+                        "model": "nano-banana-pro-edit" + ("+face-swap" if final_url != edited_url else ""),
                         "method": "fal-ai/nano-banana-pro/edit",
                         "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
                     }
@@ -2010,6 +2026,38 @@ Konuşma:
                 print(f"   ⚠️ Nano Banana Pro Edit timeout (45s)")
             except Exception as nano_err:
                 print(f"   ⚠️ Nano Banana Pro Edit hatası: {nano_err}")
+            
+            # Aşama 2: GPT Image 1 Edit — Güçlü talimat anlama
+            try:
+                print(f"   🎨 Aşama 2: GPT Image 1 Edit deneniyor...")
+                result = await asyncio.wait_for(
+                    fal_client.subscribe_async(
+                        "fal-ai/gpt-image-1/edit-image",
+                        arguments={
+                            "image_urls": [image_url],
+                            "prompt": english_instruction,
+                        },
+                        with_logs=True,
+                    ),
+                    timeout=60
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    edited_url = result["images"][0]["url"]
+                    print(f"✅ GPT Image 1 Edit başarılı!")
+                    final_url = await _post_edit_face_swap(edited_url, face_ref)
+                    return {
+                        "success": True,
+                        "image_url": final_url,
+                        "original_image_url": image_url,
+                        "model": "gpt-image-1-edit" + ("+face-swap" if final_url != edited_url else ""),
+                        "method": "fal-ai/gpt-image-1/edit-image",
+                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                    }
+            except asyncio.TimeoutError:
+                print(f"   ⚠️ GPT Image 1 Edit timeout (60s)")
+            except Exception as gpt_edit_err:
+                print(f"   ⚠️ GPT Image 1 Edit hatası: {gpt_edit_err}")
             
             # Aşama 3: FLUX Kontext Pro — Stil/sahne değişikliği
             try:
@@ -2027,12 +2075,14 @@ Konuşma:
                 )
                 
                 if result and "images" in result and len(result["images"]) > 0:
+                    edited_url = result["images"][0]["url"]
                     print(f"✅ FLUX Kontext Pro başarılı!")
+                    final_url = await _post_edit_face_swap(edited_url, face_ref)
                     return {
                         "success": True,
-                        "image_url": result["images"][0]["url"],
+                        "image_url": final_url,
                         "original_image_url": image_url,
-                        "model": "flux-kontext-pro",
+                        "model": "flux-kontext-pro" + ("+face-swap" if final_url != edited_url else ""),
                         "method": "fal-ai/flux-pro/kontext",
                         "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
                     }
