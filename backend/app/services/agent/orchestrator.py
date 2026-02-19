@@ -1996,8 +1996,8 @@ Konuşma:
             
             # ===== AŞAMA 1: GEMINI (True Inpainting) =====
             try:
-                import os
-                gemini_api_key = os.getenv("GEMINI_API_KEY")
+                from app.core.config import settings as app_settings
+                gemini_api_key = app_settings.GEMINI_API_KEY
                 if gemini_api_key:
                     print(f"   🌟 Aşama 1: Gemini True Inpainting deneniyor...")
                     
@@ -2056,6 +2056,7 @@ Konuşma:
                     if edited_image_data:
                         # Base64 image'ı fal storage'a yükle (URL almak için)
                         import tempfile
+                        import os
                         suffix = ".png" if "png" in result_mime else ".jpg" if "jpeg" in result_mime else ".webp"
                         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
                             tmp.write(edited_image_data)
@@ -2098,6 +2099,7 @@ Konuşma:
                         "fal-ai/nano-banana-pro/edit",
                         arguments={
                             "image_url": image_url,
+                            "image_urls": [image_url],
                             "prompt": english_instruction,
                         },
                         with_logs=True,
