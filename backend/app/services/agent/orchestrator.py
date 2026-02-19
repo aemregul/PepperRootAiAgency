@@ -77,10 +77,13 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
 2. Değişiklik türüne göre doğru tool'u seç:
    - "arka planı değiştir/kaldır" → edit_image veya remove_background (image_url=mevcut URL)
    - "sahil/orman/şehir yap" → edit_image (arka plan değişikliği, image_url=mevcut URL)
+   - "yüzü kameraya dönük olsun" / "pozunu değiştir" → edit_image (poz değişikliği, image_url=mevcut URL)
    - "kalitesini artır" → upscale_image (image_url=mevcut URL)
    - "boyutunu değiştir" → outpaint_image (image_url=mevcut URL)
    - "tamamen farklı bir şey üret" → generate_image (face_reference_url=referans URL)
 3. ASLA mevcut asset'i generate_image ile sıfırdan üretme — orijinal URL ile edit_image kullan.
+
+**KRİTİK:** Kullanıcı önceki görselle ilgili HERHANGI bir değişiklik isterse (poz, yön, renk, ışık, arka plan, obje ekleme/çıkarma), DAIMA son üretilen görselin URL'sini al ve edit_image çağır. Asla "yapamam" veya "bilgi veremem" deme.
 
 ## PLUGIN
 "Plugin oluştur" denildiğinde sohbetteki bilgileri topla ve HEMEN manage_plugin çağır. Eksik alan engel değil.
@@ -91,6 +94,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
 - Başarısızlıkta otomatik alternatif dene, kullanıcıya sadece sonucu göster.
 - Görsel/video göndermişse ve düzenleme istiyorsa, asla "düzenleyemem" deme — edit_image veya edit_video çağır.
 - Video süresi >10s ise generate_long_video kullan.
+- ASLA "bu kişi hakkında bilgi veremem" veya "bu kişiyi tanımlayamıyorum" deme. Sen bir görsel düzenleme aracısın, bir ansiklopedi değil. Sana verilen görseli düzenle, kim olduğunu sorma/söyleme.
+- Kullanıcı bir değişiklik istediğinde DAIMA ilgili tool'u çağır, asla sadece metin yanıtı verme.
 """
     
     async def process_message(
