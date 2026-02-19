@@ -781,45 +781,37 @@ class FalPluginV2(PluginBase):
         # Temiz referans görseli + prompt gönderip fotorealistik sonuç alır.
         logger.info(f"🎯 Aşama 1: Nano Banana Pro Edit — Grid modeli ile üretim...")
         try:
-            request_body = {
-                "prompt": prompt,
-                "image_urls": [clean_face_url],
-                "num_images": 1,
-                "aspect_ratio": aspect_ratio,
-                "output_format": "png",
-                "resolution": resolution or "1K",
-            }
-            
-            async with httpx.AsyncClient(timeout=45.0) as client:
-                response = await client.post(
-                    "https://fal.run/fal-ai/nano-banana-pro/edit",
-                    headers={
-                        "Authorization": f"Key {self.api_key}",
-                        "Content-Type": "application/json",
+            result = await asyncio.wait_for(
+                fal_client.subscribe_async(
+                    "fal-ai/nano-banana-pro/edit",
+                    arguments={
+                        "prompt": prompt,
+                        "image_urls": [clean_face_url],
+                        "num_images": 1,
+                        "aspect_ratio": aspect_ratio,
+                        "output_format": "png",
+                        "resolution": resolution or "1K",
                     },
-                    json=request_body
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("images") and len(data["images"]) > 0:
-                        image_url = data["images"][0]["url"]
-                        logger.info(f"✅ Nano Banana Pro Edit başarılı!")
-                        return {
-                            "success": True,
-                            "image_url": image_url,
-                            "base_image_url": image_url,
-                            "method_used": "nano_banana_pro_edit",
-                            "quality_notes": "Nano Banana Pro Edit ile fotorealistik görsel üretildi (Grid eklentisi kalitesinde).",
-                            "model_display_name": "Nano Banana Pro",
-                            "attempts": ["nano_banana_pro_edit (başarılı)"],
-                        }
-                else:
-                    logger.warning(f"⚠️ Nano Banana Pro Edit HTTP {response.status_code}: {response.text[:200]}")
-                    attempts.append(f"nano_banana_pro_edit (HTTP {response.status_code})")
+                    with_logs=True,
+                ),
+                timeout=45
+            )
+            
+            if result and "images" in result and len(result["images"]) > 0:
+                image_url = result["images"][0]["url"]
+                logger.info(f"✅ Nano Banana Pro Edit başarılı!")
+                return {
+                    "success": True,
+                    "image_url": image_url,
+                    "base_image_url": image_url,
+                    "method_used": "nano_banana_pro_edit",
+                    "quality_notes": "Nano Banana Pro Edit ile fotorealistik görsel üretildi.",
+                    "model_display_name": "Nano Banana Pro",
+                    "attempts": ["nano_banana_pro_edit (başarılı)"],
+                }
         except Exception as e:
             logger.warning(f"⚠️ Nano Banana Pro Edit hatası: {e}")
-            attempts.append(f"nano_banana_pro_edit (hata: {str(e)[:80]})")
+            attempts.append(f"nano_banana_pro_edit ({str(e)[:80]})")
         
         # ═══════════════════════════════════════════════════════════════
         # AŞAMA 2: GPT Image 1 Edit — ChatGPT Modeli (Fallback)
