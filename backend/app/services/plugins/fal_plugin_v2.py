@@ -504,23 +504,22 @@ class FalPluginV2(PluginBase):
     
     async def _outpaint_image(self, params: dict) -> dict:
         """
-        Görseli genişletme (Outpainting).
+        Görseli genişletme (Outpainting) — Fallback zinciri ile.
         
-        Görseli belirtilen yönlere doğru genişletir (sol, sağ, üst, alt).
-        Panoramik genişletme, aspect ratio dönüşümü için kullanılır.
+        1. fal-ai/image-apps-v2/outpaint (native outpainting)
+        2. Flux Kontext (edit ile format dönüşümü — fallback)
         """
         image_url = params.get("image_url", "")
         prompt = params.get("prompt", "")
-        # Genişletme miktarları (piksel)
         left = params.get("left", 0)
         right = params.get("right", 0)
         top = params.get("top", 0)
         bottom = params.get("bottom", 0)
         
-        # Eğer yön belirtilmemişse, otomatik genişlet (her yöne 256px)
         if left == 0 and right == 0 and top == 0 and bottom == 0:
             left = right = top = bottom = 256
         
+        # Attempt 1: Native outpainting
         try:
             logger.info(f"🔲 Outpainting: L={left} R={right} T={top} B={bottom}")
             
@@ -528,7 +527,7 @@ class FalPluginV2(PluginBase):
                 "fal-ai/image-apps-v2/outpaint",
                 arguments={
                     "image_url": image_url,
-                    "prompt": prompt,
+                    "prompt": prompt or "extend the image naturally, maintaining style and composition",
                     "left": left,
                     "right": right,
                     "top": top,
@@ -544,12 +543,42 @@ class FalPluginV2(PluginBase):
                     "model": "outpaint",
                     "method_used": "outpainting"
                 }
-            else:
-                return {"success": False, "error": "Outpainting başarısız"}
-                
         except Exception as e:
-            logger.error(f"Outpainting hatası: {e}")
-            return {"success": False, "error": str(e)}
+            logger.warning(f"⚠️ Outpainting başarısız: {e}. Flux Kontext fallback deneniyor...")
+        
+        # Attempt 2: Flux Kontext fallback
+        try:
+            if (left + right) > (top + bottom):
+                kontext_prompt = f"Extend this image to a wide landscape panoramic format. Add natural continuation of the scenery on both left and right sides. Keep the main subject exactly the same. {prompt}"
+            elif (top + bottom) > (left + right):
+                kontext_prompt = f"Extend this image to a tall portrait format. Add natural continuation above and below. Keep the main subject exactly the same. {prompt}"
+            else:
+                kontext_prompt = f"Extend this image outward in all directions. Add natural continuation of the scenery. Keep the main subject exactly the same. {prompt}"
+            
+            logger.info(f"🎯 Outpaint Fallback: Flux Kontext ile format dönüşümü")
+            
+            result = await fal_client.subscribe_async(
+                "fal-ai/flux-pro/kontext",
+                arguments={
+                    "prompt": kontext_prompt,
+                    "image_url": image_url,
+                    "guidance_scale": 3.0,
+                    "output_format": "png",
+                },
+                with_logs=True,
+            )
+            
+            if result and "images" in result and len(result["images"]) > 0:
+                return {
+                    "success": True,
+                    "image_url": result["images"][0]["url"],
+                    "model": "flux-kontext-pro",
+                    "method_used": "kontext_outpaint"
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ Kontext outpaint fallback hatası: {e}")
+        
+        return {"success": False, "error": "Outpainting başarısız. Hem native outpaint hem Kontext fallback çalışmadı."}
     
     async def _apply_style(self, params: dict) -> dict:
         """
