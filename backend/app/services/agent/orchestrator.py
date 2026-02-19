@@ -701,6 +701,17 @@ Herhangi bir işlem başarısız olursa:
         result["_user_id"] = user_id
         
         # TEK streaming çağrı — tool call varsa biriktirir, yoksa direkt token yield eder
+        print(f"\n{'='*60}")
+        print(f"🔄 STREAMING CALL START")
+        print(f"   User message: {user_message[:100]}...")
+        print(f"   Messages count: {len(messages)}")
+        print(f"   Has Working Memory: {'SON ÜRETİLENLER' in full_system_prompt}")
+        # Son 3 mesajı göster (conversation context)
+        for i, m in enumerate(messages[-3:]):
+            role = m.get('role', '?')
+            content = str(m.get('content', ''))[:120]
+            print(f"   History[-{3-i}]: [{role}] {content}")
+        print(f"{'='*60}")
         stream = await self.async_client.chat.completions.create(
             model=self.model,
             max_tokens=4096,
@@ -743,6 +754,8 @@ Herhangi bir işlem başarısız olursa:
         
         # Tool call varsa — çalıştır ve sonra final text stream yap
         if has_tool_calls and tool_calls_acc:
+            tool_names = [tc['name'] for tc in tool_calls_acc.values()]
+            print(f"🔧 STREAMING: Tool calls detected: {tool_names}")
             yield f"event: status\ndata: Araçlar çalışıyor...\n\n"
             
             # tool_calls_acc'yi OpenAI message formatına çevir
@@ -786,6 +799,8 @@ Herhangi bir işlem başarısız olursa:
                 if chunk.choices and chunk.choices[0].delta.content:
                     token = chunk.choices[0].delta.content
                     yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
+        else:
+            print(f"⚠️ STREAMING: NO tool calls — AI responded with text only")
         
         yield f"event: done\ndata: {{}}\n\n"
     
