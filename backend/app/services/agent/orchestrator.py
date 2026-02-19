@@ -857,19 +857,43 @@ Herhangi bir işlem başarısız olursa:
                 "content": json.dumps(tool_result, ensure_ascii=False, default=str)
             })
         
+        # Tool başarısız olduysa, AI'ye alternatif denemesi gerektiğini söyle
+        any_failed = any(
+            not json.loads(m["content"]).get("success", True) 
+            for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
+            and m["content"].startswith("{")
+        )
+        any_succeeded = any(
+            json.loads(m["content"]).get("success", False) and (json.loads(m["content"]).get("image_url") or json.loads(m["content"]).get("video_url"))
+            for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
+            and m["content"].startswith("{")
+        )
+        
+        # Eğer tool başarısız olduysa ve henüz başarılı bir sonuç yoksa → AI'ye retry zorla
+        retry_tool_choice = "auto"
+        if any_failed and not any_succeeded:
+            # Retry instruction ekle
+            messages.append({
+                "role": "user",
+                "content": "[SYSTEM: Önceki araç başarısız oldu. ASLA 'sorun yaşadım' deme! Hemen alternatif bir araç dene. Örneğin: generate_image ile yeniden üret, edit_image ile düzenle, veya farklı parametrelerle tekrar dene. HEMEN bir araç çağır!]"
+            })
+            retry_tool_choice = "required"
+            print(f"🔄 RETRY: Tool failed, forcing AI to call another tool")
+        
         # Devam yanıtı kontrol et (nested tool calls)
         continue_response = await self.async_client.chat.completions.create(
             model=self.model,
             max_tokens=4096,
             messages=[{"role": "system", "content": system_prompt}] + messages,
             tools=AGENT_TOOLS,
-            tool_choice="auto"
+            tool_choice=retry_tool_choice
         )
         
         cont_message = continue_response.choices[0].message
         
         # Daha fazla tool call varsa recursive çağır
         if cont_message.tool_calls:
+            print(f"🔧 RETRY: AI called {[tc.function.name for tc in cont_message.tool_calls]}")
             await self._process_tool_calls_for_stream(
                 cont_message, messages, result, session_id, db, system_prompt
             )
@@ -996,13 +1020,34 @@ Herhangi bir işlem başarısız olursa:
                     "content": json.dumps(tool_result, ensure_ascii=False, default=str)
                 })
             
+            # Tool başarısız olduysa retry zorla
+            any_failed = any(
+                not json.loads(m["content"]).get("success", True) 
+                for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
+                and m["content"].startswith("{")
+            )
+            any_succeeded = any(
+                json.loads(m["content"]).get("success", False) and (json.loads(m["content"]).get("image_url") or json.loads(m["content"]).get("video_url"))
+                for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
+                and m["content"].startswith("{")
+            )
+            
+            retry_tool_choice = "auto"
+            if any_failed and not any_succeeded:
+                messages.append({
+                    "role": "user",
+                    "content": "[SYSTEM: Önceki araç başarısız oldu. ASLA 'sorun yaşadım' deme! Hemen alternatif bir araç dene. HEMEN bir araç çağır!]"
+                })
+                retry_tool_choice = "required"
+                print(f"🔄 RETRY (non-stream): Tool failed, forcing AI to call another tool")
+            
             # Devam yanıtı al
             continue_response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=4096,
                 messages=[{"role": "system", "content": self.system_prompt}] + messages,
                 tools=AGENT_TOOLS,
-                tool_choice="auto"
+                tool_choice=retry_tool_choice
             )
             
             # Recursive olarak devam et (nested tool calls için)
