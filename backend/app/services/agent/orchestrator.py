@@ -419,6 +419,19 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         else:
             messages = conversation_history + [{"role": "user", "content": user_message}]
         
+        # Son üretilen görselin URL'sini conversation history'den çıkar
+        last_generated_image_url = None
+        import re
+        for msg in reversed(conversation_history):
+            if msg.get("role") == "assistant":
+                content = msg.get("content", "") or ""
+                if isinstance(content, str):
+                    match = re.search(r'\[Bu mesajda üretilen görseller:\s*(https?://[^\],\s]+)', content)
+                    if match:
+                        last_generated_image_url = match.group(1)
+                        print(f"🎯 Son üretilen görsel URL bulundu: {last_generated_image_url[:60]}...")
+                        break
+        
         # Sonuç takibi
         result = {
             "images": [],
@@ -426,7 +439,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             "entities_created": [],
             "_resolved_entities": [],
             "_current_reference_image": reference_image,
-            "_uploaded_image_url": uploaded_image_url
+            "_uploaded_image_url": uploaded_image_url,
+            "_last_generated_image_url": last_generated_image_url
         }
         
         user_id = await get_user_id_from_session(db, session_id)
@@ -546,7 +560,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             # GPT-4o güvenlik filtresi yüzünden tool çağırmayı reddetti mi?
             # Eğer session'da yakın zamanda üretilen bir görsel varsa ve kullanıcı düzenleme istiyorsa,
             # GPT-4o'yu bypass ederek otomatik edit_image çağır.
-            last_image_url = result.get("_current_reference_image") or result.get("_uploaded_image_url")
+            # Öncelik: son üretilen görsel > yüklenen referans > session referansı
+            last_image_url = result.get("_last_generated_image_url") or result.get("_uploaded_image_url") or result.get("_current_reference_image")
             
             if last_image_url:
                 # Kullanıcının mesajı düzenleme isteği mi?
