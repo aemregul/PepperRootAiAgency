@@ -226,7 +226,7 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                 },
                 {
                     "type": "text",
-                    "text": user_message + f"\n\n[⚡ REFERANS GÖRSEL GÖNDERİLDİ!{image_url_info}\n\nKullanıcı 'düzenle', 'kaldır', 'değiştir' gibi bir şey isterse → edit_image aracını image_url={uploaded_image_url} ile çağır. Kullanıcı 'kaydet' derse → create_character aracını use_current_reference=true ile çağır.]"
+                    "text": user_message + f"\n\n[REFERANS GÖRSEL URL: {uploaded_image_url}\nBu görseli işlemek için ilgili aracın image_url parametresine bu URL'i yaz. Örnekler: remove_background(image_url=\"{uploaded_image_url}\"), edit_image(image_url=\"{uploaded_image_url}\", ...), outpaint_image(image_url=\"{uploaded_image_url}\", ...), upscale_image(image_url=\"{uploaded_image_url}\"). Kaydetmek için create_character(use_current_reference=true).]"
                 }
             ]
             messages = conversation_history + [
@@ -359,7 +359,7 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             image_url_info = f" URL: {uploaded_image_url}]"
             user_content = [
                 {"type": "image_url", "image_url": {"url": uploaded_image_url}},
-                {"type": "text", "text": user_message + f"\n\n[⚡ REFERANS GÖRSEL GÖNDERİLDİ!{image_url_info}\n\nKullanıcı 'düzenle', 'kaldır', 'değiştir' gibi bir şey isterse → edit_image aracını image_url={uploaded_image_url} ile çağır. Kullanıcı 'kaydet' derse → create_character aracını use_current_reference=true ile çağır.]"}
+                {"type": "text", "text": user_message + f"\n\n[REFERANS GÖRSEL URL: {uploaded_image_url}\nBu görseli işlemek için ilgili aracın image_url parametresine bu URL'i yaz. Örnekler: remove_background(image_url=\"{uploaded_image_url}\"), edit_image(image_url=\"{uploaded_image_url}\", ...), outpaint_image(image_url=\"{uploaded_image_url}\", ...), upscale_image(image_url=\"{uploaded_image_url}\"). Kaydetmek için create_character(use_current_reference=true).]"}
             ]
             messages = conversation_history + [{"role": "user", "content": user_content}]
         else:
@@ -742,6 +742,13 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         uploaded_reference_url: str = None
     ) -> dict:
         """Araç çağrısını işle."""
+        
+        # Kullanıcı fotoğraf yüklediyse ve tool args'da image_url yoksa, otomatik ekle
+        IMAGE_TOOLS = {"edit_image", "remove_background", "outpaint_image", "upscale_image", "analyze_image"}
+        if uploaded_reference_url and tool_name in IMAGE_TOOLS:
+            if not tool_input.get("image_url"):
+                tool_input["image_url"] = uploaded_reference_url
+                print(f"   📎 Auto-injected uploaded image URL into {tool_name}")
         
         if tool_name == "generate_image":
             return await self._generate_image(
