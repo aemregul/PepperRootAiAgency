@@ -1951,9 +1951,39 @@ Konuşma:
             import fal_client
             import asyncio
             
-            # Aşama 1: GPT Image 1 Edit — En iyi subject koruma
+            # Aşama 1: Nano Banana Pro Edit — En iyi yüz/subject koruma
             try:
-                print(f"   🎨 Aşama 1: GPT Image 1 Edit deneniyor...")
+                print(f"   🎨 Aşama 1: Nano Banana Pro Edit deneniyor...")
+                result = await asyncio.wait_for(
+                    fal_client.subscribe_async(
+                        "fal-ai/nano-banana-pro/edit",
+                        arguments={
+                            "image_url": image_url,
+                            "prompt": english_instruction,
+                        },
+                        with_logs=True,
+                    ),
+                    timeout=45
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    print(f"✅ Nano Banana Pro Edit başarılı!")
+                    return {
+                        "success": True,
+                        "image_url": result["images"][0]["url"],
+                        "original_image_url": image_url,
+                        "model": "nano-banana-pro-edit",
+                        "method": "fal-ai/nano-banana-pro/edit",
+                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                    }
+            except asyncio.TimeoutError:
+                print(f"   ⚠️ Nano Banana Pro Edit timeout (45s)")
+            except Exception as nano_err:
+                print(f"   ⚠️ Nano Banana Pro Edit hatası: {nano_err}")
+            
+            # Aşama 2: GPT Image 1 Edit — Güçlü talimat anlama
+            try:
+                print(f"   🎨 Aşama 2: GPT Image 1 Edit deneniyor...")
                 result = await asyncio.wait_for(
                     fal_client.subscribe_async(
                         "fal-ai/gpt-image-1/edit-image",
@@ -1981,9 +2011,9 @@ Konuşma:
             except Exception as gpt_edit_err:
                 print(f"   ⚠️ GPT Image 1 Edit hatası: {gpt_edit_err}")
             
-            # Aşama 2: FLUX Kontext Pro — Stil/sahne değişikliği için güçlü
+            # Aşama 3: FLUX Kontext Pro — Stil/sahne değişikliği
             try:
-                print(f"   🎨 Aşama 2: FLUX Kontext Pro deneniyor...")
+                print(f"   🎨 Aşama 3: FLUX Kontext Pro deneniyor...")
                 result = await asyncio.wait_for(
                     fal_client.subscribe_async(
                         "fal-ai/flux-pro/kontext",
@@ -2010,36 +2040,6 @@ Konuşma:
                 print(f"   ⚠️ FLUX Kontext Pro timeout (45s)")
             except Exception as kontext_err:
                 print(f"   ⚠️ FLUX Kontext Pro hatası: {kontext_err}")
-            
-            # Aşama 3: Nano Banana Pro Edit — Son çare
-            try:
-                print(f"   🎨 Aşama 3: Nano Banana Pro Edit deneniyor...")
-                result = await asyncio.wait_for(
-                    fal_client.subscribe_async(
-                        "fal-ai/nano-banana-pro/edit",
-                        arguments={
-                            "image_url": image_url,
-                            "prompt": english_instruction,
-                        },
-                        with_logs=True,
-                    ),
-                    timeout=45
-                )
-                
-                if result and "images" in result and len(result["images"]) > 0:
-                    print(f"✅ Nano Banana Pro Edit başarılı!")
-                    return {
-                        "success": True,
-                        "image_url": result["images"][0]["url"],
-                        "original_image_url": image_url,
-                        "model": "nano-banana-pro-edit",
-                        "method": "fal-ai/nano-banana-pro/edit",
-                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
-                    }
-            except asyncio.TimeoutError:
-                print(f"   ⚠️ Nano Banana Pro Edit timeout (45s)")
-            except Exception as nano_err:
-                print(f"   ⚠️ Nano Banana Pro Edit hatası: {nano_err}")
             
             # Hiçbir yöntem çalışmadı
             return {
