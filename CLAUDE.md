@@ -324,7 +324,25 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 📝 SON GELİŞMELER (19 Şubat 2026 - 18:00)
+## 📝 SON GELİŞMELER (19 Şubat 2026 - 18:20)
+
+### 🎨 Prompt Enrichment Pipeline (19 Şubat - PM) ⭐ YENİ
+
+1. **Prompt Zenginleştirme Güçlendirildi (`prompt_translator.py`):**
+   - System prompt yeniden yazıldı — cinematic lighting, volumetric light, HDR, bokeh, 8K UHD
+   - Örnek zenginleştirmeler eklendi (uçan araba, güneş batan deniz)
+   - Yeni `enrich_prompt()` fonksiyonu — entity olmayan genel promptlar için ek katman
+   - `STANDARD_NEGATIVE_PROMPT` sabiti — blurry, distorted, bad anatomy vb.
+
+2. **fal.ai Kalite Parametreleri (`fal_plugin_v2.py`):**
+   - `guidance_scale: 5.0` (varsayılandan yüksek)
+   - `num_inference_steps: 30` (28'den artırıldı)
+   - `output_format: png` (JPEG sıkıştırma kaybı yok)
+   - `enable_safety_checker: False` (sanatsal kısıtlama yok)
+
+3. **Orchestrator Entegrasyonu:**
+   - Entity yokken bile `enrich_prompt()` çağrılıyor
+   - Artık her görsel üretim sinematik kalitede prompt alıyor
 
 ### 🧪 Kapsamlı Teknik Test (19 Şubat - PM) ⭐ YENİ
 

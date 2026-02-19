@@ -1291,6 +1291,11 @@ Konuşma:
                     physical_attributes=physical_attributes
                 )
                 print(f"🎨 Karakter prompt zenginleştirildi: '{prompt[:80]}...'")
+            else:
+                # Entity yoksa bile prompt'u sinematik kaliteye taşı
+                from app.services.prompt_translator import enrich_prompt
+                prompt = await enrich_prompt(prompt)
+                print(f"✨ Prompt zenginleştirildi (genel): '{prompt[:80]}...'")
             
             # AKILLI SİSTEM: Referans görsel varsa
             print(f"🎯 Referans görsel durumu: {face_reference_url is not None}")

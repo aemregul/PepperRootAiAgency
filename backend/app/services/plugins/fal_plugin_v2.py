@@ -289,14 +289,18 @@ class FalPluginV2(PluginBase):
                         "prompt": prompt,
                         "image_size": image_size,
                         "num_images": 1,
-                        "num_inference_steps": 28,
-                        "guidance_scale": 3.5,
+                        "num_inference_steps": 30,
+                        "guidance_scale": 5.0,
+                        "output_format": "png",
+                        "enable_safety_checker": False,
                     }
                 else:
                     arguments = {
                         "prompt": prompt,
                         "image_size": image_size,
                         "num_images": 1,
+                        "output_format": "png",
+                        "enable_safety_checker": False,
                     }
                 
                 result = await fal_client.subscribe_async(

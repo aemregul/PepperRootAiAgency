@@ -1,6 +1,7 @@
 """
 Prompt çeviri ve zenginleştirme servisi.
 Türkçe promptları görsel üretim için optimize edilmiş İngilizce'ye çevirir.
+Her görsel üretimde prompt'u ChatGPT/Gemini seviyesine yaklaştırır.
 
 GPT-4o kullanır (OpenAI) - Claude'dan geçiş yapıldı.
 """
@@ -8,6 +9,17 @@ from openai import OpenAI
 from app.core.config import settings
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+# Tüm görsel üretimlerde kullanılacak standart negatif prompt
+STANDARD_NEGATIVE_PROMPT = (
+    "blurry, low quality, distorted, bad anatomy, deformed, disfigured, "
+    "text, watermark, signature, grain, noise, ugly, low resolution, "
+    "oversaturated, underexposed, overexposed, cropped, out of frame, "
+    "extra limbs, extra fingers, mutated hands, poorly drawn face, "
+    "duplicate, morbid, mutilated, poorly drawn hands, missing arms, "
+    "missing legs, extra arms, extra legs, fused fingers, too many fingers, "
+    "long neck, username, error, jpeg artifacts"
+)
 
 
 async def translate_prompt_to_english(turkish_prompt: str, context: str = "") -> str:
@@ -21,23 +33,27 @@ async def translate_prompt_to_english(turkish_prompt: str, context: str = "") ->
     Returns:
         Optimize edilmiş İngilizce prompt
     """
-    system_prompt = """You are a professional prompt translator and enhancer for AI image/video generation.
+    system_prompt = """You are a world-class prompt engineer for AI image generation (Flux, DALL-E, Stable Diffusion).
+You transform simple requests into stunning, photorealistic image prompts.
 
-Your task:
-1. Translate the Turkish prompt to English
-2. Enhance it with professional photography/cinematography terms
-3. Add artistic details that will improve image quality
-4. Keep the core meaning and intent intact
-5. Make it optimized for Flux, DALL-E, and similar AI models
+Rules:
+1. Translate non-English text to English
+2. ALWAYS add these quality boosters:
+   - Lighting: cinematic lighting, volumetric light, soft rim lighting, golden hour, studio lighting
+   - Camera: shallow depth of field, bokeh, 85mm lens, rule of thirds composition
+   - Quality: 8K UHD, ultra-realistic, hyper-detailed, professional photography, RAW photo
+   - Texture: natural skin pores, fine fabric detail, sharp focus, high dynamic range
+   - Color: natural color grading, rich tonal range, vibrant yet realistic colors
+3. Add scene atmosphere: mood, environment details, background elements
+4. For people: realistic skin texture, natural expression, detailed eyes, subsurface scattering
+5. For landscapes/objects: intricate details, atmospheric perspective, realistic materials
+6. Keep the CORE subject and intent — don't change what the user wants, enhance HOW it looks
+7. Output ONLY the final prompt, nothing else. Max 150 words.
 
-Output ONLY the final English prompt, nothing else. No explanations, no "Here is the translation", just the prompt itself.
-
-Important:
-- Add lighting details (soft lighting, golden hour, studio lighting, etc.)
-- Add camera/composition terms (close-up, wide shot, shallow depth of field)
-- Add quality keywords (8k, highly detailed, professional photography, cinematic)
-- If it's about a character, include realistic skin texture, detailed features
-- Keep it concise but descriptive"""
+Examples of enhancement:
+- Input: "uçan araba" → "Futuristic flying car hovering above a neon-lit cyberpunk cityscape at dusk, volumetric fog, cinematic lighting, reflective chrome body, motion blur on background, 8K UHD, hyper-realistic, shallow depth of field, dramatic sky with orange and purple gradient"
+- Input: "güneş batan deniz" → "Breathtaking ocean sunset panorama, golden hour light reflecting on calm turquoise water, dramatic cumulus clouds painted in orange and pink, sun barely touching the horizon, volumetric god rays, 8K professional photography, ultra-wide lens, HDR, natural color grading"
+"""
 
     user_message = f"""Turkish prompt to translate and enhance:
 {turkish_prompt}
@@ -141,6 +157,41 @@ Create a detailed, photorealistic character portrait prompt."""
     )
     
     return response.choices[0].message.content.strip()
+
+
+async def enrich_prompt(prompt: str) -> str:
+    """
+    Entity olmayan genel promptları zenginleştirir.
+    translate_to_english zaten çeviri + temel zenginleştirme yapıyor,
+    bu fonksiyon ek bir katman olarak cinematic kalite ekler.
+    
+    Kullanım: Entity referansı olmayan saf text-to-image üretimleri.
+    """
+    if len(prompt.strip()) < 5:
+        return prompt
+    
+    system_prompt = """You are a cinematic prompt enhancer. Take the given image generation prompt and make it MORE vivid and photorealistic.
+
+Add ONLY what's missing:
+- If no lighting mentioned: add cinematic lighting, volumetric light
+- If no camera details: add shallow depth of field, professional composition
+- If no quality terms: add 8K, ultra-realistic, RAW photo quality
+- If no atmosphere: add mood and environment details
+
+Do NOT change the subject. Output ONLY the enhanced prompt. Max 120 words."""
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=400,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        return prompt  # Hata durumunda orijinal prompt'u döndür
 
 
 # Convenience function - translates any non-English text
