@@ -253,7 +253,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             "videos": [],  # Videoları da topla
             "entities_created": [],
             "_resolved_entities": [],  # İç kullanım için, @tag ile çözümlenen entity'ler
-            "_current_reference_image": reference_image  # Mevcut referans görsel (base64)
+            "_current_reference_image": reference_image,  # Mevcut referans görsel (base64)
+            "_uploaded_image_url": uploaded_image_url  # Fal.ai URL (edit/remove için)
         }
         
         # @tag'leri çözümle ve result'a ekle
@@ -269,6 +270,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         del result["_resolved_entities"]
         if "_current_reference_image" in result:
             del result["_current_reference_image"]
+        if "_uploaded_image_url" in result:
+            del result["_uploaded_image_url"]
         
         return result
     
