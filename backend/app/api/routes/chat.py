@@ -124,6 +124,8 @@ async def _process_chat(
     
     # OpenAI formatına çevir - HATA MESAJLARINI FİLTRELE
     conversation_history = []
+    last_reference_url_from_history = None  # DB'den referans URL çıkar
+    
     for msg in previous_messages:
         content = msg.content.lower() if msg.content else ""
         
@@ -133,9 +135,34 @@ async def _process_chat(
             if has_error:
                 continue  # Bu mesajı geçmişe ekleme
         
+        # Mesaj içeriğini hazırla
+        msg_content = msg.content or ""
+        
+        # Assistant mesajlarında metadata'dan image/video URL'lerini ekle
+        # (content'ten kaldırıldı ama GPT-4o'nun bunları bilmesi gerekiyor)
+        if msg.role == "assistant" and msg.metadata_:
+            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            images = meta.get("images", [])
+            videos = meta.get("videos", [])
+            if images:
+                urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
+                if urls:
+                    msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
+                    last_reference_url_from_history = urls[-1]  # Son üretilen görseli referans olarak kaydet
+            if videos:
+                urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
+                if urls:
+                    msg_content += "\n\n[Bu mesajda üretilen videolar: " + ", ".join(urls) + "]"
+        
+        # User mesajlarında referans görsel URL'si varsa çıkar
+        if msg.role == "user" and msg.metadata_:
+            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            if meta.get("has_reference_image") and meta.get("reference_url"):
+                last_reference_url_from_history = meta["reference_url"]
+        
         conversation_history.append({
             "role": msg.role,
-            "content": msg.content
+            "content": msg_content
         })
     
     # Max 20 mesaj (son mesajlar)
@@ -151,7 +178,8 @@ async def _process_chat(
             session_id=asset_session_id or session.id,  # Asset'ler aktif projeye
             db=db,
             conversation_history=conversation_history,
-            reference_image=reference_image_base64
+            reference_image=reference_image_base64,
+            last_reference_url=last_reference_url_from_history
         )
     except Exception as e:
         import traceback
@@ -354,11 +382,36 @@ async def chat_stream(
     
     ERROR_PATTERNS = ["kredi", "credit", "yetersiz", "insufficient", "hata", "error", "başarısız", "failed"]
     conversation_history = []
+    last_reference_url_from_history = None
+    
     for msg in previous_messages:
         content = msg.content.lower() if msg.content else ""
         if msg.role == "assistant" and any(p in content for p in ERROR_PATTERNS):
             continue
-        conversation_history.append({"role": msg.role, "content": msg.content})
+        
+        msg_content = msg.content or ""
+        
+        # Assistant mesajlarında metadata'dan image/video URL'lerini ekle
+        if msg.role == "assistant" and msg.metadata_:
+            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            images = meta.get("images", [])
+            videos = meta.get("videos", [])
+            if images:
+                urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
+                if urls:
+                    msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
+                    last_reference_url_from_history = urls[-1]
+            if videos:
+                urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
+                if urls:
+                    msg_content += "\n\n[Bu mesajda üretilen videolar: " + ", ".join(urls) + "]"
+        
+        if msg.role == "user" and msg.metadata_:
+            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            if meta.get("has_reference_image") and meta.get("reference_url"):
+                last_reference_url_from_history = meta["reference_url"]
+        
+        conversation_history.append({"role": msg.role, "content": msg_content})
     
     if len(conversation_history) > 20:
         conversation_history = conversation_history[-20:]

@@ -59,20 +59,28 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 
 ## TOOL SEÇİMİ
 **Yeni içerik üret:** generate_image, generate_video, generate_long_video (>10s)
-**Mevcut görseli düzenle:** edit_image (içerik değişikliği), outpaint_image (format/boyut değişikliği), upscale_image, remove_background
+**Mevcut görseli düzenle:** edit_image (arka plan değişikliği, sahne değişikliği, içerik ekleme/çıkarma), outpaint_image (format/boyut değişikliği), upscale_image (kalite artırma), remove_background (arka plan kaldırma)
 **Mevcut videoyu düzenle:** edit_video
 **Entity yönetimi:** create_character, create_location, create_brand, get_entity, list_entities, delete_entity, semantic_search
 **Araştırma:** search_web, search_images, browse_url, research_brand, get_library_docs
 **Diğer:** generate_grid, apply_style, manage_plugin, analyze_image
 
+## REFERANS GÖRSEL KURALLARI
+1. Kullanıcı bir görsel yüklediğinde URL sana verilir — bunu image_url parametresi olarak kullan.
+2. Kullanıcı yeni görsel yüklemeden 2. bir istek yaparsa, [ÖNCEKİ REFERANS GÖRSEL URL: ...] bilgisi mesajında olacak. Bu URL'yi kullan.
+3. Conversation history'de [Bu mesajda üretilen görseller: url] etiketi varsa, o URL'i takip isteklerinde image_url olarak kullan.
+4. Kullanıcı "aynı kişiyi", "bu görseli", "arka planını değiştir" derse → MEVCUT URL ile edit_image veya remove_background çağır. ASLA generate_image ile sıfırdan üretme.
+
 ## TAKİP İSTEKLERİ
 Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
-1. Working Memory'deki (SON ÜRETİLENLER) URL'i al
+1. Conversation history'deki veya Working Memory'deki URL'i al
 2. Değişiklik türüne göre doğru tool'u seç:
-   - Format/boyut değişikliği -> outpaint_image
-   - İçerik değişikliği -> edit_image
-   - Tamamen yeniden üret -> generate_image
-3. Mevcut asset'i düzenlerken ASLA generate_image ile sıfırdan üretme. Orijinal URL ile edit_image veya outpaint_image kullan.
+   - "arka planı değiştir/kaldır" → edit_image veya remove_background (image_url=mevcut URL)
+   - "sahil/orman/şehir yap" → edit_image (arka plan değişikliği, image_url=mevcut URL)
+   - "kalitesini artır" → upscale_image (image_url=mevcut URL)
+   - "boyutunu değiştir" → outpaint_image (image_url=mevcut URL)
+   - "tamamen farklı bir şey üret" → generate_image (face_reference_url=referans URL)
+3. ASLA mevcut asset'i generate_image ile sıfırdan üretme — orijinal URL ile edit_image kullan.
 
 ## PLUGIN
 "Plugin oluştur" denildiğinde sohbetteki bilgileri topla ve HEMEN manage_plugin çağır. Eksik alan engel değil.
@@ -91,7 +99,8 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         session_id: uuid.UUID,
         db: AsyncSession,
         conversation_history: list = None,
-        reference_image: str = None
+        reference_image: str = None,
+        last_reference_url: str = None
     ) -> dict:
         """
         Kullanıcı mesajını işle ve yanıt döndür.
@@ -209,7 +218,12 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             cached = self._session_reference_images.get(str(session_id))
             if cached:
                 uploaded_image_url = cached["url"]
-                print(f"🔄 Önceki referans görsel session'dan alındı: {uploaded_image_url[:60]}...")
+                print(f"🔄 Önceki referans görsel session cache'den alındı: {uploaded_image_url[:60]}...")
+            elif last_reference_url:
+                # Session cache boş (backend restart olmuş) — DB'den gelen son referansı kullan
+                uploaded_image_url = last_reference_url
+                self._session_reference_images[str(session_id)] = {"url": last_reference_url, "base64": None}
+                print(f"🔄 Referans görsel DB history'den alındı: {uploaded_image_url[:60]}...")
         
         # Mesajları hazırla
         if reference_image and uploaded_image_url:
