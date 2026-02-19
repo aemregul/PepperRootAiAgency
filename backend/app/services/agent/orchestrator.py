@@ -257,6 +257,10 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             "_uploaded_image_url": uploaded_image_url  # Fal.ai URL (edit/remove için)
         }
         
+        print(f"\n🔍 DIAGNOSTIC: process_message result dict created")
+        print(f"   _uploaded_image_url: {uploaded_image_url[:80] if uploaded_image_url else 'None'}")
+        print(f"   _current_reference_image: {'SET' if reference_image else 'None'}")
+        
         # @tag'leri çözümle ve result'a ekle
         user_id = await get_user_id_from_session(db, session_id)
         resolved = await entity_service.resolve_tags(db, user_id, user_message)
@@ -746,12 +750,24 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
     ) -> dict:
         """Araç çağrısını işle."""
         
+        # === DIAGNOSTIC LOGGING ===
+        print(f"\n{'='*50}")
+        print(f"🔧 _handle_tool_call: {tool_name}")
+        print(f"   uploaded_reference_url: {uploaded_reference_url[:80] if uploaded_reference_url else 'None'}")
+        print(f"   tool_input keys: {list(tool_input.keys())}")
+        print(f"   tool_input.image_url: {tool_input.get('image_url', 'NOT SET')}")
+        print(f"{'='*50}")
+        
         # Kullanıcı fotoğraf yüklediyse ve tool args'da image_url yoksa, otomatik ekle
         IMAGE_TOOLS = {"edit_image", "remove_background", "outpaint_image", "upscale_image", "analyze_image"}
         if uploaded_reference_url and tool_name in IMAGE_TOOLS:
             if not tool_input.get("image_url"):
                 tool_input["image_url"] = uploaded_reference_url
-                print(f"   📎 Auto-injected uploaded image URL into {tool_name}")
+                print(f"   📎 AUTO-INJECTED uploaded image URL into {tool_name}")
+            else:
+                print(f"   ✅ image_url already set by GPT-4o: {tool_input['image_url'][:80]}")
+        elif not uploaded_reference_url and tool_name in IMAGE_TOOLS:
+            print(f"   ⚠️ NO uploaded_reference_url available for {tool_name}!")
         
         if tool_name == "generate_image":
             return await self._generate_image(
@@ -1073,12 +1089,12 @@ Konuşma:
             print(f"🎯 Referans görsel durumu: {face_reference_url is not None}")
             if face_reference_url:
                 # Akıllı 3 aşamalı üretim: Kontext Native → Nano Banana + Face Swap → Base
-                result = await self.fal_plugin.smart_generate_with_face(
-                    prompt=prompt,
-                    face_image_url=face_reference_url,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution
-                )
+                result = await self.fal_plugin._smart_generate_with_face({
+                    "prompt": prompt,
+                    "face_image_url": face_reference_url,
+                    "aspect_ratio": aspect_ratio,
+                    "resolution": resolution
+                })
                 
                 if result.get("success"):
                     method = result.get("method_used", "unknown")
@@ -1360,12 +1376,12 @@ Konuşma:
                     image_url = image_result.get("image_url")
             
             # Video üret
-            result = await self.fal_plugin.generate_video(
-                prompt=prompt,
-                image_url=image_url,
-                duration=duration,
-                aspect_ratio=aspect_ratio
-            )
+            result = await self.fal_plugin._generate_video({
+                "prompt": prompt,
+                "image_url": image_url,
+                "duration": duration,
+                "aspect_ratio": aspect_ratio
+            })
             
             if result.get("success"):
                 video_url = result.get("video_url")
@@ -1831,10 +1847,10 @@ SADECE değiştirilen hali tanımla, orijinali değil."""
                     
                     # Face Swap ile yüz tutarlılığı
                     try:
-                        swap_result = await self.fal_plugin.face_swap(
-                            base_image_url=new_image_url,
-                            swap_image_url=image_url
-                        )
+                        swap_result = await self.fal_plugin._face_swap({
+                            "base_image_url": new_image_url,
+                            "swap_image_url": image_url
+                        })
                         
                         if swap_result.get("success"):
                             final_url = swap_result.get("image_url")
@@ -1938,10 +1954,10 @@ SADECE değiştirilen hali tanımla, orijinali değil."""
                     "error": "image_url gerekli"
                 }
             
-            result = await self.fal_plugin.upscale_image(
-                image_url=image_url,
-                scale=scale
-            )
+            result = await self.fal_plugin._upscale_image({
+                "image_url": image_url,
+                "scale": scale
+            })
             
             if result.get("success"):
                 return {
@@ -1973,15 +1989,16 @@ SADECE değiştirilen hali tanımla, orijinali değil."""
                     "error": "image_url gerekli"
                 }
             
-            result = await self.fal_plugin.remove_background(
-                image_url=image_url
+            # FalPluginV2._remove_background expects a dict with image_url
+            result = await self.fal_plugin._remove_background(
+                {"image_url": image_url}
             )
             
             if result.get("success"):
                 return {
                     "success": True,
                     "image_url": result.get("image_url"),
-                    "model": result.get("model"),
+                    "model": result.get("model", "bria-rmbg"),
                     "message": "Arka plan kaldırıldı, şeffaf PNG oluşturuldu."
                 }
             else:
