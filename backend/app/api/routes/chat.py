@@ -164,11 +164,21 @@ async def _process_chat(
     videos = agent_result.get("videos", [])
     entities_created = agent_result.get("entities_created", [])
     
-    # Assistant yanıtını kaydet
+    # Assistant yanıtını kaydet — URL'leri içeriğe ekle (takip istekleri için)
+    enriched_content = response_content
+    if images:
+        url_list = ", ".join([img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")])
+        if url_list:
+            enriched_content += f"\n\n[ÜRETİLEN GÖRSELLER: {url_list}]"
+    if videos:
+        url_list = ", ".join([vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")])
+        if url_list:
+            enriched_content += f"\n\n[ÜRETİLEN VİDEOLAR: {url_list}]"
+    
     assistant_message = Message(
         session_id=session.id,
         role="assistant",
-        content=response_content,
+        content=enriched_content,
         metadata_={
             "images": images,
             "videos": videos,
@@ -399,12 +409,21 @@ async def chat_stream(
         except Exception as e:
             yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
         
-        # Yanıtı DB'ye kaydet
+        # Yanıtı DB'ye kaydet — üretilen görsellerin URL'lerini de mesaja ekle
         try:
+            # Image/video URL'lerini metin içeriğine ekle (conversation_history'de görünsün)
+            enriched_response = full_response or "(stream yanıtı)"
+            if all_images:
+                url_list = ", ".join([img.get("url", "") for img in all_images if img.get("url")])
+                enriched_response += f"\n\n[ÜRETİLEN GÖRSELLER: {url_list}]"
+            if all_videos:
+                url_list = ", ".join([vid.get("url", "") for vid in all_videos if vid.get("url")])
+                enriched_response += f"\n\n[ÜRETİLEN VİDEOLAR: {url_list}]"
+            
             assistant_msg = Message(
                 session_id=session.id,
                 role="assistant",
-                content=full_response or "(stream yanıtı)",
+                content=enriched_response,
                 metadata_={
                     "images": all_images,
                     "videos": all_videos,
