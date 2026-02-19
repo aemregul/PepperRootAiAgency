@@ -1846,140 +1846,106 @@ Konuşma:
                 except Exception as removal_error:
                     print(f"⚠️ Object Removal hatası: {removal_error}")
             
-            # Flux Fill ile inpainting dene (object removal başarısız olursa veya silme değilse)
+            # ---- DÜZENLEME PIPELINE (3 aşamalı) ----
+            # NOT: Tüm modeller orijinal görseli alıp düzenler — sıfırdan üretmez
+            
+            import fal_client
+            import asyncio
+            
+            # Aşama 1: GPT Image 1 Edit — En iyi subject koruma
             try:
-                # GPT-4o ile mask oluşturma talimatı al
-                analysis_response = self.client.chat.completions.create(
-                    model="gpt-4o",
-                    max_tokens=500,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": image_url, "detail": "high"}
-                                },
-                                {
-                                    "type": "text",
-                                    "text": f"""Bu görsele şu düzenleme uygulanacak: "{edit_instruction}"
-
-Düzenleme tamamlandıktan sonra görsel nasıl görünmeli? Kısa, İngilizce bir prompt yaz.
-Örneğin: "A person with clear face, no glasses, natural skin" gibi."""
-                                }
-                            ]
-                        }
-                    ]
-                )
-                
-                fill_prompt = analysis_response.choices[0].message.content
-                print(f"   Fill prompt: {fill_prompt[:100]}...")
-                
-                # Flux Pro Fill ile inpainting
-                result = await fal_client.subscribe_async(
-                    "fal-ai/flux-pro/v1/fill",
-                    arguments={
-                        "image_url": image_url,
-                        "prompt": fill_prompt,
-                        "sync_mode": True
-                    },
-                    with_logs=True,
+                print(f"   🎨 Aşama 1: GPT Image 1 Edit deneniyor...")
+                result = await asyncio.wait_for(
+                    fal_client.subscribe_async(
+                        "fal-ai/gpt-image-1/edit-image",
+                        arguments={
+                            "image_url": image_url,
+                            "prompt": english_instruction,
+                        },
+                        with_logs=True,
+                    ),
+                    timeout=60
                 )
                 
                 if result and "images" in result and len(result["images"]) > 0:
-                    print(f"✅ Flux Fill başarılı!")
+                    print(f"✅ GPT Image 1 Edit başarılı!")
                     return {
                         "success": True,
                         "image_url": result["images"][0]["url"],
                         "original_image_url": image_url,
-                        "model": "flux-pro-fill",
-                        "method": "fal-ai/flux-pro/v1/fill",
+                        "model": "gpt-image-1-edit",
+                        "method": "fal-ai/gpt-image-1/edit-image",
                         "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
                     }
-                    
-            except Exception as fill_error:
-                print(f"⚠️ Flux Fill hatası: {fill_error}")
+            except asyncio.TimeoutError:
+                print(f"   ⚠️ GPT Image 1 Edit timeout (60s)")
+            except Exception as gpt_edit_err:
+                print(f"   ⚠️ GPT Image 1 Edit hatası: {gpt_edit_err}")
             
-            # SON ÇARE: Nano Banana + Face Swap Pipeline
-            print(f"🔄 Son çare: Nano Banana + Face Swap deneiliyor...")
+            # Aşama 2: FLUX Kontext Pro — Stil/sahne değişikliği için güçlü
             try:
-                # GPT-4o ile yeni prompt oluştur
-                regen_response = self.client.chat.completions.create(
-                    model="gpt-4o",
-                    max_tokens=500,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": image_url, "detail": "high"}
-                                },
-                                {
-                                    "type": "text",
-                                    "text": f"""Bu kişiyi aynı pozda, aynı kıyafetlerle, aynı arka planda ama şu değişiklikle tanımla: "{edit_instruction}"
-
-Tek paragrafta, İngilizce, görsel üretim için uygun bir prompt yaz. 
-SADECE değiştirilen hali tanımla, orijinali değil."""
-                                }
-                            ]
-                        }
-                    ]
+                print(f"   🎨 Aşama 2: FLUX Kontext Pro deneniyor...")
+                result = await asyncio.wait_for(
+                    fal_client.subscribe_async(
+                        "fal-ai/flux-pro/kontext",
+                        arguments={
+                            "image_url": image_url,
+                            "prompt": english_instruction,
+                        },
+                        with_logs=True,
+                    ),
+                    timeout=45
                 )
                 
-                new_prompt = regen_response.choices[0].message.content
-                print(f"   Yeni prompt: {new_prompt[:100]}...")
-                
-                # generate_image ile yeni görsel üret
-                nano_plugin_result = await self.fal_plugin.execute("generate_image", {
-                    "prompt": new_prompt,
-                    "aspect_ratio": "1:1",
-                    "resolution": "1K"
-                })
-                nano_result = nano_plugin_result.data if nano_plugin_result.success else {"success": False, "error": nano_plugin_result.error or "Görsel üretilemedi"}
-                
-                if nano_result.get("success"):
-                    new_image_url = nano_result.get("image_url")
-                    print(f"   ✅ Nano Banana görsel üretildi")
-                    
-                    # Face Swap ile yüz tutarlılığı
-                    try:
-                        swap_result = await self.fal_plugin._face_swap({
-                            "base_image_url": new_image_url,
-                            "swap_image_url": image_url
-                        })
-                        
-                        if swap_result.get("success"):
-                            final_url = swap_result.get("image_url")
-                            print(f"   ✅ Face Swap başarılı!")
-                            return {
-                                "success": True,
-                                "image_url": final_url,
-                                "original_image_url": image_url,
-                                "model": "nano-banana-faceswap",
-                                "method": "gpt4o-vision + nano-banana + face-swap",
-                                "message": f"Görsel düzenlendi: {edit_instruction}"
-                            }
-                    except Exception as swap_err:
-                        print(f"   ⚠️ Face swap hatası: {swap_err}")
-                    
-                    # Face swap başarısız olsa bile yeni görseli döndür
+                if result and "images" in result and len(result["images"]) > 0:
+                    print(f"✅ FLUX Kontext Pro başarılı!")
                     return {
                         "success": True,
-                        "image_url": new_image_url,
+                        "image_url": result["images"][0]["url"],
                         "original_image_url": image_url,
-                        "model": "nano-banana-regen",
-                        "method": "gpt4o-vision + nano-banana",
-                        "message": f"Görsel yeniden üretildi: {edit_instruction}"
+                        "model": "flux-kontext-pro",
+                        "method": "fal-ai/flux-pro/kontext",
+                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
                     }
-                    
-            except Exception as regen_error:
-                print(f"⚠️ Regeneration hatası: {regen_error}")
+            except asyncio.TimeoutError:
+                print(f"   ⚠️ FLUX Kontext Pro timeout (45s)")
+            except Exception as kontext_err:
+                print(f"   ⚠️ FLUX Kontext Pro hatası: {kontext_err}")
+            
+            # Aşama 3: Nano Banana Pro Edit — Son çare
+            try:
+                print(f"   🎨 Aşama 3: Nano Banana Pro Edit deneniyor...")
+                result = await asyncio.wait_for(
+                    fal_client.subscribe_async(
+                        "fal-ai/nano-banana-pro/edit",
+                        arguments={
+                            "image_url": image_url,
+                            "prompt": english_instruction,
+                        },
+                        with_logs=True,
+                    ),
+                    timeout=45
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    print(f"✅ Nano Banana Pro Edit başarılı!")
+                    return {
+                        "success": True,
+                        "image_url": result["images"][0]["url"],
+                        "original_image_url": image_url,
+                        "model": "nano-banana-pro-edit",
+                        "method": "fal-ai/nano-banana-pro/edit",
+                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                    }
+            except asyncio.TimeoutError:
+                print(f"   ⚠️ Nano Banana Pro Edit timeout (45s)")
+            except Exception as nano_err:
+                print(f"   ⚠️ Nano Banana Pro Edit hatası: {nano_err}")
             
             # Hiçbir yöntem çalışmadı
             return {
                 "success": False,
-                "error": f"Görsel düzenleme başarısız. Lütfen daha basit bir talimat deneyin veya görseli yeniden üretin."
+                "error": f"Görsel düzenleme başarısız. Lütfen daha basit bir talimat deneyin."
             }
         
         except Exception as e:
@@ -1988,6 +1954,7 @@ SADECE değiştirilen hali tanımla, orijinali değil."""
                 "success": False,
                 "error": str(e)
             }
+    
     
     async def _outpaint_image(self, params: dict) -> dict:
         """Görseli genişlet (outpainting)."""
