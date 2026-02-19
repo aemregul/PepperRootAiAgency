@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (19 Şubat 2026 - 17:30)
+## 📊 Genel Durum (19 Şubat 2026 - 23:45)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -283,11 +283,11 @@ git add . && git commit -m "mesaj" && git push
 - **Secondary LLM:** Claude Sonnet 4 (Vision için)
 - **Cache:** Redis (alpine container)
 - fal-client v0.12.0
-- Modeller: Nano Banana Pro, Nano Banana Pro Edit, GPT Image 1, FLUX Kontext Pro, Kling 2.5 Turbo Pro, Topaz, BiRefNet, Bria RMBG
+- Modeller: Nano Banana Pro, Nano Banana Pro Edit, GPT Image 1, FLUX Kontext Pro, Kling 2.5 Turbo Pro, Topaz, BiRefNet V2
 
 ---
 
-## 🎯 SON DURUM (19 Şubat 2026 - 18:00)
+## 🎯 SON DURUM (19 Şubat 2026 - 23:45)
 
 **🎉 TÜM FAZLAR TAMAMLANDI!**
 
@@ -324,7 +324,7 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 📝 SON GELİŞMELER (19 Şubat 2026 - 18:20)
+## 📝 SON GELİŞMELER (19 Şubat 2026 - 23:45)
 
 ### 🎨 Prompt Enrichment Pipeline (19 Şubat - PM) ⭐ YENİ
 
@@ -459,9 +459,45 @@ git add . && git commit -m "mesaj" && git push
    - Shift+Enter ile yeni satır, Enter ile gönder
    - **Bug fix:** Mesaj gönderdikten sonra textarea yüksekliği sıfırlanıyor
 
+### 🔧 Referans Görsel & Arka Plan Kaldırma Düzeltmeleri (19 Şubat - Gece) ⭐ YENİ
+
+1. **BiRefNet V2 Arka Plan Kaldırma:**
+   - Eski `fal-ai/bria/rmbg` endpoint'i ölmüştü (`Path /rmbg not found`)
+   - Yeni: `fal-ai/birefnet/v2` + `output_format: png` → gerçek transparent PNG
+   - `operating_resolution: 1024x1024`, `model: General Use (Light)`
+
+2. **FalPluginV2 Method Call Düzeltmeleri (5 tool):**
+   - `remove_background` → `_remove_background` (dict param)
+   - `face_swap` → `_face_swap` (dict param)
+   - `smart_generate_with_face` → `_smart_generate_with_face` (dict param)
+   - `generate_video` → `_generate_video` (dict param)
+   - `upscale_image` → `_upscale_image` (dict param)
+   - Hepsi public method yerine private method + dict format gerekiyordu
+
+3. **Image Editing Asset Kaydetme:**
+   - `remove_background`, `edit_image`, `outpaint_image`, `upscale_image`, `apply_style`
+   - Önceden sadece `generate_image` ve `generate_video` asset kaydediyordu
+   - Şimdi tüm görsel işlem sonuçları Medya Varlıkları paneline kaydediliyor
+
+4. **URL Sızıntısı Düzeltildi:**
+   - `[ÜRETİLEN GÖRSELLER: url]` artık chat mesajlarında görünmüyor
+   - URL'ler sadece `metadata_` alanında saklanıyor
+   - System prompt güçlendirildi: `fal.media` URL'leri markdown, ham veya köşeli parantez formatında yasaklandı
+
+5. **Session Referans Görsel Hafızası:**
+   - `_session_reference_images` dict ile session bazlı referans görseli cache
+   - Mesaj 1'de yüklenen fotoğraf, mesaj 2'de otomatik yeniden kullanılıyor
+   - Hem streaming hem non-streaming path'te aktif
+   - GPT-4o'ya önceki referans URL'si `[ÖNCEKİ REFERANS GÖRSEL URL: ...]` olarak iletiliyor
+
+6. **Referans Görsel Auto-Injection:**
+   - `_handle_tool_call`'da `IMAGE_TOOLS` için otomatik `image_url` enjeksiyonu
+   - Kullanıcı fotoğraf yükleyip "arka planı kaldır" dediğinde image_url otomatik ekleniyor
+
 ### 📌 Bilinen Sorunlar (Devam Edecek)
 - [ ] Uzun prompt'larla görsel üretim timeout olabiliyor (BiRefNet + Nano Banana pipeline ~45-60s)
 - [ ] AI "biraz bekleteceğim" deyip geri dönüş yapmama sorunu (pipeline timeout kaynaklı)
+- [ ] Sayfa yenilendiğinde kullanıcı mesajındaki yüklenen görsel önizlemesi kaybolur (base64 DB'ye kaydedilmiyor)
 
 ### 🎨 UI Redesign + Türkçe Lokalizasyon (17 Şubat)
 
