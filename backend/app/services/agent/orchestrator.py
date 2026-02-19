@@ -479,10 +479,16 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                     if tc.function and tc.function.arguments:
                         tool_calls_acc[idx]["arguments"] += tc.function.arguments
             
-            # Metin token'ları — direkt yield et (gerçek streaming!)
+            # Metin token'ları
             if delta.content:
                 if not has_tool_calls:
-                    yield f"event: token\ndata: {json.dumps(delta.content, ensure_ascii=False)}\n\n"
+                    # Referans görsel varsa token'ları buffer'la (refusal kontrolü için)
+                    # Yoksa direkt stream et
+                    has_ref = result.get("_current_reference_image") or result.get("_uploaded_image_url")
+                    if has_ref:
+                        text_tokens.append(delta.content)
+                    else:
+                        yield f"event: token\ndata: {json.dumps(delta.content, ensure_ascii=False)}\n\n"
                 else:
                     text_tokens.append(delta.content)
         
@@ -535,6 +541,79 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
                     yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
         else:
             print(f"⚠️ STREAMING: NO tool calls — AI responded with text only")
+            
+            # --- AUTO-EDIT FALLBACK ---
+            # GPT-4o güvenlik filtresi yüzünden tool çağırmayı reddetti mi?
+            # Eğer session'da yakın zamanda üretilen bir görsel varsa ve kullanıcı düzenleme istiyorsa,
+            # GPT-4o'yu bypass ederek otomatik edit_image çağır.
+            last_image_url = result.get("_current_reference_image") or result.get("_uploaded_image_url")
+            
+            if last_image_url:
+                # Kullanıcının mesajı düzenleme isteği mi?
+                edit_keywords = [
+                    "yap", "değiştir", "ekle", "kaldır", "sil", "koy", "olsun",
+                    "dönük", "dönüştür", "renk", "arka plan", "arka planda", 
+                    "sahil", "orman", "şehir", "gece", "gündüz", "kış", "yaz",
+                    "siyah", "beyaz", "kırmızı", "mavi", "yeşil", "sarı",
+                    "gözlük", "şapka", "saç", "elbise", "kıyafet", "ayakkabı",
+                    "pozunu", "yüzü", "başını", "arkası", "önü",
+                    "change", "add", "remove", "make", "turn", "put",
+                    "background", "color", "face", "facing"
+                ]
+                msg_lower = user_message.lower()
+                is_edit_request = any(kw in msg_lower for kw in edit_keywords)
+                
+                # Yanıt "yapamam/bilgi veremem" gibi bir red mi?
+                collected_text = ""
+                # text_tokens zaten stream'den toplandı
+                if text_tokens:
+                    collected_text = "".join(text_tokens).lower()
+                
+                refusal_keywords = ["üzgünüm", "yapamam", "yapamıyorum", "bilgi veremem", 
+                                    "tanımlayamıyorum", "maalesef", "yardımcı olabilir miyim",
+                                    "işlem yapamam", "sorry", "can't", "cannot"]
+                is_refusal = any(kw in collected_text for kw in refusal_keywords) if collected_text else False
+                
+                if is_edit_request and (is_refusal or not collected_text.strip()):
+                    print(f"🔄 AUTO-EDIT FALLBACK: GPT-4o refused but edit needed!")
+                    print(f"   Last image: {last_image_url[:60]}...")
+                    print(f"   User message: {user_message[:80]}...")
+                    
+                    # Prompt'u çevir
+                    from app.services.prompt_translator import translate_to_english
+                    english_prompt, _ = await translate_to_english(user_message)
+                    
+                    # Direkt edit_image çağır
+                    yield f"event: status\ndata: Görsel düzenleniyor...\n\n"
+                    
+                    edit_result = await self._edit_image({
+                        "image_url": last_image_url,
+                        "prompt": english_prompt
+                    })
+                    
+                    if edit_result.get("success") and edit_result.get("image_url"):
+                        result["images"].append({
+                            "url": edit_result["image_url"],
+                            "prompt": user_message
+                        })
+                        yield f"event: assets\ndata: {json.dumps(result['images'], ensure_ascii=False)}\n\n"
+                        
+                        # Başarılı edit mesajı
+                        success_msg = "İşte düzenlenmiş görsel:"
+                        yield f"event: token\ndata: {json.dumps(success_msg, ensure_ascii=False)}\n\n"
+                    else:
+                        error_msg = edit_result.get("error", "Düzenleme başarısız oldu.")
+                        yield f"event: token\ndata: {json.dumps(f'Düzenleme sırasında hata: {error_msg}', ensure_ascii=False)}\n\n"
+                else:
+                    # Auto-edit tetiklenmedi — buffered text'i flush et
+                    if text_tokens:
+                        full_text = "".join(text_tokens)
+                        yield f"event: token\ndata: {json.dumps(full_text, ensure_ascii=False)}\n\n"
+            else:
+                # Referans görsel yok — buffered text varsa flush et
+                if text_tokens:
+                    full_text = "".join(text_tokens)
+                    yield f"event: token\ndata: {json.dumps(full_text, ensure_ascii=False)}\n\n"
         
         yield f"event: done\ndata: {{}}\n\n"
     
@@ -1864,7 +1943,7 @@ Konuşma:
                     fal_client.subscribe_async(
                         "fal-ai/gpt-image-1/edit-image",
                         arguments={
-                            "image_url": image_url,
+                            "image_urls": [image_url],
                             "prompt": english_instruction,
                         },
                         with_logs=True,
