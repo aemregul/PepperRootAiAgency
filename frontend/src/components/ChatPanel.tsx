@@ -77,7 +77,7 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                     key={key++}
                     src={url}
                     alt={alt}
-                    className="mt-2 mb-2 rounded-lg max-w-full max-h-64 object-contain cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                    className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
                     onClick={() => onImageClick ? onImageClick(url) : window.open(url, '_blank')}
                     onError={(e) => {
                         const target = e.currentTarget;
@@ -897,7 +897,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                                 <img
                                                     src={msg.image_url}
                                                     alt="Üretilen görsel"
-                                                    className="mt-3 rounded-lg max-w-full cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                                    className="mt-3 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
                                                     onClick={() => setLightboxImage(msg.image_url!)}
                                                 />
                                             )}
