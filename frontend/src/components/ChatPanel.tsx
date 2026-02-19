@@ -380,14 +380,23 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                     content: string;
                     created_at: string;
                     metadata_?: { images?: { url: string }[]; has_reference_image?: boolean };
-                }) => ({
-                    id: msg.id,
-                    role: msg.role as 'user' | 'assistant',
-                    content: msg.content,
-                    timestamp: new Date(msg.created_at),
-                    // Metadata'dan image_url al (assistant mesajları için images[0], user için has_reference_image)
-                    image_url: msg.metadata_?.images?.[0]?.url,
-                }));
+                }) => {
+                    // Image URL: önce metadata'dan, yoksa content'teki [ÜRETİLEN GÖRSELLER: url] tag'inden
+                    let imageUrl = msg.metadata_?.images?.[0]?.url;
+                    if (!imageUrl && msg.content) {
+                        const match = msg.content.match(/\[ÜRETİLEN GÖRSELLER: ([^\]]+)\]/);
+                        if (match) {
+                            imageUrl = match[1].split(',')[0].trim();
+                        }
+                    }
+                    return {
+                        id: msg.id,
+                        role: msg.role as 'user' | 'assistant',
+                        content: msg.content?.replace(/\n\n\[ÜRETİLEN (GÖRSELLER|VİDEOLAR): [^\]]+\]/g, '') || msg.content,
+                        timestamp: new Date(msg.created_at),
+                        image_url: imageUrl,
+                    }
+                });
                 setMessages(formattedMessages);
             } catch (err) {
                 console.error('Mesaj geçmişi yüklenemedi:', err);
@@ -855,9 +864,9 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                     )}
 
                     {messages.map((msg) => (
-                        <div key={msg.id}>
+                        <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.role === "user" ? (
-                                <div className="message-bubble message-user">
+                                <div className="message-bubble message-user max-w-[75%]">
                                     {msg.image_url && (
                                         <img
                                             src={msg.image_url}
@@ -883,10 +892,9 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex gap-3">
-                                    <span className="text-xl shrink-0">🫑</span>
+                                <div className="flex gap-3 max-w-[85%]">
+                                    <span className="text-xl shrink-0 mt-1">🫑</span>
                                     <div className="flex-1">
-                                        <div className="font-medium mb-2 text-sm">Pepper AI Assistant</div>
                                         <div className="message-bubble message-ai">
                                             <div className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
                                                 {renderContent(msg.content, setLightboxImage)}
