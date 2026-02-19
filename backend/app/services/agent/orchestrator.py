@@ -863,19 +863,74 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             return await self._generate_long_video(db, session_id, tool_input)
         
         elif tool_name == "edit_image":
-            return await self._edit_image(tool_input)
+            result = await self._edit_image(tool_input)
+            if result.get("success") and result.get("image_url"):
+                try:
+                    await asset_service.save_asset(
+                        db=db, session_id=session_id,
+                        url=result["image_url"], asset_type="image",
+                        prompt=tool_input.get("prompt", "Image edit"),
+                        model_name=result.get("model", "edit"),
+                    )
+                except Exception as e:
+                    print(f"⚠️ Edit image asset kaydetme hatası: {e}")
+            return result
         
         elif tool_name == "outpaint_image":
-            return await self._outpaint_image(tool_input)
+            result = await self._outpaint_image(tool_input)
+            if result.get("success") and result.get("image_url"):
+                try:
+                    await asset_service.save_asset(
+                        db=db, session_id=session_id,
+                        url=result["image_url"], asset_type="image",
+                        prompt=tool_input.get("prompt", "Outpaint"),
+                        model_name=result.get("model", "outpaint"),
+                    )
+                except Exception as e:
+                    print(f"⚠️ Outpaint asset kaydetme hatası: {e}")
+            return result
         
         elif tool_name == "apply_style":
-            return await self._apply_style(tool_input)
+            result = await self._apply_style(tool_input)
+            if result.get("success") and result.get("image_url"):
+                try:
+                    await asset_service.save_asset(
+                        db=db, session_id=session_id,
+                        url=result["image_url"], asset_type="image",
+                        prompt=tool_input.get("style", "Style transfer"),
+                        model_name=result.get("model", "style"),
+                    )
+                except Exception as e:
+                    print(f"⚠️ Style asset kaydetme hatası: {e}")
+            return result
         
         elif tool_name == "upscale_image":
-            return await self._upscale_image(tool_input)
+            result = await self._upscale_image(tool_input)
+            if result.get("success") and result.get("image_url"):
+                try:
+                    await asset_service.save_asset(
+                        db=db, session_id=session_id,
+                        url=result["image_url"], asset_type="image",
+                        prompt="Upscale",
+                        model_name=result.get("model", "upscale"),
+                    )
+                except Exception as e:
+                    print(f"⚠️ Upscale asset kaydetme hatası: {e}")
+            return result
         
         elif tool_name == "remove_background":
-            return await self._remove_background(tool_input)
+            result = await self._remove_background(tool_input)
+            if result.get("success") and result.get("image_url"):
+                try:
+                    await asset_service.save_asset(
+                        db=db, session_id=session_id,
+                        url=result["image_url"], asset_type="image",
+                        prompt="Background removed",
+                        model_name=result.get("model", "birefnet-v2"),
+                    )
+                except Exception as e:
+                    print(f"⚠️ Remove BG asset kaydetme hatası: {e}")
+            return result
         
         elif tool_name == "generate_grid":
             return await self._generate_grid(db, session_id, tool_input, resolved_entities or [])
