@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None  # ChatGPT/GPT-4
     FAL_KEY: Optional[str] = None
     SERPAPI_KEY: Optional[str] = None  # Web search for images
+    GEMINI_API_KEY: Optional[str] = None  # Google Gemini (image editing)
     
     # Google OAuth
     GOOGLE_CLIENT_ID: Optional[str] = None

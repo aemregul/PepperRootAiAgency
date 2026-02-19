@@ -1958,9 +1958,9 @@ Konuşma:
                 except Exception as removal_error:
                     print(f"⚠️ Object Removal hatası: {removal_error}")
             
-            # ---- DÜZENLEME PIPELINE (3 aşamalı + face swap) ----
-            # NOT: Edit modelleri görseli baştan üretebilir, yüz değişebilir.
-            # Bu yüzden başarılı edit sonrası face swap ile orijinal yüzü geri koyuyoruz.
+            # ---- DÜZENLEME PIPELINE (4 aşamalı) ----
+            # Aşama 1: Gemini (true inpainting — en iyi kalite)
+            # Aşama 2-4: fal.ai fallback modelleri + face swap
             
             import fal_client
             import asyncio
@@ -1977,8 +1977,8 @@ Konuşma:
                         fal_client.subscribe_async(
                             "fal-ai/face-swap",
                             arguments={
-                                "base_image_url": edited_url,      # Düzenlenmiş görsel (yeni sahne)
-                                "swap_image_url": face_ref_url,    # Orijinal yüz kaynağı
+                                "base_image_url": edited_url,
+                                "swap_image_url": face_ref_url,
                             },
                             with_logs=True,
                         ),
@@ -1994,9 +1994,105 @@ Konuşma:
                     print(f"   ⚠️ Face swap hatası: {swap_err}, orijinal edit kullanılıyor")
                     return edited_url
             
-            # Aşama 1: Nano Banana Pro Edit — En iyi genel düzenleme
+            # ===== AŞAMA 1: GEMINI (True Inpainting) =====
             try:
-                print(f"   🎨 Aşama 1: Nano Banana Pro Edit deneniyor...")
+                import os
+                gemini_api_key = os.getenv("GEMINI_API_KEY")
+                if gemini_api_key:
+                    print(f"   🌟 Aşama 1: Gemini True Inpainting deneniyor...")
+                    
+                    from google import genai
+                    from google.genai import types
+                    import httpx
+                    import base64
+                    import io
+                    
+                    # Görseli URL'den indir
+                    async with httpx.AsyncClient(timeout=15) as http_client:
+                        img_response = await http_client.get(image_url)
+                        img_response.raise_for_status()
+                        image_bytes = img_response.content
+                    
+                    # Content type belirle
+                    content_type = img_response.headers.get("content-type", "image/png")
+                    if "jpeg" in content_type or "jpg" in content_type:
+                        mime_type = "image/jpeg"
+                    elif "webp" in content_type:
+                        mime_type = "image/webp"
+                    else:
+                        mime_type = "image/png"
+                    
+                    print(f"   📥 Görsel indirildi ({len(image_bytes)} bytes, {mime_type})")
+                    
+                    # Gemini'ye gönder
+                    client = genai.Client(api_key=gemini_api_key)
+                    
+                    gemini_response = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            client.models.generate_content,
+                            model="gemini-2.0-flash-exp-image-generation",
+                            contents=[
+                                english_instruction,
+                                types.Part.from_bytes(
+                                    data=image_bytes,
+                                    mime_type=mime_type,
+                                ),
+                            ],
+                            config=types.GenerateContentConfig(
+                                response_modalities=["TEXT", "IMAGE"],
+                            ),
+                        ),
+                        timeout=60
+                    )
+                    
+                    # Sonuçtan görseli çıkar
+                    edited_image_data = None
+                    for part in gemini_response.candidates[0].content.parts:
+                        if part.inline_data is not None:
+                            edited_image_data = part.inline_data.data
+                            result_mime = part.inline_data.mime_type or "image/png"
+                            break
+                    
+                    if edited_image_data:
+                        # Base64 image'ı fal storage'a yükle (URL almak için)
+                        import tempfile
+                        suffix = ".png" if "png" in result_mime else ".jpg" if "jpeg" in result_mime else ".webp"
+                        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                            tmp.write(edited_image_data)
+                            tmp_path = tmp.name
+                        
+                        try:
+                            uploaded_url = await asyncio.to_thread(
+                                fal_client.upload_file, tmp_path
+                            )
+                            print(f"✅ Gemini True Inpainting başarılı!")
+                            
+                            # Temp dosyayı sil
+                            os.unlink(tmp_path)
+                            
+                            return {
+                                "success": True,
+                                "image_url": uploaded_url,
+                                "original_image_url": image_url,
+                                "model": "gemini-inpainting",
+                                "method": "gemini-2.0-flash-exp-image-generation",
+                                "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                            }
+                        except Exception as upload_err:
+                            print(f"   ⚠️ Gemini sonuç yükleme hatası: {upload_err}")
+                            os.unlink(tmp_path)
+                    else:
+                        print(f"   ⚠️ Gemini görsel döndürmedi")
+                else:
+                    print(f"   ⚠️ GEMINI_API_KEY bulunamadı, Gemini atlanıyor")
+            except asyncio.TimeoutError:
+                print(f"   ⚠️ Gemini timeout (60s)")
+            except Exception as gemini_err:
+                print(f"   ⚠️ Gemini hatası: {gemini_err}")
+            
+            # ===== AŞAMA 2: Nano Banana Pro Edit + Face Swap =====
+            try:
+                print(f"   🎨 Aşama 2: Nano Banana Pro Edit deneniyor...")
                 result = await asyncio.wait_for(
                     fal_client.subscribe_async(
                         "fal-ai/nano-banana-pro/edit",
@@ -2012,7 +2108,6 @@ Konuşma:
                 if result and "images" in result and len(result["images"]) > 0:
                     edited_url = result["images"][0]["url"]
                     print(f"✅ Nano Banana Pro Edit başarılı!")
-                    # Face swap ile orijinal yüzü geri koy
                     final_url = await _post_edit_face_swap(edited_url, face_ref)
                     return {
                         "success": True,
@@ -2027,9 +2122,9 @@ Konuşma:
             except Exception as nano_err:
                 print(f"   ⚠️ Nano Banana Pro Edit hatası: {nano_err}")
             
-            # Aşama 2: GPT Image 1 Edit — Güçlü talimat anlama
+            # ===== AŞAMA 3: GPT Image 1 Edit + Face Swap =====
             try:
-                print(f"   🎨 Aşama 2: GPT Image 1 Edit deneniyor...")
+                print(f"   🎨 Aşama 3: GPT Image 1 Edit deneniyor...")
                 result = await asyncio.wait_for(
                     fal_client.subscribe_async(
                         "fal-ai/gpt-image-1/edit-image",
@@ -2059,9 +2154,9 @@ Konuşma:
             except Exception as gpt_edit_err:
                 print(f"   ⚠️ GPT Image 1 Edit hatası: {gpt_edit_err}")
             
-            # Aşama 3: FLUX Kontext Pro — Stil/sahne değişikliği
+            # ===== AŞAMA 4: FLUX Kontext Pro + Face Swap =====
             try:
-                print(f"   🎨 Aşama 3: FLUX Kontext Pro deneniyor...")
+                print(f"   🎨 Aşama 4: FLUX Kontext Pro deneniyor...")
                 result = await asyncio.wait_for(
                     fal_client.subscribe_async(
                         "fal-ai/flux-pro/kontext",
