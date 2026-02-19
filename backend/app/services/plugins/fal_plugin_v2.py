@@ -675,13 +675,18 @@ class FalPluginV2(PluginBase):
             return {"success": False, "error": str(e)}
     
     async def _remove_background(self, params: dict) -> dict:
-        """Arka plan kaldır (Bria RMBG)."""
+        """Arka plan kaldır (BiRefNet V2 — transparent PNG)."""
         image_url = params.get("image_url", "")
         
         try:
             result = await fal_client.subscribe_async(
-                "fal-ai/bria/rmbg",
-                arguments={"image_url": image_url},
+                "fal-ai/birefnet/v2",
+                arguments={
+                    "image_url": image_url,
+                    "model": "General Use (Light)",
+                    "operating_resolution": "1024x1024",
+                    "output_format": "png",
+                },
                 with_logs=True,
             )
             
@@ -689,7 +694,7 @@ class FalPluginV2(PluginBase):
                 return {
                     "success": True,
                     "image_url": result["image"]["url"],
-                    "model": "bria-rmbg",
+                    "model": "birefnet-v2",
                 }
             else:
                 return {"success": False, "error": "Arka plan kaldırılamadı"}
