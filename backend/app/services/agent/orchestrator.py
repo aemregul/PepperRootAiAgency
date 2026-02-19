@@ -805,15 +805,16 @@ Herhangi bir işlem başarısız olursa:
         yield f"event: done\ndata: {{}}\n\n"
     
     async def _process_tool_calls_for_stream(
-        self, message, messages, result, session_id, db, system_prompt
+        self, message, messages, result, session_id, db, system_prompt, retry_count=0
     ):
         """Tool call'ları çalıştır ve messages listesini güncelle (stream versiyonu)."""
+        MAX_RETRIES = 2
         
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments)
             
-            print(f"🔧 STREAM TOOL: {tool_name}")
+            print(f"🔧 STREAM TOOL: {tool_name} (retry={retry_count})")
             
             tool_result = await self._handle_tool_call(
                 tool_name, tool_args, session_id, db,
@@ -857,28 +858,21 @@ Herhangi bir işlem başarısız olursa:
                 "content": json.dumps(tool_result, ensure_ascii=False, default=str)
             })
         
-        # Tool başarısız olduysa, AI'ye alternatif denemesi gerektiğini söyle
-        any_failed = any(
-            not json.loads(m["content"]).get("success", True) 
-            for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
-            and m["content"].startswith("{")
-        )
-        any_succeeded = any(
-            json.loads(m["content"]).get("success", False) and (json.loads(m["content"]).get("image_url") or json.loads(m["content"]).get("video_url"))
-            for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
-            and m["content"].startswith("{")
-        )
+        # Son tool sonucunu kontrol et — başarısız mı?
+        last_tool_failed = not tool_result.get("success", True)
+        has_any_success = bool(result["images"] or result["videos"])
         
-        # Eğer tool başarısız olduysa ve henüz başarılı bir sonuç yoksa → AI'ye retry zorla
+        # Retry logic: sadece son tool başarısızsa VE henüz başarılı sonuç yoksa VE limit aşılmamışsa
         retry_tool_choice = "auto"
-        if any_failed and not any_succeeded:
-            # Retry instruction ekle
+        if last_tool_failed and not has_any_success and retry_count < MAX_RETRIES:
             messages.append({
                 "role": "user",
-                "content": "[SYSTEM: Önceki araç başarısız oldu. ASLA 'sorun yaşadım' deme! Hemen alternatif bir araç dene. Örneğin: generate_image ile yeniden üret, edit_image ile düzenle, veya farklı parametrelerle tekrar dene. HEMEN bir araç çağır!]"
+                "content": "[SYSTEM: Önceki araç başarısız oldu. FARKLI bir araç dene. Örneğin: generate_image ile yeniden üret veya edit_image ile düzenle. HEMEN bir araç çağır!]"
             })
             retry_tool_choice = "required"
-            print(f"🔄 RETRY: Tool failed, forcing AI to call another tool")
+            print(f"🔄 RETRY {retry_count+1}/{MAX_RETRIES}: Tool failed, forcing alternative tool")
+        elif last_tool_failed and retry_count >= MAX_RETRIES:
+            print(f"❌ MAX RETRY ({MAX_RETRIES}) reached, giving up")
         
         # Devam yanıtı kontrol et (nested tool calls)
         continue_response = await self.async_client.chat.completions.create(
@@ -895,7 +889,7 @@ Herhangi bir işlem başarısız olursa:
         if cont_message.tool_calls:
             print(f"🔧 RETRY: AI called {[tc.function.name for tc in cont_message.tool_calls]}")
             await self._process_tool_calls_for_stream(
-                cont_message, messages, result, session_id, db, system_prompt
+                cont_message, messages, result, session_id, db, system_prompt, retry_count + 1
             )
         elif cont_message.content:
             # Final text — messages'a ekle böylece stream caller kullanabilir
@@ -938,9 +932,11 @@ Herhangi bir işlem başarısız olursa:
         messages: list, 
         result: dict,
         session_id: uuid.UUID,
-        db: AsyncSession
+        db: AsyncSession,
+        retry_count: int = 0
     ):
         """OpenAI GPT-4o response'unu işle, tool call varsa yürüt."""
+        MAX_RETRIES = 2
         
         message = response.choices[0].message
         
@@ -1020,26 +1016,19 @@ Herhangi bir işlem başarısız olursa:
                     "content": json.dumps(tool_result, ensure_ascii=False, default=str)
                 })
             
-            # Tool başarısız olduysa retry zorla
-            any_failed = any(
-                not json.loads(m["content"]).get("success", True) 
-                for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
-                and m["content"].startswith("{")
-            )
-            any_succeeded = any(
-                json.loads(m["content"]).get("success", False) and (json.loads(m["content"]).get("image_url") or json.loads(m["content"]).get("video_url"))
-                for m in messages if m.get("role") == "tool" and isinstance(m.get("content"), str)
-                and m["content"].startswith("{")
-            )
+            last_tool_failed = not tool_result.get("success", True)
+            has_any_success = bool(result["images"] or result["videos"])
             
             retry_tool_choice = "auto"
-            if any_failed and not any_succeeded:
+            if last_tool_failed and not has_any_success and retry_count < MAX_RETRIES:
                 messages.append({
                     "role": "user",
-                    "content": "[SYSTEM: Önceki araç başarısız oldu. ASLA 'sorun yaşadım' deme! Hemen alternatif bir araç dene. HEMEN bir araç çağır!]"
+                    "content": "[SYSTEM: Önceki araç başarısız oldu. FARKLI bir araç dene. HEMEN bir araç çağır!]"
                 })
                 retry_tool_choice = "required"
-                print(f"🔄 RETRY (non-stream): Tool failed, forcing AI to call another tool")
+                print(f"🔄 RETRY {retry_count+1}/{MAX_RETRIES} (non-stream): forcing alternative tool")
+            elif last_tool_failed and retry_count >= MAX_RETRIES:
+                print(f"❌ MAX RETRY ({MAX_RETRIES}) reached (non-stream), giving up")
             
             # Devam yanıtı al
             continue_response = self.client.chat.completions.create(
@@ -1056,7 +1045,8 @@ Herhangi bir işlem başarısız olursa:
                 messages, 
                 result, 
                 session_id, 
-                db
+                db,
+                retry_count + 1
             )
     
     async def _handle_tool_call(

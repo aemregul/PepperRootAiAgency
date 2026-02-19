@@ -213,7 +213,8 @@ export async function sendMessageStream(
         onStatus?: (status: string) => void;
         onDone?: () => void;
         onError?: (error: string) => void;
-    }
+    },
+    signal?: AbortSignal
 ): Promise<void> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/stream`, {
         method: 'POST',
@@ -223,6 +224,7 @@ export async function sendMessageStream(
             message: message,
             active_project_id: activeProjectId || null,
         }),
+        signal,
     });
 
     if (!response.ok) {

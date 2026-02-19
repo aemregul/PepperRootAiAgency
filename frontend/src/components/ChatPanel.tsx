@@ -179,6 +179,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [loadingStatus, setLoadingStatus] = useState<string>("Düşünüyor...");
     const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
     const [offlineQueue, setOfflineQueue] = useState<{ message: string, timestamp: number }[]>([]);
     const [isOffline, setIsOffline] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -634,6 +635,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                     flush();
                 };
 
+                abortControllerRef.current = new AbortController();
                 await sendMessageStream(sessionId, currentInput, activeProjectId, {
                     onToken: (token: string) => {
                         // İlk token geldiğinde mesaj oluştur ve loading'i kapat
@@ -696,7 +698,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                     onError: (error: string) => {
                         console.error('Stream error:', error);
                     },
-                });
+                }, abortControllerRef.current.signal);
 
                 // Kuyruktaki kalan tokenları flush et
                 await new Promise<void>((resolve) => {
@@ -711,6 +713,11 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                 });
             }
         } catch (err) {
+            // User-initiated stop — don't show error
+            if (err instanceof DOMException && err.name === 'AbortError') {
+                console.log('Stream cancelled by user');
+                return;
+            }
             console.error("Chat error:", err);
             // Save failed message back to draft for retry
             localStorage.setItem(DRAFT_KEY, currentInput);
@@ -725,6 +732,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
             };
             setMessages((prev) => [...prev, errorMessage]);
         } finally {
+            abortControllerRef.current = null;
             setIsLoading(false);
             setLoadingStatus("Düşünüyor...");
             cleanupTimers();
@@ -1119,17 +1127,37 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                     <Sparkles size={18} className="text-purple-400" />
                                 </button>
                                 {/* Mic icon removed — was non-functional */}
-                                <button
-                                    type="submit"
-                                    disabled={(!input.trim() && !attachedFile && !attachedVideoUrl) || isLoading || !isConnected}
-                                    className="p-2 rounded-full transition-all duration-200 disabled:opacity-40"
-                                    style={{
-                                        background: (input.trim() || attachedFile || attachedVideoUrl) && isConnected ? "var(--accent)" : "var(--foreground-muted)",
-                                        color: "var(--background)"
-                                    }}
-                                >
-                                    <Send size={16} />
-                                </button>
+                                {isLoading ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            abortControllerRef.current?.abort();
+                                            abortControllerRef.current = null;
+                                            setIsLoading(false);
+                                            setLoadingStatus("Düşünüyor...");
+                                        }}
+                                        className="p-2 rounded-full transition-all duration-200 hover:scale-110"
+                                        style={{
+                                            background: "#ef4444",
+                                            color: "white"
+                                        }}
+                                        title="Durdur"
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="submit"
+                                        disabled={(!input.trim() && !attachedFile && !attachedVideoUrl) || isLoading || !isConnected}
+                                        className="p-2 rounded-full transition-all duration-200 disabled:opacity-40"
+                                        style={{
+                                            background: (input.trim() || attachedFile || attachedVideoUrl) && isConnected ? "var(--accent)" : "var(--foreground-muted)",
+                                            color: "var(--background)"
+                                        }}
+                                    >
+                                        <Send size={16} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
