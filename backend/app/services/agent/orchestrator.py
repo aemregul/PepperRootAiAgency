@@ -2030,7 +2030,7 @@ Konuşma:
                     gemini_response = await asyncio.wait_for(
                         asyncio.to_thread(
                             client.models.generate_content,
-                            model="gemini-2.0-flash-exp-image-generation",
+                            model="gemini-2.5-flash-image",
                             contents=[
                                 english_instruction,
                                 types.Part.from_bytes(
