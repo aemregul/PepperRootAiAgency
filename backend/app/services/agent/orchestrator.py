@@ -1426,12 +1426,13 @@ Konuşma:
                     }
             
             else:
-                # Referans yok - sadece Nano Banana Pro
-                result = await self.fal_plugin.generate_with_nano_banana(
-                    prompt=prompt,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution
-                )
+                # Referans yok - sadece generate_image (Smart Router)
+                plugin_result = await self.fal_plugin.execute("generate_image", {
+                    "prompt": prompt,
+                    "aspect_ratio": aspect_ratio,
+                    "resolution": resolution
+                })
+                result = plugin_result.data if plugin_result.success else {"success": False, "error": plugin_result.error or "Görsel üretilemedi"}
                 
                 if result.get("success"):
                     image_url = result.get("image_url")
@@ -2116,12 +2117,13 @@ SADECE değiştirilen hali tanımla, orijinali değil."""
                 new_prompt = regen_response.choices[0].message.content
                 print(f"   Yeni prompt: {new_prompt[:100]}...")
                 
-                # Nano Banana ile yeni görsel üret
-                nano_result = await self.fal_plugin.generate_with_nano_banana(
-                    prompt=new_prompt,
-                    aspect_ratio="1:1",
-                    resolution="1K"
-                )
+                # generate_image ile yeni görsel üret
+                nano_plugin_result = await self.fal_plugin.execute("generate_image", {
+                    "prompt": new_prompt,
+                    "aspect_ratio": "1:1",
+                    "resolution": "1K"
+                })
+                nano_result = nano_plugin_result.data if nano_plugin_result.success else {"success": False, "error": nano_plugin_result.error or "Görsel üretilemedi"}
                 
                 if nano_result.get("success"):
                     new_image_url = nano_result.get("image_url")
