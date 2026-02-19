@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (19 Şubat 2026 - 02:30)
+## 📊 Genel Durum (19 Şubat 2026 - 17:30)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -299,8 +299,9 @@ git add . && git commit -m "mesaj" && git push
 - ✅ **Faz 6: Advanced Features** - WebSocket, QC, Memory, Style, Campaign, Multi-Agent, Voice
 - ✅ **Faz 7: UI Redesign + Lokalizasyon** - Sidebar yeniden tasarım, Türkçe lokalizasyon
 - ✅ **Faz 8: Streaming + UX Polish** - SSE streaming, asset deletion, trash thumbnails
+- ✅ **Faz 9: Plugin & Style Integration** - Stil şablonları dropdown, plugin creation düzeltmesi
 
-**Toplam Kod:** 6000+ satır
+**Toplam Kod:** 6500+ satır | **26 Agent Tool**
 
 ---
 
@@ -308,10 +309,41 @@ git add . && git commit -m "mesaj" && git push
 
 - [ ] Deploy: Railway (Backend) + Vercel (Frontend)
 - [ ] Canlı ortam testleri
+- [ ] **Ana Özellik Testleri (12 Madde):**
+  - [ ] Referans görsel ile face-consistent üretim
+  - [ ] Text-to-Image, Image-to-Image
+  - [ ] Text-to-Video, Image-to-Video
+  - [ ] Fotoğraf düzenleme (edit_image)
+  - [ ] Uzun video (30s-3dk)
+  - [ ] Entity sadakati (karakter/lokasyon tutarlılığı)
+  - [ ] Stil oluşturma ve uygulama
+  - [ ] Videoya altyazı, ses, diyalog ekleme
 
 ---
 
-## 📝 SON GELİŞMELER (19 Şubat 2026 - 02:30)
+## 📝 SON GELİŞMELER (19 Şubat 2026 - 17:30)
+
+### 🧩 Plugin & Stil Entegrasyonu (19 Şubat - PM) ⭐ YENİ
+
+1. **Hazır Stil Şablonları Dropdown:**
+   - 10 built-in stil (Sinematik, Pop Art, Anime, Minimal vb.)
+   - `Palette` 🎨 butonu ile erişim (send butonu yanında)
+   - `createPortal` ile `overflow-hidden` bypass edildi
+   - Kullanıcının yüklü plugin'leri de aynı dropdown'da (🧩 Eklentilerim)
+
+2. **Plugin Oluşturma Akışı Düzeltildi:**
+   - `manage_plugin` tool'u `tools.py`'ye eklendi (26 toplam tool)
+   - System prompt güncellendi — "Eksik alan engel değil, elindekiyle oluştur"
+   - `_manage_plugin` handler: Mock data → gerçek DB kaydı (`CreativePlugin` modeli)
+   - Frontend buton mesajı sadeleştirildi
+
+3. **Plugin "Kullan" Düzeltmesi:**
+   - Eski: Tıklayınca otomatik gönderiyordu
+   - Yeni: `pendingInputText` ile input'a yazar, kullanıcı düzenleyip gönderir
+   - `onSetInputText` prop zinciri: Sidebar → page.tsx → ChatPanel
+
+4. **model_dump Bug Fix:**
+   - `orchestrator.py` — `SimpleNamespace` objeleri için `model_dump()` yerine manuel dict dönüşümü
 
 ### 🔧 Asset Silme & Çöp Kutusu Düzeltmeleri (19 Şubat) ⭐ YENİ
 

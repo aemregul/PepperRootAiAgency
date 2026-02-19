@@ -24,6 +24,8 @@ export default function Home() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [pendingInputText, setPendingInputText] = useState<string | null>(null);
+  const [installedPlugins, setInstalledPlugins] = useState<Array<{ id: string; name: string; promptText: string }>>([]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);
 
@@ -138,6 +140,8 @@ export default function Home() {
         sessionId={activeProjectId}
         refreshKey={entityRefreshKey}
         onSendPrompt={setPendingPrompt}
+        onSetInputText={setPendingInputText}
+        onPluginsLoaded={setInstalledPlugins}
         onAssetRestore={handleAssetRestore}
       />
 
@@ -199,6 +203,9 @@ export default function Home() {
           onEntityChange={handleEntityChange}
           pendingPrompt={pendingPrompt}
           onPromptConsumed={() => setPendingPrompt(null)}
+          pendingInputText={pendingInputText}
+          onInputTextConsumed={() => setPendingInputText(null)}
+          installedPlugins={installedPlugins}
         />
       )}
 

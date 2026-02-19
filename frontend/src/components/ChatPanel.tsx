@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn, Palette } from "lucide-react";
 import { useToast } from "./ToastProvider";
 import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory } from "@/lib/api";
 
@@ -22,7 +23,24 @@ interface ChatPanelProps {
     onEntityChange?: () => void;
     pendingPrompt?: string | null;
     onPromptConsumed?: () => void;
+    pendingInputText?: string | null;
+    onInputTextConsumed?: () => void;
+    installedPlugins?: Array<{ id: string; name: string; promptText: string; emoji?: string }>;
 }
+
+// Hızlı Stil Şablonları
+const STYLE_TEMPLATES = [
+    { id: 'cinematic', name: 'Sinematik', emoji: '🎬', prompt: 'cinematic film still, dramatic lighting, wide angle, moody atmosphere' },
+    { id: 'instagram', name: 'Instagram', emoji: '📸', prompt: 'instagram aesthetic, lifestyle photography, vibrant colors, trendy composition' },
+    { id: 'portrait', name: 'Portre', emoji: '🖼️', prompt: 'professional portrait, studio lighting, sharp focus, clean background' },
+    { id: 'popart', name: 'Pop Art', emoji: '🎨', prompt: 'Andy Warhol pop art style, bold colors, screen print effect, graphic design' },
+    { id: 'sketch', name: 'Eskiz', emoji: '✏️', prompt: 'pencil sketch, hand drawn, detailed linework, artistic illustration' },
+    { id: 'neon', name: 'Neon', emoji: '💜', prompt: 'neon glow, cyberpunk aesthetic, dark background, vivid purple and blue lights' },
+    { id: 'golden', name: 'Golden Hour', emoji: '🌅', prompt: 'golden hour photography, warm tones, backlit, natural sunlight, romantic mood' },
+    { id: 'retro', name: 'Retro', emoji: '📺', prompt: '80s retro style, vintage film grain, nostalgic color palette, analog feel' },
+    { id: 'cartoon', name: 'Karikatür', emoji: '😄', prompt: 'cartoon style, caricature, exaggerated features, fun and colorful illustration' },
+    { id: 'minimal', name: 'Minimalist', emoji: '⬜', prompt: 'minimalist composition, clean background, simple, high contrast, elegant' },
+];
 
 // Helper to render @mentions, markdown images, links, and VIDEOS
 function renderContent(content: string | undefined | null, onImageClick?: (url: string) => void) {
@@ -147,7 +165,7 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
     return elements.length > 0 ? elements : content;
 }
 
-export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSessionChange, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed }: ChatPanelProps) {
+export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSessionChange, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed, pendingInputText, onInputTextConsumed, installedPlugins = [] }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -166,7 +184,11 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const styleDropdownRef = useRef<HTMLDivElement>(null);
+    const styleBtnRef = useRef<HTMLButtonElement>(null);
     const toast = useToast();
+    const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
+    const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
 
     // === AUTO-SAVE DRAFT TO LOCALSTORAGE ===
     const DRAFT_KEY = `pepper_draft_${initialSessionId || 'default'}`;
@@ -391,6 +413,49 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
             }, 100);
         }
     }, [pendingPrompt, sessionId, isLoading, onPromptConsumed]);
+
+    // Plugin/Stil şablonu → sadece input'a yaz, gönderme
+    useEffect(() => {
+        if (pendingInputText && sessionId) {
+            setInput(pendingInputText);
+            onInputTextConsumed?.();
+            // Focus ve textarea height ayarla
+            setTimeout(() => {
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                    inputRef.current.style.height = 'auto';
+                    inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
+                }
+            }, 50);
+        }
+    }, [pendingInputText, sessionId, onInputTextConsumed]);
+
+    // Stil dropdown dışına tıklayınca kapat
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (
+                styleDropdownRef.current && !styleDropdownRef.current.contains(e.target as Node) &&
+                styleBtnRef.current && !styleBtnRef.current.contains(e.target as Node)
+            ) {
+                setStyleDropdownOpen(false);
+            }
+        }
+        if (styleDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [styleDropdownOpen]);
+
+    // Dropdown konumunu hesapla
+    useEffect(() => {
+        if (styleDropdownOpen && styleBtnRef.current) {
+            const rect = styleBtnRef.current.getBoundingClientRect();
+            setDropdownPos({
+                bottom: window.innerHeight - rect.top + 8,
+                right: window.innerWidth - rect.right,
+            });
+        }
+    }, [styleDropdownOpen]);
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -964,6 +1029,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                             </div>
                         )}
 
+
                         {/* Text Input Row */}
                         <div className="flex items-center gap-2 p-2">
                             <button
@@ -1007,11 +1073,32 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                             />
 
                             <div className="flex items-center gap-1 shrink-0">
+                                {/* Stil Şablonları Button */}
+                                <div style={{ position: 'relative' }}>
+                                    <button
+                                        ref={styleBtnRef}
+                                        type="button"
+                                        onClick={() => setStyleDropdownOpen(!styleDropdownOpen)}
+                                        className="p-2 rounded-lg transition-all hover:shadow-md"
+                                        style={{
+                                            background: styleDropdownOpen
+                                                ? 'linear-gradient(135deg, rgba(74, 222, 128, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%)'
+                                                : 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(34, 197, 94, 0.08) 100%)',
+                                            border: styleDropdownOpen
+                                                ? '1px solid rgba(74, 222, 128, 0.4)'
+                                                : '1px solid rgba(74, 222, 128, 0.2)',
+                                        }}
+                                        title="Hızlı stil şablonu seç"
+                                    >
+                                        <Palette size={18} style={{ color: 'var(--accent)' }} />
+                                    </button>
+                                </div>
+
                                 {/* Plugin Yap Button */}
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const pluginMessage = "Plugin oluşturma modunu başlat. Şu ana kadar bu sohbette kullandığım karakter, lokasyon, zaman, kamera açıları ve stil ayarlarını analiz et ve bana uygun bir Creative Plugin önerisi sun.";
+                                        const pluginMessage = "Bu sohbetteki bilgilerden bir plugin oluştur.";
                                         setInput(pluginMessage);
                                     }}
                                     className="p-2 rounded-lg transition-all hover:shadow-md"
@@ -1082,6 +1169,107 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                         style={{ animation: "fadeIn 0.2s ease-out" }}
                     />
                 </div>
+            )}
+
+            {/* Stil Şablonları Dropdown — Portal ile overflow-hidden dışında render */}
+            {styleDropdownOpen && dropdownPos && createPortal(
+                <div
+                    ref={styleDropdownRef}
+                    style={{
+                        position: 'fixed',
+                        bottom: dropdownPos.bottom,
+                        right: dropdownPos.right,
+                        width: 240,
+                        maxHeight: 400,
+                        overflowY: 'auto',
+                        background: 'var(--background-secondary)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 14,
+                        boxShadow: '0 -12px 48px rgba(0,0,0,0.5)',
+                        zIndex: 9999,
+                        padding: 6,
+                        scrollbarWidth: 'thin' as const,
+                    }}
+                >
+                    {/* Installed Plugins Section */}
+                    {installedPlugins.length > 0 && (
+                        <>
+                            <div style={{ padding: '6px 10px 4px', fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 13 }}>🧩</span> Eklentilerim
+                            </div>
+                            {installedPlugins.map((plugin) => (
+                                <button
+                                    key={plugin.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setInput(plugin.promptText);
+                                        setStyleDropdownOpen(false);
+                                        inputRef.current?.focus();
+                                    }}
+                                    className="w-full text-left"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        padding: '8px 10px',
+                                        borderRadius: 8,
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: 'var(--foreground)',
+                                        fontSize: 13,
+                                        cursor: 'pointer',
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(74, 222, 128, 0.08)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <span style={{ fontSize: 16, width: 24, textAlign: 'center' }}>{plugin.emoji || '🧩'}</span>
+                                    <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plugin.name}</div>
+                                </button>
+                            ))}
+                            <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+                        </>
+                    )}
+
+                    {/* Built-in Styles Section */}
+                    <div style={{ padding: '6px 10px 4px', fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Hazır Stiller
+                    </div>
+                    {STYLE_TEMPLATES.map((style) => (
+                        <button
+                            key={style.id}
+                            type="button"
+                            onClick={() => {
+                                setInput(`[${style.name}] ${style.prompt}`);
+                                setStyleDropdownOpen(false);
+                                inputRef.current?.focus();
+                            }}
+                            className="w-full text-left"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '8px 10px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: 'transparent',
+                                color: 'var(--foreground)',
+                                fontSize: 13,
+                                cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(74, 222, 128, 0.08)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <span style={{ fontSize: 16, width: 24, textAlign: 'center' }}>{style.emoji}</span>
+                            <div>
+                                <div style={{ fontWeight: 500 }}>{style.name}</div>
+                                <div style={{ fontSize: 10, color: 'var(--foreground-muted)', marginTop: 1, lineHeight: '1.3' }}>
+                                    {style.prompt.slice(0, 40)}...
+                                </div>
+                            </div>
+                        </button>
+                    ))}
+                </div>,
+                document.body
             )}
         </div>
     );

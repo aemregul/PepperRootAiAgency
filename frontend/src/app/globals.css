@@ -571,6 +571,11 @@ body {
   }
 }
 
+/* === Style Templates Carousel — hide scrollbar === */
+.style-carousel::-webkit-scrollbar {
+  display: none;
+}
+
 /* === Lightbox Animation === */
 @keyframes fadeIn {
   from {

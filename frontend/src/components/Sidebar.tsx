@@ -294,10 +294,12 @@ interface SidebarProps {
     sessionId?: string | null;
     refreshKey?: number;
     onSendPrompt?: (prompt: string) => void;
+    onSetInputText?: (text: string) => void;  // Chat input'a yazar ama göndermez
+    onPluginsLoaded?: (plugins: Array<{ id: string; name: string; promptText: string }>) => void;
     onAssetRestore?: () => void;  // Çöp kutusundan asset geri yüklenince media panel'ı güncelle
 }
 
-export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt, onAssetRestore }: SidebarProps) {
+export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt, onSetInputText, onPluginsLoaded, onAssetRestore }: SidebarProps) {
     const { theme, toggleTheme } = useTheme();
     const { user, logout } = useAuth();
     const toast = useToast();
@@ -445,7 +447,24 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
         };
 
         fetchCreativePlugins();
-    }, [sessionId, refreshKey]);
+    }, [sessionId]);
+
+    // Plugin listesi değiştiğinde parent'a bildir
+    useEffect(() => {
+        if (onPluginsLoaded) {
+            const simplified = creativePlugins.map(p => {
+                const parts: string[] = [];
+                if (p.config?.style) parts.push(`Stil: ${p.config.style}`);
+                if (p.config?.cameraAngles?.length) parts.push(`Açılar: ${p.config.cameraAngles.join(', ')}`);
+                if (p.config?.timeOfDay) parts.push(`Zaman: ${p.config.timeOfDay}`);
+                const promptText = p.config?.promptTemplate
+                    ? `[${p.name}] ${p.config.promptTemplate}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`
+                    : `[${p.name}] ${parts.join(', ')} tarzında görsel üret`;
+                return { id: p.id, name: p.name, promptText };
+            });
+            onPluginsLoaded(simplified);
+        }
+    }, [creativePlugins, onPluginsLoaded]);
 
     // API'den entity'leri çek
     useEffect(() => {
@@ -1305,7 +1324,8 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 plugin={selectedPlugin}
                 onDelete={(id) => setCreativePlugins(creativePlugins.filter(p => p.id !== id))}
                 onUse={(plugin) => {
-                    if (onSendPrompt && plugin.config) {
+                    const setTextFn = onSetInputText || onSendPrompt;
+                    if (setTextFn && plugin.config) {
                         const parts: string[] = [];
                         if (plugin.config.style) parts.push(`Stil: ${plugin.config.style}`);
                         if (plugin.config.cameraAngles && plugin.config.cameraAngles.length > 0) {
@@ -1315,7 +1335,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         const prompt = plugin.config.promptTemplate
                             ? `[${plugin.name}] ${plugin.config.promptTemplate}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`
                             : `[${plugin.name}] ${parts.join(", ")} tarzında görsel üret`;
-                        onSendPrompt(prompt);
+                        setTextFn(prompt);
                     }
                     setPluginDetailOpen(false);
                 }}

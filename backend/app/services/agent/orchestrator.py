@@ -297,6 +297,32 @@ SONUÇ: Kısmi başarı durumunda bile sonuç döndürür
 9. **10 saniyeden uzun video → generate_long_video kullan**
 10. **Mevcut video düzenle → edit_video kullan**
 
+## 🧩 PLUGİN OLUŞTURMA — ÇOK ÖNEMLİ!
+
+Kullanıcı "plugin oluştur" dediğinde:
+
+1. **Sohbetteki mevcut bilgileri topla** — ne varsa onu kullan:
+   - Karakter: Sohbette kullanılan @karakter tag'leri
+   - Lokasyon: Sohbette kullanılan @mekan tag'leri
+   - Stil: Bahsedilen görsel stiller (sinematik, anime, vb.)
+   - Kamera açıları, zaman dilimi, aspect ratio vb.
+
+2. **EKSİK ALAN ENGEL DEĞİL** — Karakter var ama lokasyon yok? Sorun değil!
+   Sadece karakter bilgisiyle plugin oluştur. Stil yok? Oluştur!
+   
+3. **HEMEN manage_plugin tool'unu çağır** — Analiz moduna girme, soru sorma.
+   Elindekiyle direkt oluştur.
+
+4. **promptTemplate oluştur** — Sohbetteki bağlamdan bir prompt şablonu yaz.
+   Örnek: "@emre golden hour, cinematic lighting, bokeh background"
+
+**KÖTÜ (Yapma):**
+"Stil analizi eksik, kamera açıları belirtilmemiş. Önce bunları tamamlayalım mı?"
+
+**İYİ (Yap):**
+manage_plugin(action="create", name="Emre Sinematik", config={character_tag: "@emre", style: "cinematic", promptTemplate: "@emre cinematic portrait, golden hour lighting"})
+→ "Plugin oluşturuldu! 🧩 Karakter: @emre, Stil: sinematik. Lokasyon ve kamera açıları eklenmedi ama istersen sonradan güncelleyebilirsin."
+
 ## 🚨 GÖRSEL DÜZENLEME KURALI
 
 Kullanıcı görsel gönderip düzenleme isterse (gözlük kaldır, arka plan değiştir):
@@ -774,10 +800,19 @@ Herhangi bir işlem başarısız olursa:
             if tool_result.get("success") and tool_result.get("entity"):
                 result["entities_created"].append(tool_result["entity"])
             
+            # SimpleNamespace veya Pydantic olabilir, her ikisi için de çalışır
+            tool_call_dict = {
+                "id": tool_call.id,
+                "type": "function",
+                "function": {
+                    "name": tool_call.function.name,
+                    "arguments": tool_call.function.arguments
+                }
+            }
             messages.append({
                 "role": "assistant",
                 "content": None,
-                "tool_calls": [tool_call.model_dump()]
+                "tool_calls": [tool_call_dict]
             })
             messages.append({
                 "role": "tool",
@@ -904,10 +939,19 @@ Herhangi bir işlem başarısız olursa:
                     result["entities_created"].append(tool_result["entity"])
                 
                 # Tool sonucunu GPT-4o'ya gönder
+                # SimpleNamespace veya Pydantic olabilir, her ikisi için de çalışır
+                tool_call_dict = {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments
+                    }
+                }
                 messages.append({
                     "role": "assistant",
                     "content": None,
-                    "tool_calls": [tool_call.model_dump()]
+                    "tool_calls": [tool_call_dict]
                 })
                 messages.append({
                     "role": "tool",
@@ -2643,24 +2687,89 @@ SADECE değiştirilen hali tanımla, orijinali değil."""
             return {"success": False, "error": str(e)}
     
     async def _manage_plugin(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
-        """Creative Plugin yönetimi."""
+        """Creative Plugin yönetimi — gerçek DB kaydı."""
         try:
+            from app.models.models import CreativePlugin
+            from sqlalchemy import select
+            
             action = params.get("action")
             name = params.get("name")
+            description = params.get("description", "")
             config = params.get("config", {})
+            is_public = params.get("is_public", False)
             
             if action == "create":
                 if not name:
                     return {"success": False, "error": "Plugin adı gerekli."}
-                new_id = str(uuid.uuid4())[:8]
-                return {"success": True, "plugin_id": new_id, "message": f"'{name}' plugin'i oluşturuldu! Stil: {config.get('style', 'belirtilmemiş')}"}
+                
+                # Prompt template oluştur
+                prompt_parts = []
+                if config.get("character_tag"):
+                    prompt_parts.append(config["character_tag"])
+                if config.get("location_tag"):
+                    prompt_parts.append(f"at {config['location_tag']}")
+                if config.get("style"):
+                    prompt_parts.append(f"{config['style']} style")
+                if config.get("timeOfDay"):
+                    prompt_parts.append(f"{config['timeOfDay']} lighting")
+                if config.get("cameraAngles"):
+                    prompt_parts.append(f"angles: {', '.join(config['cameraAngles'])}")
+                
+                system_prompt = config.get("promptTemplate") or ", ".join(prompt_parts) or f"{name} tarzında görsel üret"
+                
+                # DB'ye kaydet
+                plugin = CreativePlugin(
+                    session_id=session_id,
+                    name=name,
+                    description=description or f"{name} plugin'i",
+                    icon="🧩",
+                    color="#22c55e",
+                    system_prompt=system_prompt,
+                    is_public=is_public,
+                    config=config
+                )
+                db.add(plugin)
+                await db.commit()
+                await db.refresh(plugin)
+                
+                # Hangi alanlar dolu, hangileri eksik
+                filled = []
+                missing = []
+                for field, label in [("character_tag", "Karakter"), ("location_tag", "Lokasyon"), ("style", "Stil"), ("timeOfDay", "Zaman"), ("cameraAngles", "Kamera Açıları")]:
+                    if config.get(field):
+                        filled.append(label)
+                    else:
+                        missing.append(label)
+                
+                summary = f"'{name}' plugin'i oluşturuldu!"
+                if filled:
+                    summary += f" İçerik: {', '.join(filled)}."
+                if missing:
+                    summary += f" Eksik: {', '.join(missing)} (sonradan eklenebilir)."
+                
+                return {"success": True, "plugin_id": str(plugin.id), "message": summary}
             
             elif action == "list":
-                mock = [{"id": "1", "name": "Cinematic Portrait"}, {"id": "2", "name": "Anime Style"}]
-                return {"success": True, "plugins": mock, "count": len(mock)}
+                result = await db.execute(
+                    select(CreativePlugin).where(CreativePlugin.session_id == session_id)
+                )
+                plugins = result.scalars().all()
+                plugin_list = [{"id": str(p.id), "name": p.name, "description": p.description} for p in plugins]
+                return {"success": True, "plugins": plugin_list, "count": len(plugin_list)}
             
             elif action == "delete":
-                return {"success": True, "message": "Plugin silindi."}
+                plugin_id = params.get("plugin_id")
+                if not plugin_id:
+                    return {"success": False, "error": "Plugin ID gerekli."}
+                result = await db.execute(
+                    select(CreativePlugin).where(CreativePlugin.id == uuid.UUID(plugin_id))
+                )
+                plugin = result.scalar_one_or_none()
+                if plugin:
+                    await db.delete(plugin)
+                    await db.commit()
+                    return {"success": True, "message": f"'{plugin.name}' plugin'i silindi."}
+                return {"success": False, "error": "Plugin bulunamadı."}
             
             return {"success": False, "error": f"Bilinmeyen action: {action}"}
         except Exception as e:

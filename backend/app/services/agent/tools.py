@@ -447,6 +447,55 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["image_url", "style"]
         }
+    },
+    {
+        "name": "manage_plugin",
+        "description": "Creative Plugin yönetimi. Kullanıcı 'plugin oluştur' dediğinde sohbetteki mevcut bilgileri (karakter, lokasyon, stil vb.) toplayıp HEMEN bir plugin oluştur. Tüm alanların dolu olması GEREKMEZ — elindeki ne varsa onu kullan. Eksik alan engellemez, plugin oluşturulur.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["create", "list", "delete"],
+                    "description": "İşlem tipi"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Plugin adı (create için zorunlu)"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Plugin açıklaması (opsiyonel)"
+                },
+                "plugin_id": {
+                    "type": "string",
+                    "description": "Silinecek plugin ID (delete için)"
+                },
+                "config": {
+                    "type": "object",
+                    "description": "Plugin ayarları — hepsinin dolu olması gerekmez, mevcut olanları gönder",
+                    "properties": {
+                        "style": {"type": "string", "description": "Görsel stil (örn: cinematic, anime, minimalist)"},
+                        "character_tag": {"type": "string", "description": "Karakter entity tag'i (örn: @emre)"},
+                        "location_tag": {"type": "string", "description": "Lokasyon entity tag'i (örn: @paris)"},
+                        "timeOfDay": {"type": "string", "description": "Zaman dilimi (örn: golden hour, gece)"},
+                        "cameraAngles": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Kamera açıları listesi"
+                        },
+                        "promptTemplate": {"type": "string", "description": "Prompt şablonu — kullanıcının sohbetteki isteğinden oluştur"},
+                        "aspectRatio": {"type": "string", "description": "En-boy oranı"},
+                        "model": {"type": "string", "description": "Tercih edilen model"}
+                    }
+                },
+                "is_public": {
+                    "type": "boolean",
+                    "description": "Marketplace'te herkese açık mı (varsayılan: false)"
+                }
+            },
+            "required": ["action"]
+        }
     }
 ]
 
