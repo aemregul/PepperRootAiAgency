@@ -169,10 +169,105 @@ class GeminiImageService:
                 "text_response": text_response
             }
             
+    async def edit_with_reference(
+        self,
+        prompt: str,
+        image_to_edit_url: str,
+        reference_images_urls: list[str],
+        mask_image_url: Optional[str] = None
+    ) -> dict:
+        """
+        Görseli düzenle (inpainting) ve kimliği koru.
+        
+        Args:
+            prompt: Düzenleme talimatı (inpainting prompt)
+            image_to_edit_url: Düzenlenecek ana görsel (canvas)
+            reference_images_urls: Kimlik/Nesne referansları listesi
+            mask_image_url: Opsiyonel inpainting maskesi.
+            
+        Returns:
+            dict: {success, image_url, ...}
+        """
+        from google.genai import types
+        
+        try:
+            if not image_to_edit_url:
+                return {"success": False, "error": "Düzenlenecek görsel URL'si gerekli"}
+            
+            print(f"🤖 Gemini ile düzenleme başlıyor — Canvas + {len(reference_images_urls)} referans")
+            
+            contents = []
+            async with httpx.AsyncClient(timeout=30) as http:
+                # 1. CANVAS (Düzenlenecek görsel) - HER ZAMAN İLK OLMALI
+                try:
+                    resp = await http.get(image_to_edit_url)
+                    if resp.status_code == 200:
+                        contents.append(types.Part.from_bytes(data=resp.content, mime_type=resp.headers.get("content-type", "image/png")))
+                        print(f"   📥 Canvas indirildi ({len(resp.content)} bytes)")
+                except Exception as e:
+                    return {"success": False, "error": f"Canvas görseli indirilemedi: {e}"}
+                
+                # 2. REFERANSLAR (Kimlik/Nesne referansları)
+                for i, url in enumerate(reference_images_urls[:4]): # Max 4 ek referans
+                    try:
+                        if url == image_to_edit_url: continue # Çiftleme yapma
+                        resp = await http.get(url)
+                        if resp.status_code == 200:
+                            contents.append(types.Part.from_bytes(data=resp.content, mime_type=resp.headers.get("content-type", "image/png")))
+                            print(f"   📥 Referans {i+1} indirildi ({len(resp.content)} bytes)")
+                    except Exception as e:
+                        print(f"   ⚠️ Referans {i+1} indirilemedi: {e}")
+
+            # Prompt oluştur
+            # Gemini'ye ilk görselin "değiştirilecek ana sahne" olduğunu, 
+            # diğerlerinin ise "kimlik/nesne referansı" olduğunu açıkla.
+            inpainting_prompt = (
+                f"You are an expert image editor. The VERY FIRST image provided is the ORIGINAL image (the canvas) that needs to be modified. "
+                f"The SUBSEQUENT images are identity or subject references. "
+                f"TASK: Modify the ORIGINAL image according to this instruction: {prompt}. "
+                f"CRITICAL: You MUST preserve the facial features and identity from the reference image(s) perfectly when adding or modifying people. "
+                f"Maintain the background, lighting, and style of the ORIGINAL image for everything outside the modification area. "
+                "Output the modified image."
+            )
+            
+            contents.append(inpainting_prompt)
+            
+            # API Çağrısı
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"],
+                ),
+            )
+            
+            generated_image = None
+            generated_mime = None
+            
+            if response.candidates and response.candidates[0].content:
+                for part in response.candidates[0].content.parts:
+                    if part.inline_data is not None:
+                        generated_image = part.inline_data.data
+                        generated_mime = part.inline_data.mime_type
+                        break
+            
+            if not generated_image:
+                return {"success": False, "error": "Gemini düzenlenmiş görseli üretemedi."}
+            
+            # fal.ai'ye yükle
+            image_url = await self._upload_to_fal(generated_image, generated_mime or "image/png")
+            
+            return {
+                "success": True,
+                "image_url": image_url,
+                "method_used": "gemini-inpainting-identity",
+                "message": "Görsel Gemini ile kimlik korunarak düzenlendi."
+            }
+            
         except Exception as e:
-            print(f"   ❌ Gemini üretim hatası: {e}")
-            return {"success": False, "error": f"Gemini hatası: {str(e)}"}
-    
+            print(f"   ❌ Gemini düzenleme hatası: {e}")
+            return {"success": False, "error": str(e)}
+
     async def _upload_to_fal(self, image_data: bytes, mime_type: str) -> Optional[str]:
         """Gemini'den gelen görseli fal.ai storage'a yükle."""
         try:

@@ -846,7 +846,8 @@ Kurallar:
                     db,
                     resolved_entities=result.get("_resolved_entities", []),
                     current_reference_image=result.get("_current_reference_image"),
-                    uploaded_reference_url=result.get("_uploaded_image_url")
+                    uploaded_reference_url=result.get("_uploaded_image_url"),
+                    uploaded_reference_urls=result.get("_uploaded_image_urls")
                 )
                 
                 # 🔍 DEBUG: Tool çağrısı bitti
@@ -934,7 +935,8 @@ Kurallar:
         db: AsyncSession,
         resolved_entities: list = None,
         current_reference_image: str = None,
-        uploaded_reference_url: str = None
+        uploaded_reference_url: str = None,
+        uploaded_reference_urls: list = None
     ) -> dict:
         """Araç çağrısını işle."""
         
@@ -1067,6 +1069,10 @@ Kurallar:
                 cached = self._session_reference_images.get(str(session_id)) if hasattr(self, '_session_reference_images') else None
                 if cached and cached.get("url"):
                     tool_input["face_reference_url"] = cached["url"]
+            
+            # Tüm referans URL'lerini topla (identity preservation için)
+            tool_input["all_reference_urls"] = uploaded_reference_urls or ([uploaded_reference_url] if uploaded_reference_url else [])
+            
             result = await self._edit_image(tool_input)
             if result.get("success") and result.get("image_url"):
                 try:
@@ -2171,7 +2177,10 @@ Konuşma:
             import fal_client
             import asyncio
             
-            face_ref = params.get("face_reference_url")  # Orijinal yüz için referans
+            face_ref = params.get("face_reference_url")
+            all_refs = params.get("all_reference_urls", [])
+            if face_ref and face_ref not in all_refs:
+                all_refs.insert(0, face_ref)
             
             async def _post_edit_face_swap(edited_url: str, face_ref_url: str) -> str:
                 """Edit sonrası orijinal yüzü geri koy."""
@@ -2202,98 +2211,34 @@ Konuşma:
             
             # ===== AŞAMA 1: GEMINI (True Inpainting) =====
             try:
+                from app.services.gemini_image_service import gemini_image_service
                 from app.core.config import settings as app_settings
                 gemini_api_key = app_settings.GEMINI_API_KEY
+                
                 if gemini_api_key:
-                    print(f"   🌟 Aşama 1: Gemini True Inpainting deneniyor...")
+                    print(f"   🌟 Aşama 1: Gemini True Inpainting (Identity-Aware) deneniyor...")
                     
-                    from google import genai
-                    from google.genai import types
-                    import httpx
-                    import base64
-                    import io
-                    
-                    # Görseli URL'den indir
-                    async with httpx.AsyncClient(timeout=15) as http_client:
-                        img_response = await http_client.get(image_url)
-                        img_response.raise_for_status()
-                        image_bytes = img_response.content
-                    
-                    # Content type belirle
-                    content_type = img_response.headers.get("content-type", "image/png")
-                    if "jpeg" in content_type or "jpg" in content_type:
-                        mime_type = "image/jpeg"
-                    elif "webp" in content_type:
-                        mime_type = "image/webp"
-                    else:
-                        mime_type = "image/png"
-                    
-                    print(f"   📥 Görsel indirildi ({len(image_bytes)} bytes, {mime_type})")
-                    
-                    # Gemini'ye gönder
-                    client = genai.Client(api_key=gemini_api_key)
-                    
-                    gemini_response = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            client.models.generate_content,
-                            model="gemini-2.5-flash-image",
-                            contents=[
-                                english_instruction,
-                                types.Part.from_bytes(
-                                    data=image_bytes,
-                                    mime_type=mime_type,
-                                ),
-                            ],
-                            config=types.GenerateContentConfig(
-                                response_modalities=["TEXT", "IMAGE"],
-                            ),
-                        ),
-                        timeout=60
+                    # Gemini service'in yeni metodunu kullan
+                    res = await gemini_image_service.edit_with_reference(
+                        prompt=english_instruction,
+                        image_to_edit_url=image_url,
+                        reference_images_urls=all_refs
                     )
                     
-                    # Sonuçtan görseli çıkar
-                    edited_image_data = None
-                    for part in gemini_response.candidates[0].content.parts:
-                        if part.inline_data is not None:
-                            edited_image_data = part.inline_data.data
-                            result_mime = part.inline_data.mime_type or "image/png"
-                            break
-                    
-                    if edited_image_data:
-                        # Base64 image'ı fal storage'a yükle (URL almak için)
-                        import tempfile
-                        import os
-                        suffix = ".png" if "png" in result_mime else ".jpg" if "jpeg" in result_mime else ".webp"
-                        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-                            tmp.write(edited_image_data)
-                            tmp_path = tmp.name
-                        
-                        try:
-                            uploaded_url = await asyncio.to_thread(
-                                fal_client.upload_file, tmp_path
-                            )
-                            print(f"✅ Gemini True Inpainting başarılı!")
-                            
-                            # Temp dosyayı sil
-                            os.unlink(tmp_path)
-                            
-                            return {
-                                "success": True,
-                                "image_url": uploaded_url,
-                                "original_image_url": image_url,
-                                "model": "gemini-inpainting",
-                                "method": "gemini-2.0-flash-exp-image-generation",
-                                "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
-                            }
-                        except Exception as upload_err:
-                            print(f"   ⚠️ Gemini sonuç yükleme hatası: {upload_err}")
-                            os.unlink(tmp_path)
+                    if res.get("success"):
+                        print(f"✅ Gemini True Inpainting başarılı!")
+                        return {
+                            "success": True,
+                            "image_url": res["image_url"],
+                            "original_image_url": image_url,
+                            "model": "gemini-inpainting",
+                            "method": res.get("method_used", "gemini-inpainting"),
+                            "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                        }
                     else:
-                        print(f"   ⚠️ Gemini görsel döndürmedi")
+                        print(f"   ⚠️ Gemini başarısız: {res.get('error')}")
                 else:
                     print(f"   ⚠️ GEMINI_API_KEY bulunamadı, Gemini atlanıyor")
-            except asyncio.TimeoutError:
-                print(f"   ⚠️ Gemini timeout (60s)")
             except Exception as gemini_err:
                 print(f"   ⚠️ Gemini hatası: {gemini_err}")
             
@@ -2316,7 +2261,14 @@ Konuşma:
                 if result and "images" in result and len(result["images"]) > 0:
                     edited_url = result["images"][0]["url"]
                     print(f"✅ Nano Banana Pro Edit başarılı!")
-                    final_url = await _post_edit_face_swap(edited_url, face_ref)
+                    
+                    # AKILLI FALLBACK: Tüm referansları dene
+                    final_url = edited_url
+                    if all_refs:
+                        # İlk olarak face_ref dene, yoksa listedeki ilkini
+                        top_face_ref = face_ref if face_ref else all_refs[0]
+                        final_url = await _post_edit_face_swap(edited_url, top_face_ref)
+                    
                     return {
                         "success": True,
                         "image_url": final_url,
@@ -2348,7 +2300,13 @@ Konuşma:
                 if result and "images" in result and len(result["images"]) > 0:
                     edited_url = result["images"][0]["url"]
                     print(f"✅ GPT Image 1 Edit başarılı!")
-                    final_url = await _post_edit_face_swap(edited_url, face_ref)
+                    
+                    # AKILLI FALLBACK
+                    final_url = edited_url
+                    if all_refs:
+                        top_face_ref = face_ref if face_ref else all_refs[0]
+                        final_url = await _post_edit_face_swap(edited_url, top_face_ref)
+                    
                     return {
                         "success": True,
                         "image_url": final_url,
@@ -2379,15 +2337,21 @@ Konuşma:
                 
                 if result and "images" in result and len(result["images"]) > 0:
                     edited_url = result["images"][0]["url"]
-                    print(f"✅ FLUX Kontext Pro başarılı!")
-                    final_url = await _post_edit_face_swap(edited_url, face_ref)
+                    print(f"✅ Image-to-image fallback başarılı!")
+                    
+                    # AKILLI FALLBACK
+                    final_url = edited_url
+                    if all_refs:
+                        top_face_ref = face_ref if face_ref else all_refs[0]
+                        final_url = await _post_edit_face_swap(edited_url, top_face_ref)
+                    
                     return {
                         "success": True,
                         "image_url": final_url,
                         "original_image_url": image_url,
-                        "model": "flux-kontext-pro" + ("+face-swap" if final_url != edited_url else ""),
-                        "method": "fal-ai/flux-pro/kontext",
-                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                        "model": "i2i-fallback" + ("+face-swap" if final_url != edited_url else ""),
+                        "method": "fal-ai/nano-banana-pro",
+                        "message": f"Görsel yeniden üretilerek düzenlendi: {edit_instruction}"
                     }
             except asyncio.TimeoutError:
                 print(f"   ⚠️ FLUX Kontext Pro timeout (45s)")
