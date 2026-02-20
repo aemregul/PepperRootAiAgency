@@ -54,7 +54,10 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 8: Agent Intelligence Upgrade | ✅ Tamamlandı | %100 |
 | Hafta 9: Advanced Features (Phase 2) | ✅ Tamamlandı | %100 |
 | Hafta 10: UI Redesign + Localization | ✅ Tamamlandı | %100 |
-| Hafta 11: Gemini + Multi-Image + Edit Pipeline | 🟡 Devam Ediyor | %60 |
+| Hafta 11: Gemini + Multi-Image + Edit Pipeline | ✅ Tamamlandı | %100 |
+| Faz 12-15: Agent Memory & Web Vision | ✅ Tamamlandı | %100 |
+| Faz 16: Autonomous Video Director | ✅ Tamamlandı | %100 |
+| Faz 17: Smart Multi-Model Video Engine | 🟡 Planlandı | %0 |
 
 ---
 
@@ -288,16 +291,18 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (20 Şubat 2026 - 22:55)
+## 🎯 SON DURUM (21 Şubat 2026 - 02:20)
 
-**� FAZLAR + YENİ ÖZELLİKLER:**
+**🚀 FAZLAR + YENİ ÖZELLİKLER:**
 
-- ✅ **Faz 1-9:** Tamamlandı (detaylar yukarıda)
-- ✅ **Faz 10:** Gemini Image Edit entegrasyonu + Prompt Enrichment
-- ✅ **Faz 11:** Çoklu Görsel Yükleme (Max 10)
-- 🟡 **Faz 12:** Hibrit Görsel Üretim (Gemini + fal.ai) — Devam Edecek
+- ✅ **Faz 1-10:** Tamamlandı (detaylar yukarıda)
+- ✅ **Faz 11:** Çoklu Görsel Yükleme (Max 10) & Gemini Image Edit
+- ✅ **Faz 12-13:** Implicit Core Memory (Kullanıcıyı dolaylı yoldan tanıma ve hafızaya kaydetme)
+- ✅ **Faz 14-15:** Web-Aware Vision (Eksik detayları web'ten arayıp görsele yedirme, analiz etme)
+- ✅ **Faz 16:** Autonomous Video Director (Uzun videoların arka planda *BackgroundTasks* ile üretilmesi ve işlem bitince *WebSocket* üzerinden push bildirim atması)
+- 🟡 **Faz 17:** Smart Multi-Model Video Engine (Kling, Luma, Runway, Minimax, Veo 3.1) — **SIRADA**
 
-**Toplam Kod:** 7000+ satır | **26 Agent Tool**
+**Toplam Kod:** 8000+ satır | **28 Agent Tool**
 
 ---
 
@@ -306,11 +311,11 @@ git add . && git commit -m "mesaj" && git push
 - [ ] Deploy: Railway (Backend) + Vercel (Frontend)
 - [ ] Canlı ortam testleri
 - [x] **Teknik Test (26 Madde): 53/54 ✅**
-- [ ] **Hibrit Görsel Üretim Pipeline (B Seçeneği) ⭐ SIRADA:**
-  - [ ] Referans görsel varsa → Gemini ile üret (yüz kimliği korunur)
-  - [ ] Referans yoksa → mevcut fal.ai pipeline devam etsin
-  - [ ] @tag ile karakter referansı varsa → otomatik Gemini'ye yönlendir
-  - [ ] Face swap gereksiz olacak — Gemini native identity preservation
+- [ ] **Smart Multi-Model Video Engine (Faz 17) ⭐ SIRADA:**
+  - [ ] Google Veo 3.1 entegrasyonu (Ana model)
+  - [ ] `generate_video` aracına `{model: veo|kling|luma|runway|minimax}` parametresi eklenmesi
+  - [ ] Uzun videolarda her sahne için ayrı model seçimi (Per-Scene Adaptive Routing)
+- [ ] **Kısa Video Optimizasyonu:** `generate_video` aracının da senkrandan asenkrona (BackgroundTasks) taşınması
 - [ ] **Video Yükleme Desteği:**
   - [ ] File picker'da video kabul (mp4, mov, webm)
   - [ ] 10 saniye limit kontrolü
@@ -324,7 +329,31 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 📝 SON GELİŞMELER (19 Şubat 2026 - 23:45)
+## 📝 SON GELİŞMELER (21 Şubat 2026 - Gece)
+
+### 🎬 Autonomous Video Director (Faz 16 Tamamlandı) ⭐ YENİ
+1. **Asenkron Mimari (Backend):**
+   - Uzun videolar 3-4 dakika sürdüğü için API request'ini bloklamaması adına `BackgroundTasks` entegrasyonu yapıldı.
+   - Oratoryo `generate_long_video` tool'unu çağırır çağırmaz işlem arka plana atılıyor ve kullanıcıya "Üretime başladım!" denilip frontend kilitlenmekten kurtuluyor.
+2. **WebSocket & Progress Push:**
+   - Arka plandaki video üretimi tamamlandığında sistem otomatik olarak veritabanına yeni bir `ChatMessage` oluşturuyor (Asistandan gelmiş gibi).
+   - Yeni mesaj, aktif kullanıcı oturumuna WebSocket Manager üzerinden `message_created` eventiyle anlık iletiliyor.
+3. **Web-Enhanced Scene Routing (Director Logic):**
+   - System prompt güncellenerek ajans "Yönetmen" kimliğine büründürüldü: Sahneleri planlayıp aralarda eksik olan görselleri `search_images` ile webt'en araştırıyor.
+   - Bulduğu referans "URL"leri `VideoSegment` içerisine `reference_image_url` olarak besleyip doğrudan `Image-to-Video` (i2v) çıktı almayı sağlıyor.
+
+### 🧠 Gemini True Inpainting & Multi-Model Image Yeteneği ⭐ YENİ
+1. **Google Cloud Gemini Entegrasyonu:**
+   - Fal.ai üzerindeki model sorunlarını (outpaint, nesne kaldırma kusurları vs.) kökten çözmek için Google Gemini 2.5 API'ı (`gemini_image_service.py`) sisteme dahil edildi.
+   - Düzenleme (edit_image) komutlarında "maskesiz doğal blending" yeteneği sayesinde "kediyi kaldır", "gözlüğü sil" komutlarını mükemmel uyguluyor.
+2. **Face Identity Preservation (Yüz Koruma):**
+   - Sistem bir yüz referansına sahipse her düzenlemede/retouch işleminde yüzün bütünlüğünü %100 koruyup kıyafet veya arka planı değiştirme operasyonunu sorunsuz hallediyor.
+
+### 📝 Core Memory & Web Vision Tamamlandı (Faz 12-15) ⭐ YENİ
+1. **Kalıcı Hafıza Aracı (`remember_user_preference`):**
+   - Sistem konuşmaları dinleyerek kullanıcının sevdiği marka tonlarını, sevmediği arka planları kendi kendine (implicit) öğrenip Redis+DB'ye Core Memory olarak kazıyor.
+2. **Web Görsel Analizi (`analyze_image` & `save_web_asset`):**
+   - Webt'en veya url ile gelen görselleri GPT-4o Vision ile direkt analiz edip "Bu kadının sağ kolunda yılan dövmesi var" benzeri prompt içi veriye (context injection) dönüştürüyor ve istenirse direkt projeye "Medya Varlığı" olarak indirebiliyor.
 
 ### 🎨 Prompt Enrichment Pipeline (19 Şubat - PM) ⭐ YENİ
 

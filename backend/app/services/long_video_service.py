@@ -25,6 +25,7 @@ class VideoSegment:
     duration: str  # "5" veya "10" (fal.ai string istiyor)
     status: str  # pending, generating, completed, failed
     video_url: Optional[str] = None
+    reference_image_url: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -68,7 +69,7 @@ class LongVideoService:
         self, 
         base_prompt: str, 
         total_duration: int,
-        scene_descriptions: Optional[List[str]] = None
+        scene_descriptions: Optional[List[Any]] = None
     ) -> List[VideoSegment]:
         """
         Prompt'u segment'lere böl.
@@ -89,13 +90,22 @@ class LongVideoService:
             for desc in scene_descriptions:
                 if remaining_duration <= 0:
                     break
+                
+                if isinstance(desc, dict):
+                    prompt_txt = desc.get("prompt", str(desc))
+                    ref_img = desc.get("reference_image_url")
+                else:
+                    prompt_txt = str(desc)
+                    ref_img = None
+                    
                 dur = min(segment_duration, remaining_duration)
                 segments.append(VideoSegment(
                     id=str(uuid.uuid4()),
                     order=order,
-                    prompt=desc,
+                    prompt=prompt_txt,
                     duration=str(dur),
-                    status="pending"
+                    status="pending",
+                    reference_image_url=ref_img
                 ))
                 remaining_duration -= dur
                 order += 1
@@ -149,7 +159,7 @@ class LongVideoService:
         prompt: str,
         total_duration: int = 60,
         aspect_ratio: str = "16:9",
-        scene_descriptions: Optional[List[str]] = None,
+        scene_descriptions: Optional[List[Any]] = None,
         progress_callback=None
     ) -> dict:
         """
@@ -274,11 +284,16 @@ class LongVideoService:
             segment.status = "generating"
             
             # FalPluginV2.execute kullan
-            result = await fal.execute("generate_video", {
+            payload = {
                 "prompt": segment.prompt,
                 "duration": segment.duration,
                 "aspect_ratio": aspect_ratio,
-            })
+            }
+            if segment.reference_image_url:
+                payload["image_url"] = segment.reference_image_url
+                print(f"🖼️ Scene {segment.order + 1} has reference image! Switching to Image-to-Video.")
+                
+            result = await fal.execute("generate_video", payload)
             
             if result.success and result.data:
                 segment.video_url = result.data.get("video_url")

@@ -125,7 +125,7 @@ async def _process_chat(
     
     # OpenAI formatına çevir - HATA MESAJLARINI FİLTRELE
     conversation_history = []
-    last_reference_url_from_history = None  # DB'den referans URL çıkar
+    last_reference_urls_from_history = []  # DB'den referans URL listesi çıkar
     
     for msg in previous_messages:
         content = msg.content.lower() if msg.content else ""
@@ -149,7 +149,7 @@ async def _process_chat(
                 urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
                 if urls:
                     msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
-                    last_reference_url_from_history = urls[-1]  # Son üretilen görseli referans olarak kaydet
+                    last_reference_urls_from_history.extend(urls)  # Tüm üretilen görselleri referans olarak kaydet
             if videos:
                 urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
                 if urls:
@@ -158,8 +158,12 @@ async def _process_chat(
         # User mesajlarında referans görsel URL'si varsa çıkar
         if msg.role == "user" and msg.metadata_:
             meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            # Eski tekil yapı
             if meta.get("has_reference_image") and meta.get("reference_url"):
-                last_reference_url_from_history = meta["reference_url"]
+                last_reference_urls_from_history = [meta["reference_url"]]
+            # Yeni çoklu yapı
+            elif meta.get("reference_urls") and isinstance(meta.get("reference_urls"), list):
+                last_reference_urls_from_history = meta["reference_urls"]
         
         conversation_history.append({
             "role": msg.role,
@@ -182,7 +186,7 @@ async def _process_chat(
             conversation_history=conversation_history,
             reference_image=primary_image,
             reference_images=reference_images_base64,
-            last_reference_url=last_reference_url_from_history
+            last_reference_urls=last_reference_urls_from_history
         )
     except Exception as e:
         import traceback

@@ -124,7 +124,8 @@ Türkçe yaz. Sadece özet, başka bir şey yazma."""
                 "summaries": [],
                 "preferences": {},
                 "successful_prompts": [],
-                "style_preferences": {}
+                "style_preferences": {},
+                "core_memories": []
             }
         
         return memory
@@ -137,6 +138,11 @@ Türkçe yaz. Sadece özet, başka bir şey yazma."""
         memory = await self.get_user_memory(user_id)
         
         parts = []
+        
+        # Core Memories (Kullanıcı Gerçekleri)
+        if memory.get("core_memories"):
+            core_text = "\n".join([f"- {m['fact']} (Kategori: {m.get('category', 'genel')})" for m in memory["core_memories"][-10:]])
+            parts.append(f"👤 KULLANICI HAKKINDA BİLDİKLERİN (CORE MEMORY):\n{core_text}")
         
         # Geçmiş sohbet özetleri
         if memory.get("summaries"):
@@ -280,6 +286,76 @@ Türkçe yaz. Sadece özet, başka bir şey yazma."""
         memory["style_preferences"][style_key] = style_value
         await cache.set_json(memory_key, memory, ttl=604800)
 
+    # ===============================
+    # CORE MEMORY (ÇEKİRDEK HAFIZA)
+    # ===============================
+    
+    async def save_core_memory(
+        self,
+        user_id: uuid.UUID,
+        category: str,
+        fact: str
+    ):
+        """Kullanıcının temel bir özelliğini veya kuralını kalıcı hafızaya kaydet."""
+        from app.core.cache import cache
+        
+        memory_key = f"user_memory:{user_id}"
+        memory = await cache.get_json(memory_key) or {
+            "summaries": [],
+            "preferences": {},
+            "successful_prompts": [],
+            "style_preferences": {},
+            "core_memories": []
+        }
+        
+        if "core_memories" not in memory:
+            memory["core_memories"] = []
+            
+        memory["core_memories"].append({
+            "category": category,
+            "fact": fact,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        await cache.set_json(memory_key, memory, ttl=604800)
+        print(f"🧠 Core memory eklendi ({category}): {fact[:50]}...")
+
+    async def delete_core_memory(self, user_id: uuid.UUID, fact_query: str) -> bool:
+        """Belirli bir cümleye veya içeriğe uyan hafızayı sil."""
+        from app.core.cache import cache
+        
+        memory_key = f"user_memory:{user_id}"
+        memory = await cache.get_json(memory_key)
+        
+        if not memory or "core_memories" not in memory:
+            return False
+            
+        initial_length = len(memory["core_memories"])
+        
+        # Eğer fact_query tam eşleşiyorsa veya içeriyorsa sil (case-insensitive)
+        memory["core_memories"] = [
+            m for m in memory["core_memories"]
+            if fact_query.lower() not in m["fact"].lower()
+        ]
+        
+        if len(memory["core_memories"]) < initial_length:
+            await cache.set_json(memory_key, memory, ttl=604800)
+            print(f"🗑️ Core memory silindi: '{fact_query}'")
+            return True
+            
+        return False
+        
+    async def clear_core_memories(self, user_id: uuid.UUID):
+        """Kullanıcının tüm çekirdek hafızasını temizle."""
+        from app.core.cache import cache
+        
+        memory_key = f"user_memory:{user_id}"
+        memory = await cache.get_json(memory_key)
+        
+        if memory and "core_memories" in memory:
+            memory["core_memories"] = []
+            await cache.set_json(memory_key, memory, ttl=604800)
+            print("🧹 Tüm core memory temizlendi.")
 
 # Singleton
 conversation_memory = ConversationMemoryService()

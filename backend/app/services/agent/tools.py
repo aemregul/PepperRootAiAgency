@@ -45,6 +45,11 @@ AGENT_TOOLS_ANTHROPIC = [
                     "type": "string",
                     "enum": ["1K", "2K", "4K"],
                     "description": "Görselin çözünürlüğü."
+                },
+                "additional_reference_urls": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Kullanıcının gönderdiği referans görsele EK OLARAK eklenecek, internetten (search_images aracıyla) bulduğun referans resimlerin URL listesi (Multi-Image mantığı için)."
                 }
             },
             "required": ["prompt"]
@@ -141,8 +146,15 @@ AGENT_TOOLS_ANTHROPIC = [
                 "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
                 "scene_descriptions": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Opsiyonel: Her sahne için ayrı açıklama listesi. Verilmezse otomatik sinematik sahneler oluşturulur."
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "prompt": {"type": "string", "description": "Sahne açıklaması"},
+                            "reference_image_url": {"type": "string", "description": "Sahne için kullanılacak referans görselin URL'si (search_images'dan vb.)"}
+                        },
+                        "required": ["prompt"]
+                    },
+                    "description": "Opsiyonel: Sahnelerin açıklamaları. Eğer bu sahne için internetten bulduğun harika bir görsel varsa, URL'sini ekle ki doğrudan Image-to-Video (i2v) yapılsın!"
                 }
             },
             "required": ["prompt"]
@@ -495,6 +507,103 @@ AGENT_TOOLS_ANTHROPIC = [
                 }
             },
             "required": ["action"]
+        }
+    },
+    {
+        "name": "manage_core_memory",
+        "description": "Kullanıcının kendisi hakkında verdiği bilgileri kalıcı hafızada (Core Memory) yönetir. Kullanıcı bir tercihi belirtirse ekle (add). Fikrini değiştirirse veya silmeni isterse sil (delete). Tüm hafızayı sıfırlamak isterse temizle (clear).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["add", "delete", "clear"],
+                    "description": "İşlem tipi. Yeni bilgi eklemek için 'add', eski bir bilgiyi unutmak için 'delete', her şeyi sıfırlamak için 'clear'."
+                },
+                "fact_category": {
+                    "type": "string",
+                    "enum": ["style", "identity", "brand", "general", "workflow"],
+                    "description": "Bilginin kategorisi (sadece 'add' işleminde gereklidir)"
+                },
+                "fact_description": {
+                    "type": "string",
+                    "description": "Kaydedilecek veya SİLİNECEK bilgi içeriği (örn: 'Kullanıcı Nike markası için çalışıyor'). 'clear' işleminde boş kalabilir."
+                }
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "search_web",
+        "description": "DuckDuckGo üzerinden internette genel metin araması yapar. Bilinmeyen kavramları, konuları, son dakika olaylarını araştırmak için kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Arama terimi"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "description": "Kaç sonuç getirileceği (varsayılan: 5)"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "search_images",
+        "description": "DuckDuckGo Görsel Arama üzerinden internetten resimler bulur. Resim linklerini (URL) döner. Bir karakterin/kişinin/objenin referans resimlerini (dövmeleri, vücut yapısı vs.) bulmak için kullanırsan, bu URL'leri `generate_image` çağrısındaki `additional_reference_urls` içerisine verebilirsin.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Arama terimi (örn: 'johnny depp tattoos shirtless', 'golden retriever running high quality')"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "description": "Kaç resim sonucunun URL'si getirilsin (varsayılan: 3)"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "analyze_image",
+        "description": "GPT-4o Vision kullanarak webt'en veya sohbetten alınmış bir resmin (URL'nin) içeriğini saniyeler içinde analiz eder. Mesela bulduğun bir adamın fotoğrafında dövmeleri nerede, neye benziyor veya fotoğrafta ne tür detaylar var öğrenmek istersen bu aracı kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string",
+                    "description": "Analiz edilecek resmin URL adresi (https://... veya data:image/...)"
+                },
+                "question": {
+                    "type": "string",
+                    "description": "Modele resimle ilgili soracağın açık, spesifik soru (örn: 'Bu karakterin dövmeleri tam olarak vücudunun neresinde ve neye benziyor, detaylıca tasvir et?')"
+                }
+            },
+            "required": ["image_url", "question"]
+        }
+    },
+    {
+        "name": "save_web_asset",
+        "description": "Webt'en bulduğun veya kullanıcının çok beğeneceği bir resim URL'sini doğrudan sistemdeki (DB) Media Asset'lere kalıcı olarak kaydeder. Kullanıcı 'bu resmi bana indir/panelime kaydet' dediğinde bunu kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "asset_url": {
+                    "type": "string",
+                    "description": "Kaydedilecek dosyanın kalıcı URL linki"
+                },
+                "asset_type": {
+                    "type": "string",
+                    "enum": ["image", "video"],
+                    "description": "Medyanın türü"
+                }
+            },
+            "required": ["asset_url", "asset_type"]
         }
     }
 ]

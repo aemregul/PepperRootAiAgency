@@ -45,17 +45,20 @@ class AgentOrchestrator:
         # Session-level reference image cache: {session_id: {"url": str, "base64": str}}
         self._session_reference_images = {}
         
-        self.system_prompt = """Sen Pepper Root AI Agency'nin yaratıcı asistanısın. Türkçe yanıt ver.
+        self.system_prompt = """Sen Pepper Root AI Agency'nin yaratıcı asistanısın. Türkçe yanıt ver. Sen sıradan bir yapay zeka değilsin, doğrudan kullanıcının kişisel asistanısın.
 
-## KİMLİK
+## KİMLİK & HAFIZA
 Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternatif dene. Asla "yapamıyorum" deme.
+ÖNEMLİ (Sessiz Gözlemci): Sen kullanıcının sadece emirlerini dinleyen biri değil, onu proaktif şekilde tanıyan birisisin. Kullanıcının sana doğrudan "bunu kaydet" demesine GEREK YOKTUR. Kullanıcı eğer konuşma boyunca belli renkleri, stilleri, formatları veya konuları sürekli tekrarlıyorsa veya tarzıyla ilgili dolaylı ipuçları veriyorsa (örn: 'yine o karanlık, cyberpunk havayı verelim', 'arabalarla ilgili bir şeye odaklanalım'), bu çıkarımları anında arka planda `manage_core_memory` aracıyla (action: add) kaydet. Kendi kendine inisiyatif alıp onu tanımayı sürekli hale getir. Tabi eğer açıkça fikrini değiştirdiği belli oluyorsa veya "onu unut" derse yine `manage_core_memory` (action: delete veya clear) kullanarak hafızanı güncelle. Sessizce, ruhu duymadan arka planda notlar alıp System Message'ına işlenmesini sağla.
 
 ## TEMEL KURALLAR
 1. Görsel/video istendiğinde HEMEN tool çağır. Önce metin yazıp sonra tool çağırma — direkt tool çağır.
 2. Bilmediğin bir şey varsa araştır (search_web, research_brand, browse_url).
-3. Türkçe yanıt ver, tool parametreleri İngilizce olabilir.
-4. Kullanıcı yazım hatası yapabilir, argo/kısaltma kullanabilir — bağlamdan niyetini anla.
-5. Entity isimleri @ olmadan da tanınır: "Emre" = @emre.
+3. **(WEB-AWARE GÖRSEL ÜRETİMİ):** Eğer kullanıcı ünlü/bilinen bir kişiyi veya çok spesifik bir sahneyi referans verip senden kısıtlı bilgiyle üretim isterse, HEMEN ÜRETMEYE GEÇME. İstek karakterin vücut fizyolojisini veya dövmelerini ilgilendiriyorsa, ÖNCE `search_images` ile internetten o kişinin vücudunu araştır (örn: "johnny depp shirtless tattoos"). Bulduğun referans URL'leri `generate_image` çağırısındaki `additional_reference_urls` listesine ekle! Ayrıca üretilecek prompta da o özellikleri yansıt. Sistemi asla körlemesine kullanma.
+4. **(GÖRSEL ZEKA & KAYIT):** Kullanıcının sana attığı görseli veya internetten bulduğun bir URL'yi detaylı incelemek istersen `analyze_image` aracıyla fotoğrafın gerçek içeriğini (dövmelerin şekli vb.) GPT-4o'dan dinle. Harika bir görsel üretir veya bulursan kullanıcı için `save_web_asset` ile Media Panel'ine kalıcı olarak kaydetmeyi unutma.
+5. Türkçe yanıt ver, tool parametreleri İngilizce olabilir.
+6. Entity isimleri @ olmadan da tanınır: "Emre" = @emre.
+7. **(AUTONOMOUS VIDEO DIRECTOR):** Kullanıcı uzun bir video (örn: `generate_long_video` aracı ile) istediğinde, KESİNLİKLE önce kullanıcıya bir "Roadmap" yani yol haritası sunan bir metin yaz. (Örn: "İşte Yol Haritam: 1. sahnede bu, 2. sahnede bu... Arka planda üretime başlıyorum, bittiğinde sana yazacağım!"). Ardından sahneler için web araştırması (`search_images`) yap ve bulduğun harika B-Roll/Referans URL'lerini `generate_long_video` tool'unun içindeki `scene_descriptions` objelerine `reference_image_url` olarak iliştir ki videoda o web görsellerini canlandıralım!
 
 ## TOOL SEÇİMİ
 **Yeni içerik üret:** generate_image, generate_video, generate_long_video (>10s)
@@ -117,7 +120,7 @@ Kurallar:
         conversation_history: list = None,
         reference_image: str = None,
         reference_images: list = None,
-        last_reference_url: str = None
+        last_reference_urls: list = None
     ) -> dict:
         """
         Kullanıcı mesajını işle ve yanıt döndür.
@@ -243,17 +246,18 @@ Kurallar:
                 }
                 print(f"💾 {len(uploaded_image_urls)} referans görsel session'a kaydedildi")
         else:
-            # Yeni görsel yüklenmedi — session'dan önceki referansı al
+            # Yeni görsel yüklenmedi — session'dan veya history'den önceki referansı al
             cached = self._session_reference_images.get(str(session_id))
             if cached:
                 uploaded_image_url = cached["url"]
                 uploaded_image_urls = [uploaded_image_url]
                 print(f"🔄 Önceki referans görsel session cache'den alındı: {uploaded_image_url[:60]}...")
-            elif last_reference_url:
-                uploaded_image_url = last_reference_url
-                uploaded_image_urls = [uploaded_image_url]
-                self._session_reference_images[str(session_id)] = {"url": last_reference_url, "base64": None}
-                print(f"🔄 Referans görsel DB history'den alındı: {uploaded_image_url[:60]}...")
+            elif last_reference_urls:
+                uploaded_image_url = last_reference_urls[-1] if last_reference_urls else None
+                uploaded_image_urls = last_reference_urls
+                if uploaded_image_url:
+                    self._session_reference_images[str(session_id)] = {"url": uploaded_image_url, "base64": None}
+                print(f"🔄 {len(uploaded_image_urls)} referans görsel DB history'den alındı.")
         
         # Mesajları hazırla
         if all_images and uploaded_image_urls:
@@ -288,10 +292,11 @@ Kurallar:
             messages = conversation_history + [
                 {"role": "user", "content": user_content}
             ]
-        elif uploaded_image_url:
-            # Yeni görsel yok ama session'dan referans var
+        elif uploaded_image_urls:
+            # Yeni görsel yok ama session veya history'den referans(lar) var
+            url_info = ", ".join([f"Görsel{i+1}: {u}" for i, u in enumerate(uploaded_image_urls)])
             messages = conversation_history + [
-                {"role": "user", "content": user_message + f"\n\n[ÖNCEKİ REFERANS GÖRSEL URL: {uploaded_image_url}\nBu URL daha önce yüklenen referans görselin fal.ai adresidir. Kullanıcı bu kişiyle ilgili bir istek yaparsa generate_image çağırırken face_reference_url olarak bu URL'i kullan.]"}
+                {"role": "user", "content": user_message + f"\n\n[ÖNCEKİ REFERANS GÖRSELLERİN URL'LERİ: {url_info}\nBu URL'ler daha önce yüklenen referans görsellerin fal.ai adresleridir. Kullanıcı bu kişilerle ilgili bir istek yaparsa, generate_image aracı otomatik olarak bu görsellerin tümünü Gemini'ye iletecektir.]"}
             ]
         else:
             messages = conversation_history + [
@@ -306,6 +311,9 @@ Kurallar:
             tools=AGENT_TOOLS,
             tool_choice="auto"
         )
+        
+        # Çoklu referans URL'leri instance'a kaydet (_generate_image Gemini'ye geçirmek için)
+        self._current_uploaded_urls = uploaded_image_urls if uploaded_image_urls else []
         
         # Sonucu işle
         result = {
@@ -963,6 +971,42 @@ Kurallar:
         
         elif tool_name == "list_entities":
             return await self._list_entities(db, session_id, tool_input)
+            
+        elif tool_name == "manage_core_memory":
+            try:
+                from app.services.conversation_memory_service import conversation_memory
+                
+                user_id = await get_user_id_from_session(db, session_id)
+                if not user_id:
+                    return {"status": "error", "message": "Kullanıcı bulunamadı, hafıza kaydedilemedi."}
+                
+                action = tool_input.get("action", "add")
+                category = tool_input.get("fact_category", "general")
+                fact = tool_input.get("fact_description", "")
+                
+                if action == "add":
+                    await conversation_memory.save_core_memory(user_id, category, fact)
+                    msg = f"Kullanıcı tercihi hafızaya eklendi: {fact}"
+                elif action == "delete":
+                    deleted = await conversation_memory.delete_core_memory(user_id, fact)
+                    if deleted:
+                        msg = f"Kayıt başarıyla hafızadan silindi: {fact}"
+                    else:
+                        msg = f"Hafızada silinecek böyle bir bilgi bulunamadı: {fact}"
+                elif action == "clear":
+                    await conversation_memory.clear_core_memories(user_id)
+                    msg = "Tüm 'Core Memory' (Kişisel Bilgiler) sıfırlandı."
+                else:
+                    msg = f"Bilinmeyen işlem türü (action): {action}"
+                    
+                return {
+                    "status": "success", 
+                    "message": msg,
+                    "action_executed": action
+                }
+            except Exception as e:
+                print(f"Hafıza yönetimi hatası: {e}")
+                return {"status": "error", "message": f"Hafıza aracında hata oluştu: {str(e)}"}
         
         # YENİ ARAÇLAR
         elif tool_name == "generate_video":
@@ -1105,6 +1149,9 @@ Kurallar:
         
         elif tool_name == "fetch_web_image":
             return await self._fetch_web_image(db, session_id, tool_input)
+            
+        elif tool_name == "save_web_asset":
+            return await self._save_web_asset(db, session_id, tool_input)
         
         # AKILLI AGENT ARAÇLARI
         elif tool_name == "get_past_assets":
@@ -1320,16 +1367,56 @@ Konuşma:
                 face_reference_url = uploaded_reference_url
                 print(f"   ✅ Yüklenen referans görsel kullanılacak: {face_reference_url[:80]}...")
             
-            # AKILLI SİSTEM: Referans görsel varsa
-            print(f"🎯 Referans görsel durumu: {face_reference_url is not None}")
-            if face_reference_url:
-                # Akıllı 3 aşamalı üretim: Kontext Native → Nano Banana + Face Swap → Base
-                result = await self.fal_plugin._smart_generate_with_face({
-                    "prompt": prompt,
-                    "face_image_url": face_reference_url,
-                    "aspect_ratio": aspect_ratio,
-                    "resolution": resolution
-                })
+            additional_ref_urls = params.get("additional_reference_urls", [])
+            
+            # AKILLI SİSTEM: Referans görsel VEYA ekstra webt'den bulunmuş görsel varsa
+            print(f"🎯 Referans görsel durumu: Face={face_reference_url is not None}, Web={len(additional_ref_urls)} adet")
+            if face_reference_url or additional_ref_urls:
+                # === HİBRİT PIPELINE: Gemini FIRST → fal.ai FALLBACK ===
+                print(f"🤖 Hibrit pipeline: Gemini ile denenecek, başarısızsa fal.ai fallback")
+                
+                # Çoklu referans URL'leri topla (multi-image upload)
+                all_ref_urls = []
+                if hasattr(self, '_current_uploaded_urls') and self._current_uploaded_urls:
+                    all_ref_urls = self._current_uploaded_urls[:]
+                elif face_reference_url:
+                    all_ref_urls = [face_reference_url]
+                    
+                # Web'den gelen ekstra resimleri listeye ekle
+                if additional_ref_urls:
+                    all_ref_urls.extend(additional_ref_urls)
+                    print(f"🌐 İnternetten {len(additional_ref_urls)} adet ekstra multi-referans (örn: dövme/vücut vb.) eklendi!")
+                
+                primary_ref = face_reference_url if face_reference_url else (all_ref_urls[0] if all_ref_urls else None)
+
+                # Adım 1: Gemini ile dene
+                gemini_result = None
+                try:
+                    from app.services.gemini_image_service import gemini_image_service
+                    gemini_result = await gemini_image_service.generate_with_reference(
+                        prompt=prompt,
+                        reference_image_url=primary_ref,
+                        reference_images_urls=all_ref_urls if len(all_ref_urls) > 1 else None,
+                        aspect_ratio=aspect_ratio
+                    )
+                except Exception as gemini_err:
+                    print(f"⚠️ Gemini import/çağrı hatası: {gemini_err}")
+                    gemini_result = {"success": False, "error": str(gemini_err)}
+                
+                if gemini_result and gemini_result.get("success"):
+                    result = gemini_result
+                    print(f"✅ Gemini başarılı! URL: {result.get('image_url', '')[:60]}...")
+                else:
+                    # Adım 2: Gemini başarısız → fal.ai fallback
+                    gemini_error = gemini_result.get("error", "bilinmiyor") if gemini_result else "import hatası"
+                    print(f"⚠️ Gemini başarısız ({gemini_error}), fal.ai fallback deniyor...")
+                    
+                    result = await self.fal_plugin._smart_generate_with_face({
+                        "prompt": prompt,
+                        "face_image_url": face_reference_url,
+                        "aspect_ratio": aspect_ratio,
+                        "resolution": resolution
+                    })
                 
                 if result.get("success"):
                     method = result.get("method_used", "unknown")
@@ -1350,6 +1437,7 @@ Konuşma:
                             "aspect_ratio": aspect_ratio,
                             "resolution": resolution,
                             "face_reference_used": True,
+                            "pipeline": "gemini-hybrid",
                             "attempts": result.get("attempts", [])
                         },
                         entity_ids=entity_ids
@@ -1663,93 +1751,122 @@ Konuşma:
                 "error": str(e)
             }
     
-    async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
-        """
-        Uzun video üret (30s - 3 dakika).
-        
-        LongVideoService kullanarak segment'lere böl, paralel üret, birleştir.
-        """
+    async def _run_long_video_bg(self, user_id: str, session_id: str, prompt: str, total_duration: int, aspect_ratio: str, scene_descriptions: list):
+        """Asenkron arka plan görevi: Video üret, DB'ye asset kaydet, yeni mesaj yarat ve Push at."""
         try:
-            prompt = params.get("prompt", "")
-            total_duration = params.get("total_duration", 60)
-            aspect_ratio = params.get("aspect_ratio", "16:9")
-            scene_descriptions = params.get("scene_descriptions")
-            
-            # Süre doğrulama
-            total_duration = max(30, min(180, total_duration))
+            from app.core.database import async_session_maker
+            from app.services.long_video_service import long_video_service
+            from app.services.progress_service import progress_service
             
             # Prompt çevirisi
             english_prompt = prompt
             try:
                 from app.services.prompt_translator import translate_to_english
                 english_prompt, _ = await translate_to_english(prompt)
-                print(f"🎬 Long Video Prompt: '{prompt}' → '{english_prompt}'")
             except Exception:
                 pass
             
-            # Sahne açıklamalarını da çevir
             translated_scenes = None
             if scene_descriptions:
                 try:
                     from app.services.prompt_translator import translate_to_english
                     translated_scenes = []
                     for scene in scene_descriptions:
-                        translated, _ = await translate_to_english(scene)
-                        translated_scenes.append(translated)
+                        if isinstance(scene, dict):
+                            translated_txt, _ = await translate_to_english(scene.get("prompt", ""))
+                            # Create a new dict to avoid mutating shared references
+                            new_scene = dict(scene)
+                            new_scene["prompt"] = translated_txt
+                            translated_scenes.append(new_scene)
+                        else:
+                            translated, _ = await translate_to_english(str(scene))
+                            translated_scenes.append(translated)
                 except Exception:
                     translated_scenes = scene_descriptions
             
-            user_id = await get_user_id_from_session(db, session_id)
-            
-            # LongVideoService ile üret
-            from app.services.long_video_service import long_video_service
             result = await long_video_service.create_and_process(
-                user_id=str(user_id),
-                session_id=str(session_id),
+                user_id=user_id,
+                session_id=session_id,
                 prompt=english_prompt,
                 total_duration=total_duration,
                 aspect_ratio=aspect_ratio,
                 scene_descriptions=translated_scenes,
             )
             
-            if result.get("success") and result.get("video_url"):
-                # Asset olarak kaydet
-                try:
-                    await asset_service.save_asset(
-                        db=db,
-                        session_id=session_id,
-                        url=result["video_url"],
-                        asset_type="video",
-                        prompt=prompt,
-                        model_name="kling-3.0-pro-long",
-                        model_params={
-                            "total_duration": total_duration,
-                            "segments": result.get("segments", 0),
-                            "aspect_ratio": aspect_ratio,
-                        },
+            async with async_session_maker() as db:
+                if result.get("success") and result.get("video_url"):
+                    try:
+                        await asset_service.save_asset(
+                            db=db,
+                            session_id=uuid.UUID(session_id),
+                            url=result["video_url"],
+                            asset_type="video",
+                            prompt=prompt,
+                            model_name="kling-3.0-pro-long",
+                            model_params={
+                                "total_duration": total_duration,
+                                "segments": result.get("segments", 0),
+                                "aspect_ratio": aspect_ratio,
+                            },
+                        )
+                    except Exception as save_err:
+                        print(f"⚠️ Long video asset kayıt hatası: {save_err}")
+                    
+                    from app.models.models import Message
+                    new_msg_content = f"Videonuz hazır! {result.get('duration', total_duration)} saniyelik film {result.get('segments', 0)} sahneden birleştirildi."
+                    bg_message = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=new_msg_content,
+                        metadata_={"videos": [{"url": result["video_url"]}]}
                     )
-                except Exception as save_err:
-                    print(f"⚠️ Long video asset kayıt hatası: {save_err}")
-                
-                return {
-                    "success": True,
-                    "video_url": result["video_url"],
-                    "duration": result.get("duration", total_duration),
-                    "segments": result.get("segments", 0),
-                    "message": f"{result.get('duration', total_duration)} saniyelik uzun video oluşturuldu ({result.get('segments', 0)} segment birleştirildi)."
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": result.get("error", "Uzun video üretilemedi")
-                }
-                
+                    db.add(bg_message)
+                    await db.commit()
+                    await db.refresh(bg_message)
+                    
+                    await progress_service.send_complete(
+                        session_id=session_id,
+                        task_type="long_video",
+                        result={
+                            "video_url": result["video_url"],
+                            "message": new_msg_content,
+                            "message_id": str(bg_message.id)
+                        }
+                    )
+                else:
+                    await progress_service.send_error(
+                        session_id=session_id,
+                        task_type="long_video",
+                        error=result.get("error", "Uzun video üretilemedi")
+                    )
         except Exception as e:
-            print(f"❌ Long video üretim hatası: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            print(f"❌ Background long video error: {e}")
+
+    async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Uzun video üret (30s - 3 dakika) - Arka plana atar."""
+        prompt = params.get("prompt", "")
+        total_duration = max(30, min(180, params.get("total_duration", 60)))
+        aspect_ratio = params.get("aspect_ratio", "16:9")
+        scene_descriptions = params.get("scene_descriptions")
+        user_id = await get_user_id_from_session(db, session_id)
+        
+        import asyncio
+        asyncio.create_task(
+            self._run_long_video_bg(
+                user_id=str(user_id),
+                session_id=str(session_id),
+                prompt=prompt,
+                total_duration=total_duration,
+                aspect_ratio=aspect_ratio,
+                scene_descriptions=scene_descriptions
+            )
+        )
+        
+        return {
+            "success": True,
+            "message": f"Yönetmen koltuğuna geçtim! {total_duration} saniyelik filmin sahnelerini web araştırmaları ile birleştirip arka planda render'a başladım. Çıktı hazır olduğunda sana ayrıca bir mesajla göndereceğim, beni beklemene gerek yok!",
+            "is_background_task": True
+        }
     
     async def _save_style(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
         """Stil/moodboard kaydet — sonraki üretimlerde otomatik uygulanır."""
@@ -2532,18 +2649,12 @@ Konuşma:
     
     async def _analyze_image(self, params: dict) -> dict:
         """
-        Görsel analiz - Claude Vision ile kalite kontrolü.
-        
-        Agent bu metodu şu durumlarda OTOMATIK kullanır:
-        - Görsel üretimi sonrası kalite kontrolü
-        - Kullanıcı "bu ne?", "bu nasıl?" dediğinde
-        - Yüz tutarlılığı kontrolü gerektiğinde
+        Görsel analiz - GPT-4o Vision ile resim içeriğini ve özelliklerini okuma.
+        Agent bu aracı kullanarak webt'en bulduğu görsellerin detaylarını (örn: dövme yerleri, fiziksel yapılar) öğrenebilir.
         """
         try:
-            from app.services.llm.claude_service import claude_service
-            
             image_url = params.get("image_url", "")
-            check_quality = params.get("check_quality", True)
+            question = params.get("question", "Bu görseli detaylı bir şekilde analiz et ve gördüklerini anlat.")
             
             if not image_url:
                 return {
@@ -2551,33 +2662,73 @@ Konuşma:
                     "error": "Görsel URL'si gerekli."
                 }
             
-            result = await claude_service.analyze_image(
-                image_url=image_url,
-                check_quality=check_quality
+            # GPT-4o Vision çağrısı
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": question},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url,
+                                    "detail": "auto"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=300
             )
             
-            if result.get("success"):
-                return {
-                    "success": True,
-                    "analysis": result.get("analysis"),
-                    "quality_score": result.get("quality_score", 7),
-                    "face_detected": result.get("face_detected", False),
-                    "face_quality": result.get("face_quality", "bilinmiyor"),
-                    "issues": result.get("issues", []),
-                    "recommendation": result.get("recommendation", "kabul edilebilir"),
-                    "message": f"Görsel analizi tamamlandı. Kalite skoru: {result.get('quality_score', 7)}/10"
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": result.get("error", "Görsel analiz başarısız")
-                }
+            analysis = response.choices[0].message.content
+            
+            return {
+                "success": True,
+                "analysis": analysis,
+                "message": f"Görsel analizi başarıyla tamamlandı: {analysis[:100]}..."
+            }
         
         except Exception as e:
             return {
                 "success": False,
-                "error": str(e)
+                "error": f"Vision analizi başarısız oldu: {str(e)}"
             }
+
+    async def _save_web_asset(self, db, session_id: str, params: dict) -> dict:
+        """
+        Agent'ın webt'den bulduğu görseli projenin Media Asset'lerine kaydetmesi.
+        """
+        try:
+            from app.services.asset_service import asset_service
+            
+            asset_url = params.get("asset_url")
+            asset_type = params.get("asset_type", "image")
+            
+            if not asset_url:
+                return {"success": False, "error": "Kaydedilecek asset_url gerekli."}
+                
+            stored_asset = await asset_service.save_asset(
+                db=db, 
+                session_id=session_id,
+                url=asset_url, 
+                asset_type=asset_type,
+                prompt="Agent tarafından webt'en otomatik olarak indirildi.",
+                source="web_search"
+            )
+            
+            if stored_asset:
+                return {
+                    "success": True,
+                    "message": f"Kullanıcı için harika bir referans veya medya dosyası başarıyla Assets paneline kaydedildi! (URL: {asset_url})"
+                }
+            else:
+                return {"success": False, "error": "Veritabanına kaydetme başarısız."}
+                
+        except Exception as e:
+            return {"success": False, "error": f"Asset kaydetme hatası: {str(e)}"}
     
     async def _compare_images(self, params: dict) -> dict:
         """
