@@ -85,6 +85,17 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
 
 **KRİTİK:** Kullanıcı önceki görselle ilgili HERHANGI bir değişiklik isterse (poz, yön, renk, ışık, arka plan, obje ekleme/çıkarma), DAIMA son üretilen görselin URL'sini al ve edit_image çağır. Asla "yapamam" veya "bilgi veremem" deme.
 
+## EDIT PROMPT ZENGİNLEŞTİRME (ÇOK ÖNEMLİ)
+Kullanıcı kısa bir düzenleme talimatı verdiğinde (örn: "gözlüğü sil", "saçını kırmızı yap", "arka planı değiştir"), sen AKILLI bir asistansın ve bu talimatı Gemini/FLUX'un en iyi sonucu vermesi için ZENGİNLEŞTİRMELİSİN.
+
+Kurallar:
+1. **Koruma talimatı ekle:** "Keep the scene, character, pose, angle, lighting, background, and all other elements exactly the same. ONLY modify [değişecek şey]."
+2. **Spesifik ol:** "gözlüğü sil" → "Remove the sunglasses from the person's face, revealing natural eyes. Keep the exact same face, expression, pose, lighting, background, and all other details unchanged."
+3. **Renk değişikliği:** "saçını kırmızı yap" → "Change the hair color to vibrant red. Keep the exact same hairstyle, face, expression, pose, clothing, background, and all other details unchanged."
+4. **Nesne ekleme:** "şapka ekle" → "Add a stylish hat on the person's head. Keep the exact same face, expression, pose, lighting, background unchanged."
+5. **Arka plan:** "arka planı sahil yap" → "Change the background to a beautiful tropical beach with clear blue water and golden sand. Keep the person, their pose, clothing, and all foreground elements exactly the same."
+6. **ASLA** sadece "remove sunglasses" gibi çıplak bir prompt gönderme — her zaman koruma konteksti ekle.
+
 ## PLUGIN
 "Plugin oluştur" denildiğinde sohbetteki bilgileri topla ve HEMEN manage_plugin çağır. Eksik alan engel değil.
 
@@ -105,6 +116,7 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         db: AsyncSession,
         conversation_history: list = None,
         reference_image: str = None,
+        reference_images: list = None,
         last_reference_url: str = None
     ) -> dict:
         """
@@ -203,67 +215,81 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         uploaded_image_url = None
-        if reference_image:
-            # Görseli fal.ai'ye yükle (edit_image için URL gerekli)
-            try:
-                upload_result = await self.fal_plugin.upload_base64_image(reference_image)
-                if upload_result.get("success"):
-                    uploaded_image_url = upload_result.get("url")
-                    print(f"📤 Görsel fal.ai'ye yüklendi: {uploaded_image_url[:60]}...")
-                    # Session'a kaydet — sonraki mesajlarda yeniden kullanılacak
-                    self._session_reference_images[str(session_id)] = {
-                        "url": uploaded_image_url,
-                        "base64": reference_image
-                    }
-                    print(f"💾 Referans görsel session'a kaydedildi")
-            except Exception as upload_error:
-                print(f"⚠️ Görsel yükleme hatası: {upload_error}")
+        uploaded_image_urls = []  # Çoklu görsel URL'leri
+        
+        # Çoklu görsel desteği: reference_images listesini işle
+        all_images = reference_images or ([reference_image] if reference_image else [])
+        
+        if all_images:
+            for idx, img_b64 in enumerate(all_images):
+                if not img_b64:
+                    continue
+                try:
+                    upload_result = await self.fal_plugin.upload_base64_image(img_b64)
+                    if upload_result.get("success"):
+                        url = upload_result.get("url")
+                        uploaded_image_urls.append(url)
+                        if idx == 0:
+                            uploaded_image_url = url  # Primary reference
+                        print(f"📤 Görsel {idx+1}/{len(all_images)} fal.ai'ye yüklendi: {url[:60]}...")
+                except Exception as upload_error:
+                    print(f"⚠️ Görsel {idx+1} yükleme hatası: {upload_error}")
+            
+            if uploaded_image_urls:
+                # Session'a birinci görseli kaydet (edit için)
+                self._session_reference_images[str(session_id)] = {
+                    "url": uploaded_image_urls[0],
+                    "base64": all_images[0]
+                }
+                print(f"💾 {len(uploaded_image_urls)} referans görsel session'a kaydedildi")
         else:
             # Yeni görsel yüklenmedi — session'dan önceki referansı al
             cached = self._session_reference_images.get(str(session_id))
             if cached:
                 uploaded_image_url = cached["url"]
+                uploaded_image_urls = [uploaded_image_url]
                 print(f"🔄 Önceki referans görsel session cache'den alındı: {uploaded_image_url[:60]}...")
             elif last_reference_url:
-                # Session cache boş (backend restart olmuş) — DB'den gelen son referansı kullan
                 uploaded_image_url = last_reference_url
+                uploaded_image_urls = [uploaded_image_url]
                 self._session_reference_images[str(session_id)] = {"url": last_reference_url, "base64": None}
                 print(f"🔄 Referans görsel DB history'den alındı: {uploaded_image_url[:60]}...")
         
         # Mesajları hazırla
-        if reference_image and uploaded_image_url:
-            # Detect media type from base64 data
-            media_type = "image/png"
-            if reference_image.startswith("iVBORw"):
+        if all_images and uploaded_image_urls:
+            # GPT-4o Vision format — her görsel için ayrı image_url part
+            user_content = []
+            
+            for idx, img_b64 in enumerate(all_images):
+                if not img_b64:
+                    continue
+                # Detect media type
                 media_type = "image/png"
-            elif reference_image.startswith("/9j/"):
-                media_type = "image/jpeg"
-            elif reference_image.startswith("R0lGOD"):
-                media_type = "image/gif"
-            elif reference_image.startswith("UklGR"):
-                media_type = "image/webp"
-            
-            # OpenAI Vision API format (GPT-4o)
-            data_url = f"data:{media_type};base64,{reference_image}"
-            
-            user_content = [
-                {
+                if img_b64.startswith("/9j/"):
+                    media_type = "image/jpeg"
+                elif img_b64.startswith("R0lGOD"):
+                    media_type = "image/gif"
+                elif img_b64.startswith("UklGR"):
+                    media_type = "image/webp"
+                
+                data_url = f"data:{media_type};base64,{img_b64}"
+                user_content.append({
                     "type": "image_url",
-                    "image_url": {
-                        "url": data_url,
-                        "detail": "auto"
-                    }
-                },
-                {
-                    "type": "text",
-                    "text": user_message + f"\n\n[REFERANS GÖRSEL URL: {uploaded_image_url}\nBu görseli işlemek için ilgili aracın image_url parametresine bu URL'i yaz. Örnekler: remove_background(image_url=\"{uploaded_image_url}\"), edit_image(image_url=\"{uploaded_image_url}\", ...), outpaint_image(image_url=\"{uploaded_image_url}\", ...), upscale_image(image_url=\"{uploaded_image_url}\"). Kaydetmek için create_character(use_current_reference=true).]"
-                }
-            ]
+                    "image_url": {"url": data_url, "detail": "auto"}
+                })
+            
+            # URL bilgisini text olarak ekle
+            url_info = ", ".join([f"Görsel{i+1}: {u}" for i, u in enumerate(uploaded_image_urls)])
+            user_content.append({
+                "type": "text",
+                "text": user_message + f"\n\n[REFERANS GÖRSEL URL'LERİ: {url_info}\nBu görselleri işlemek için ilgili aracın image_url parametresine URL'yi yaz. Birinci görsel (ana referans): {uploaded_image_urls[0]}. Kaydetmek için create_character(use_current_reference=true).]"
+            })
+            
             messages = conversation_history + [
                 {"role": "user", "content": user_content}
             ]
         elif uploaded_image_url:
-            # Yeni görsel yok ama session'dan referans var — sadece URL bilgisi ekle
+            # Yeni görsel yok ama session'dan referans var
             messages = conversation_history + [
                 {"role": "user", "content": user_message + f"\n\n[ÖNCEKİ REFERANS GÖRSEL URL: {uploaded_image_url}\nBu URL daha önce yüklenen referans görselin fal.ai adresidir. Kullanıcı bu kişiyle ilgili bir istek yaparsa generate_image çağırırken face_reference_url olarak bu URL'i kullan.]"}
             ]
@@ -289,11 +315,12 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
             "entities_created": [],
             "_resolved_entities": [],  # İç kullanım için, @tag ile çözümlenen entity'ler
             "_current_reference_image": reference_image,  # Mevcut referans görsel (base64)
-            "_uploaded_image_url": uploaded_image_url  # Fal.ai URL (edit/remove için)
+            "_uploaded_image_url": uploaded_image_url,  # Fal.ai URL (edit/remove için)
+            "_uploaded_image_urls": uploaded_image_urls  # Tüm yüklenen URL'ler
         }
         
         print(f"\n🔍 DIAGNOSTIC: process_message result dict created")
-        print(f"   _uploaded_image_url: {uploaded_image_url[:80] if uploaded_image_url else 'None'}")
+        print(f"   _uploaded_image_urls: {len(uploaded_image_urls)} adet")
         print(f"   _current_reference_image: {'SET' if reference_image else 'None'}")
         
         # @tag'leri çözümle ve result'a ekle
@@ -309,8 +336,7 @@ Kullanıcı daha önce üretilen bir görsele/videoya atıf yapıyorsa:
         del result["_resolved_entities"]
         if "_current_reference_image" in result:
             del result["_current_reference_image"]
-        if "_uploaded_image_url" in result:
-            del result["_uploaded_image_url"]
+        # _uploaded_image_url'yi tut — chat.py user mesajı metadata'sına kaydedecek
         
         return result
     
@@ -3605,6 +3631,12 @@ CRITICAL: Same character throughout. Cinematic storyboard quality."""
             return {
                 "success": True,
                 "message": f"✅ Marka '{name}' başarıyla kaydedildi! Tag: {entity.tag}",
+                "entity": {
+                    "id": str(entity.id),
+                    "tag": entity.tag,
+                    "name": entity.name,
+                    "entity_type": "brand"
+                },
                 "brand": {
                     "id": str(entity.id),
                     "tag": entity.tag,

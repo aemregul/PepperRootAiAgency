@@ -5,6 +5,7 @@ Mesajlar ana chat session'a, asset'ler aktif projeye kaydedilir.
 from uuid import UUID
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from typing import List
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +60,7 @@ async def get_main_chat_session(
 async def _process_chat(
     actual_session_id: Optional[str],
     actual_message: str,
-    reference_image_base64: Optional[str],
+    reference_images_base64: Optional[List[str]],
     db: AsyncSession,
     active_project_id: Optional[str] = None
 ) -> ChatResponse:
@@ -98,7 +99,7 @@ async def _process_chat(
         session_id=session.id,
         role="user",
         content=actual_message,
-        metadata_={"has_reference_image": reference_image_base64 is not None} if reference_image_base64 else {}
+        metadata_={"has_reference_image": bool(reference_images_base64), "image_count": len(reference_images_base64) if reference_images_base64 else 0} if reference_images_base64 else {}
     )
     db.add(user_message)
     await db.flush()
@@ -171,14 +172,16 @@ async def _process_chat(
     
     print(f"📜 Conversation history: {len(conversation_history)} mesaj yüklendi (session: {session.id})")
     
-    # Agent ile yanıt al - ARTIK CONVERSATION_HISTORY İLE!
+    # Agent ile yanıt al — çoklu referans görselleri destekle
+    primary_image = reference_images_base64[0] if reference_images_base64 else None
     try:
         agent_result = await agent.process_message(
             user_message=actual_message,
             session_id=asset_session_id or session.id,  # Asset'ler aktif projeye
             db=db,
             conversation_history=conversation_history,
-            reference_image=reference_image_base64,
+            reference_image=primary_image,
+            reference_images=reference_images_base64,
             last_reference_url=last_reference_url_from_history
         )
     except Exception as e:
@@ -191,6 +194,21 @@ async def _process_chat(
     images = agent_result.get("images", [])
     videos = agent_result.get("videos", [])
     entities_created = agent_result.get("entities_created", [])
+    
+    # Kullanıcı referans görselleri yüklendiyse, URL'leri user mesajının metadata'sına kaydet
+    uploaded_ref_url = agent_result.get("_uploaded_image_url")
+    uploaded_ref_urls = agent_result.get("_uploaded_image_urls", [])
+    if uploaded_ref_url or uploaded_ref_urls:
+        current_meta = user_message.metadata_ or {}
+        current_meta["has_reference_image"] = True
+        if uploaded_ref_urls:
+            current_meta["reference_urls"] = uploaded_ref_urls
+        elif uploaded_ref_url:
+            current_meta["reference_url"] = uploaded_ref_url
+            current_meta["reference_urls"] = [uploaded_ref_url]
+        user_message.metadata_ = current_meta
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(user_message, "metadata_")
     
     # Assistant yanıtını kaydet — URL'ler metadata'da saklanır, content'e eklenmez
     enriched_content = response_content
@@ -297,13 +315,13 @@ async def chat(
     return await _process_chat(
         actual_session_id=str(request.session_id) if request.session_id else None,
         actual_message=request.message,
-        reference_image_base64=None,
+        reference_images_base64=None,
         db=db,
         active_project_id=str(request.active_project_id) if request.active_project_id else None
     )
 
 
-# FormData endpoint (dosya yükleme ile)
+# FormData endpoint (tek dosya — backward compat)
 @router.post("/with-image", response_model=ChatResponse)
 async def chat_with_image(
     session_id: str = Form(...),
@@ -312,15 +330,41 @@ async def chat_with_image(
     active_project_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
-    """Kullanıcı mesajını referans görsel ile işle (FormData)."""
-    # Görseli base64'e çevir
+    """Kullanıcı mesajını tek referans görsel ile işle (backward compat)."""
     image_content = await reference_image.read()
     reference_image_base64 = base64.b64encode(image_content).decode('utf-8')
     
     return await _process_chat(
         actual_session_id=session_id,
         actual_message=message,
-        reference_image_base64=reference_image_base64,
+        reference_images_base64=[reference_image_base64],
+        db=db,
+        active_project_id=active_project_id
+    )
+
+
+# FormData endpoint (çoklu dosya — max 10)
+@router.post("/with-files", response_model=ChatResponse)
+async def chat_with_files(
+    session_id: str = Form(...),
+    message: str = Form(...),
+    reference_files: List[UploadFile] = File(...),
+    active_project_id: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """Kullanıcı mesajını birden fazla referans görsel ile işle (max 10)."""
+    if len(reference_files) > 10:
+        raise HTTPException(status_code=400, detail="Maksimum 10 dosya yüklenebilir")
+    
+    images_base64 = []
+    for f in reference_files:
+        content = await f.read()
+        images_base64.append(base64.b64encode(content).decode('utf-8'))
+    
+    return await _process_chat(
+        actual_session_id=session_id,
+        actual_message=message,
+        reference_images_base64=images_base64,
         db=db,
         active_project_id=active_project_id
     )
@@ -366,7 +410,12 @@ async def chat_stream(
         await db.refresh(session)
     
     # Kullanıcı mesajını kaydet
-    user_msg = Message(session_id=session.id, role="user", content=actual_message)
+    user_msg = Message(
+        session_id=session.id,
+        role="user",
+        content=actual_message,
+        metadata_={"has_reference_image": True} if actual_message and "[REFERANS GÖRSEL URL:" in actual_message else {}
+    )
     db.add(user_msg)
     await db.flush()
     await db.refresh(user_msg)

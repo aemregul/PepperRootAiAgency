@@ -54,6 +54,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 8: Agent Intelligence Upgrade | ✅ Tamamlandı | %100 |
 | Hafta 9: Advanced Features (Phase 2) | ✅ Tamamlandı | %100 |
 | Hafta 10: UI Redesign + Localization | ✅ Tamamlandı | %100 |
+| Hafta 11: Gemini + Multi-Image + Edit Pipeline | 🟡 Devam Ediyor | %60 |
 
 ---
 
@@ -287,21 +288,16 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (19 Şubat 2026 - 23:45)
+## 🎯 SON DURUM (20 Şubat 2026 - 22:55)
 
-**🎉 TÜM FAZLAR TAMAMLANDI!**
+**� FAZLAR + YENİ ÖZELLİKLER:**
 
-- ✅ **Faz 1: Temel Zeka** - CoT, Few-Shot, Conv. Summarization
-- ✅ **Faz 2: Hafıza** - Preferences, Redis, Episodic Memory
-- ✅ **Faz 3: Ölçek** - Resilience, Pagination, DB Index
-- ✅ **Faz 4: Uzun Video** - Segment-based generation, FFmpeg stitching
-- ✅ **Faz 5: Agent Intelligence Upgrade** - Yüz tutarlılığı, video edit fix, multi-shot
-- ✅ **Faz 6: Advanced Features** - WebSocket, QC, Memory, Style, Campaign, Multi-Agent, Voice
-- ✅ **Faz 7: UI Redesign + Lokalizasyon** - Sidebar yeniden tasarım, Türkçe lokalizasyon
-- ✅ **Faz 8: Streaming + UX Polish** - SSE streaming, asset deletion, trash thumbnails
-- ✅ **Faz 9: Plugin & Style Integration** - Stil şablonları dropdown, plugin creation düzeltmesi
+- ✅ **Faz 1-9:** Tamamlandı (detaylar yukarıda)
+- ✅ **Faz 10:** Gemini Image Edit entegrasyonu + Prompt Enrichment
+- ✅ **Faz 11:** Çoklu Görsel Yükleme (Max 10)
+- 🟡 **Faz 12:** Hibrit Görsel Üretim (Gemini + fal.ai) — Devam Edecek
 
-**Toplam Kod:** 6500+ satır | **26 Agent Tool**
+**Toplam Kod:** 7000+ satır | **26 Agent Tool**
 
 ---
 
@@ -310,12 +306,16 @@ git add . && git commit -m "mesaj" && git push
 - [ ] Deploy: Railway (Backend) + Vercel (Frontend)
 - [ ] Canlı ortam testleri
 - [x] **Teknik Test (26 Madde): 53/54 ✅**
-  - [x] 26/26 tool handler mevcut ve çağrılabilir
-  - [x] Entity CRUD (karakter/lokasyon/marka) — DB kaydı çalışıyor
-  - [x] Plugin CRUD (create/list/delete) — gerçek DB
-  - [x] FalPluginV2 — 11 aksiyon hazır
-  - [x] Tüm servisler import OK (Entity, Asset, VoiceAudio, Context7)
-  - [x] API Keys aktif (OpenAI, fal.ai, Google OAuth)
+- [ ] **Hibrit Görsel Üretim Pipeline (B Seçeneği) ⭐ SIRADA:**
+  - [ ] Referans görsel varsa → Gemini ile üret (yüz kimliği korunur)
+  - [ ] Referans yoksa → mevcut fal.ai pipeline devam etsin
+  - [ ] @tag ile karakter referansı varsa → otomatik Gemini'ye yönlendir
+  - [ ] Face swap gereksiz olacak — Gemini native identity preservation
+- [ ] **Video Yükleme Desteği:**
+  - [ ] File picker'da video kabul (mp4, mov, webm)
+  - [ ] 10 saniye limit kontrolü
+  - [ ] ffmpeg frame extraction → GPT-4o Vision
+  - [ ] Video URL'yi tool'lara referans olarak geçirme
 - [ ] **Kalite Değerlendirmesi (Kullanıcı):**
   - [ ] Görsel kalitesi (Gemini/ChatGPT seviyesi)
   - [ ] Video kalitesi
@@ -494,10 +494,53 @@ git add . && git commit -m "mesaj" && git push
    - `_handle_tool_call`'da `IMAGE_TOOLS` için otomatik `image_url` enjeksiyonu
    - Kullanıcı fotoğraf yükleyip "arka planı kaldır" dediğinde image_url otomatik ekleniyor
 
-### 📌 Bilinen Sorunlar (Devam Edecek)
-- [ ] Uzun prompt'larla görsel üretim timeout olabiliyor (BiRefNet + Nano Banana pipeline ~45-60s)
-- [ ] AI "biraz bekleteceğim" deyip geri dönüş yapmama sorunu (pipeline timeout kaynaklı)
-- [ ] Sayfa yenilendiğinde kullanıcı mesajındaki yüklenen görsel önizlemesi kaybolur (base64 DB'ye kaydedilmiyor)
+### 📌 Bilinen Sorunlar
+- [x] ~~Sayfa yenilendiğinde kullanıcı mesajındaki yüklenen görsel önizlemesi kaybolur~~ → **Düzeltildi** (reference_urls metadata)
+- [x] ~~Yeni marka oluşturulduğunda sidebar'da görünmüyor~~ → **Düzeltildi** (entity key fix)
+- [ ] Uzun prompt'larla görsel üretim timeout olabiliyor (~45-60s)
+- [ ] AI referans görsel yüklenmiş olsa bile yüz kimliğini iyi koruyamıyor → **Hibrit Gemini ile çözülecek**
+
+### 🌟 20 Şubat 2026 - Oturum Güncellemesi ⭐ YENİ
+
+1. **Yeni Marka UI Refresh Bug Fix:**
+   - `_create_brand` result'a `entity` key eklendi → SSE `entities` event tetikleniyor
+   - Sidebar sayfa yenilemeden güncelleniyor
+
+2. **Kullanıcı Görsel Kalıcılığı (Chat History):**
+   - `_uploaded_image_url` artık result dict'ten silinmiyor
+   - `chat.py` → `reference_url` user message metadata'ya kaydediliyor
+   - `ChatPanel.tsx` → history yüklerken `metadata_.reference_url` okunuyor
+   - Sayfa yenilendiğinde kullanıcı görselleri thumbnail olarak görünüyor
+
+3. **Gemini Image Edit Entegrasyonu:**
+   - Google Cloud Billing aktif edildi
+   - `gemini-2.5-flash-image` modeli doğrulandı
+   - Test script çalıştırıldı → Gemini native görsel düzenleme çalışıyor
+   - **Bulgu:** Gemini, face identity korumada fal.ai pipeline'ından çok daha iyi
+
+4. **Prompt Enrichment İyileştirmesi:**
+   - `orchestrator.py` system prompt güçlendirildi — GPT-4o kısa komutları detaylı edit talimatlarına zenginleştiriyor
+   - `tools.py` `edit_image` tool description güncellendi
+
+5. **Çoklu Görsel Yükleme (Max 10) ✅:**
+   - **Frontend (`ChatPanel.tsx`):**
+     - `attachedFile` → `attachedFiles[]`, `filePreview` → `filePreviews[]`
+     - `multiple` file input + 10 limit kontrolü
+     - Horizontal thumbnail grid (X butonları + "3/10" sayaç + "+" ekle butonu)
+     - Preview ObjectURL'leri gönderimde revoke edilmiyor (mesajda görünür kalıyor)
+     - History yükleme: `metadata_.reference_urls[]` array desteği
+   - **Frontend (`api.ts`):**
+     - `sendMessage` → `File[]` kabul ediyor, `/with-files` endpoint kullanıyor
+   - **Backend (`chat.py`):**
+     - Yeni `/with-files` endpoint (`List[UploadFile]`, max 10)
+     - `_process_chat` → `reference_images_base64: List[str]`
+     - Tüm URL'ler `reference_urls` olarak user message metadata'ya kaydediliyor
+     - `/with-image` backward compat korunuyor
+   - **Backend (`orchestrator.py`):**
+     - `process_message` → `reference_images: list` parametresi
+     - Tüm görseller fal.ai'ye yükleniyor
+     - GPT-4o Vision'a her görsel ayrı `image_url` content part olarak gönderiliyor
+     - `_uploaded_image_urls` result dict'e eklendi
 
 ### 🎨 UI Redesign + Türkçe Lokalizasyon (17 Şubat)
 

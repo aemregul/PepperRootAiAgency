@@ -12,6 +12,7 @@ interface Message {
     content: string;
     timestamp: Date;
     image_url?: string;
+    image_urls?: string[];
     video_url?: string;
 }
 
@@ -172,9 +173,10 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
     const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
     const [isConnected, setIsConnected] = useState<boolean | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [attachedFile, setAttachedFile] = useState<File | null>(null);
-    const [filePreview, setFilePreview] = useState<string | null>(null);
+    const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+    const [filePreviews, setFilePreviews] = useState<string[]>([]);
     const [attachedVideoUrl, setAttachedVideoUrl] = useState<string | null>(null);
+    const MAX_FILES = 10;
     const [isDragOver, setIsDragOver] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [loadingStatus, setLoadingStatus] = useState<string>("Düşünüyor...");
@@ -294,28 +296,27 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
             // Eğer video ise URL referansı olarak ekle (dosya indirme yapma)
             if (assetType === 'video' || assetUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i)) {
                 setAttachedVideoUrl(assetUrl);
-                // Clear any image attachment
-                setAttachedFile(null);
-                setFilePreview(null);
+                // Videos don't affect image attachments
 
                 inputRef.current?.focus();
                 toast.success("Video eklendi");
                 return;
             }
 
-            // Image ise (eski mantıkla devam - dosyayı indirip attach et)
+            // Image ise — dosyayı indirip attach et
             try {
-                // URL'den dosya oluştur
+                if (attachedFiles.length >= MAX_FILES) {
+                    toast.error(`Maksimum ${MAX_FILES} dosya ekleyebilirsiniz`);
+                    return;
+                }
                 const response = await fetch(assetUrl);
                 const blob = await response.blob();
-                const file = new File([blob], 'reference_image.png', { type: blob.type });
+                const file = new File([blob], `reference_image_${Date.now()}.png`, { type: blob.type });
 
-                // Dosyayı referans görsel olarak ekle
-                setAttachedFile(file);
+                setAttachedFiles(prev => [...prev, file]);
                 const previewUrl = URL.createObjectURL(file);
-                setFilePreview(previewUrl);
+                setFilePreviews(prev => [...prev, previewUrl]);
 
-                // Focus input
                 inputRef.current?.focus();
             } catch (error) {
                 console.error('Error loading dropped image:', error);
@@ -325,30 +326,59 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         }
     };
 
-    // Handle file selection
+    // Handle file selection — multiple images
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
+        const files = e.target.files;
+        if (!files) return;
+
+        const remaining = MAX_FILES - attachedFiles.length;
+        if (remaining <= 0) {
+            toast.error(`Maksimum ${MAX_FILES} dosya ekleyebilirsiniz`);
+            return;
+        }
+
+        const newFiles: File[] = [];
+        const newPreviews: string[] = [];
+        const filesToProcess = Array.from(files).slice(0, remaining);
+
+        for (const file of filesToProcess) {
             if (file.type.startsWith('image/')) {
-                setAttachedFile(file);
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    setFilePreview(e.target?.result as string);
-                };
-                reader.readAsDataURL(file);
+                newFiles.push(file);
+                newPreviews.push(URL.createObjectURL(file));
             } else {
-                setError('Sadece resim dosyaları destekleniyor.');
+                toast.error(`"${file.name}" desteklenmiyor — sadece görseller`);
             }
         }
+
+        if (newFiles.length > 0) {
+            setAttachedFiles(prev => [...prev, ...newFiles]);
+            setFilePreviews(prev => [...prev, ...newPreviews]);
+        }
+
+        if (files.length > remaining) {
+            toast.error(`${files.length - remaining} dosya eklenmedi (limit: ${MAX_FILES})`);
+        }
+
+        // Reset input so same file can be re-selected
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const removeAttachment = () => {
-        setAttachedFile(null);
-        setFilePreview(null);
+    // Remove single file by index
+    const removeFileAt = (index: number) => {
+        setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+        setFilePreviews(prev => {
+            // Revoke ObjectURL to prevent memory leak
+            URL.revokeObjectURL(prev[index]);
+            return prev.filter((_, i) => i !== index);
+        });
+    };
+
+    const removeAllAttachments = () => {
+        filePreviews.forEach(url => URL.revokeObjectURL(url));
+        setAttachedFiles([]);
+        setFilePreviews([]);
         setAttachedVideoUrl(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     // Check backend connection
@@ -380,15 +410,24 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                     role: string;
                     content: string;
                     created_at: string;
-                    metadata_?: { images?: { url: string }[]; has_reference_image?: boolean };
+                    metadata_?: { images?: { url: string }[]; has_reference_image?: boolean; reference_url?: string; reference_urls?: string[] };
                 }) => {
                     // Image URL: önce metadata'dan, yoksa content'teki [ÜRETİLEN GÖRSELLER: url] tag'inden
                     let imageUrl = msg.metadata_?.images?.[0]?.url;
+                    let imageUrls: string[] | undefined;
                     if (!imageUrl && msg.content) {
                         const match = msg.content.match(/\[ÜRETİLEN GÖRSELLER: ([^\]]+)\]/);
                         if (match) {
                             imageUrl = match[1].split(',')[0].trim();
                         }
+                    }
+                    // Kullanıcı mesajlarında referans görsel URL'leri oku
+                    if (msg.role === 'user' && msg.metadata_?.reference_urls) {
+                        imageUrls = msg.metadata_.reference_urls;
+                        if (!imageUrl) imageUrl = imageUrls[0];
+                    } else if (!imageUrl && msg.role === 'user' && msg.metadata_?.reference_url) {
+                        imageUrl = msg.metadata_.reference_url;
+                        imageUrls = [imageUrl];
                     }
                     return {
                         id: msg.id,
@@ -396,6 +435,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                         content: msg.content?.replace(/\n\n\[ÜRETİLEN (GÖRSELLER|VİDEOLAR): [^\]]+\]/g, '') || msg.content,
                         timestamp: new Date(msg.created_at),
                         image_url: imageUrl,
+                        image_urls: imageUrls,
                     }
                 });
                 setMessages(formattedMessages);
@@ -477,7 +517,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const hasContent = input.trim() || attachedFile || attachedVideoUrl;
+        const hasContent = input.trim() || attachedFiles.length > 0 || attachedVideoUrl;
         if (!hasContent || isLoading || !sessionId) return;
 
         // If offline, queue the message
@@ -493,9 +533,10 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         const userMessage: Message = {
             id: Date.now().toString(),
             role: "user",
-            content: input || (attachedFile ? "[Referans Görsel]" : ""),
+            content: input || (attachedFiles.length > 0 ? `[${attachedFiles.length} Referans Görsel]` : ""),
             timestamp: new Date(),
-            image_url: filePreview || undefined,
+            image_url: filePreviews[0] || undefined,
+            image_urls: filePreviews.length > 0 ? [...filePreviews] : undefined,
             video_url: attachedVideoUrl || undefined
         };
 
@@ -507,7 +548,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
             : input;
 
         const currentInput = contentToSend;
-        const currentFile = attachedFile;
+        const currentFiles = [...attachedFiles];
 
         setInput("");
         // Reset textarea height after clearing
@@ -516,13 +557,17 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         }
         // Clear draft from localStorage after successful send start
         localStorage.removeItem(DRAFT_KEY);
-        removeAttachment(); // Dosyayı temizle
+        // Dosyaları temizle — URL'leri revoke etme, mesaj state'inde hâlâ kullanılıyor
+        setAttachedFiles([]);
+        setFilePreviews([]);
+        setAttachedVideoUrl(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
         setIsLoading(true);
         setError(null);
 
         // Smart loading status — sadece uzun işlemlerde göster (görsel/video/düzenleme)
         const lowerMsg = currentInput.toLowerCase();
-        const hasImage = !!currentFile;
+        const hasImage = currentFiles.length > 0;
         const isLongOperation = hasImage || lowerMsg.match(
             /görsel|resim|fotoğraf|image|çiz|oluştur.*görsel|generate.*image|illustration|poster|logo|video|animasyon|klip|sinema|cinematic|düzenle|edit|değiştir|kaldır|ekle.*görsel|remove|change|tanı|kaydet|karakter|entity|lokasyon|mekan/
         );
@@ -580,9 +625,9 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         const cleanupTimers = () => timers.forEach(t => clearTimeout(t));
 
         try {
-            // Reference image varsa eski endpoint kullan (FormData gerekli)
-            if (currentFile) {
-                const response = await sendMessage(sessionId, currentInput, currentFile, activeProjectId);
+            // Reference images varsa FormData endpoint kullan
+            if (currentFiles.length > 0) {
+                const response = await sendMessage(sessionId, currentInput, currentFiles, activeProjectId);
                 const responseContent = typeof response.response === 'string'
                     ? response.response
                     : response.response?.content ?? 'Yanıt alınamadı';
@@ -875,7 +920,20 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.role === "user" ? (
                                 <div className="message-bubble message-user max-w-[75%]">
-                                    {msg.image_url && (
+                                    {/* Multiple image thumbnails */}
+                                    {msg.image_urls && msg.image_urls.length > 1 ? (
+                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                            {msg.image_urls.map((url, i) => (
+                                                <img
+                                                    key={i}
+                                                    src={url}
+                                                    alt={`Referans görsel ${i + 1}`}
+                                                    className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                                    onClick={() => setLightboxImage(url)}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : msg.image_url && (
                                         <img
                                             src={msg.image_url}
                                             alt="Referans görsel"
@@ -981,37 +1039,56 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                             border: "1px solid var(--border)",
                         }}
                     >
-                        {/* Inline Image Preview — ChatGPT Style */}
-                        {filePreview && (
+                        {/* Inline Image Previews — Multi-Image Grid */}
+                        {filePreviews.length > 0 && (
                             <div className="p-3 pb-0">
-                                <div className="relative inline-block">
-                                    <img
-                                        src={filePreview}
-                                        alt="Referans görsel"
-                                        className="w-36 h-36 object-cover rounded-xl"
-                                        style={{ border: "1px solid var(--border)" }}
-                                    />
-                                    {/* Overlay Buttons */}
-                                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="text-xs font-medium" style={{ color: 'var(--foreground-muted)' }}>
+                                        {filePreviews.length}/{MAX_FILES} görsel
+                                    </span>
+                                    {filePreviews.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={removeAllAttachments}
+                                            className="text-xs px-1.5 py-0.5 rounded hover:bg-red-500/20 transition-colors"
+                                            style={{ color: 'var(--foreground-muted)' }}
+                                        >
+                                            Tümünü kaldır
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
+                                    {filePreviews.map((preview, index) => (
+                                        <div key={index} className="relative shrink-0">
+                                            <img
+                                                src={preview}
+                                                alt={`Referans görsel ${index + 1}`}
+                                                className="w-20 h-20 object-cover rounded-lg"
+                                                style={{ border: '1px solid var(--border)' }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeFileAt(index)}
+                                                className="absolute -top-1.5 -right-1.5 p-1 rounded-full transition-colors hover:bg-red-500/80"
+                                                style={{ background: 'rgba(0,0,0,0.6)' }}
+                                                title="Kaldır"
+                                            >
+                                                <X size={10} className="text-white" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {/* Add more button */}
+                                    {filePreviews.length < MAX_FILES && (
                                         <button
                                             type="button"
                                             onClick={() => fileInputRef.current?.click()}
-                                            className="p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
-                                            style={{ background: "rgba(0,0,0,0.5)" }}
-                                            title="Görseli değiştir"
+                                            className="w-20 h-20 rounded-lg flex items-center justify-center shrink-0 hover:bg-[var(--background-secondary)] transition-colors"
+                                            style={{ border: '1px dashed var(--border)' }}
+                                            title="Daha fazla görsel ekle"
                                         >
-                                            <Paperclip size={13} className="text-white" />
+                                            <span className="text-xl" style={{ color: 'var(--foreground-muted)' }}>+</span>
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={removeAttachment}
-                                            className="p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
-                                            style={{ background: "rgba(0,0,0,0.5)" }}
-                                            title="Görseli kaldır"
-                                        >
-                                            <X size={13} className="text-white" />
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -1034,7 +1111,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={removeAttachment}
+                                        onClick={removeAllAttachments}
                                         className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
                                         style={{ background: "rgba(0,0,0,0.5)" }}
                                         title="Videoyu kaldır"
@@ -1051,15 +1128,16 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`p-2 rounded-lg transition-colors shrink-0 ${attachedFile ? 'bg-[var(--accent)]/20' : 'hover:bg-[var(--background-secondary)]'}`}
-                                title="Referans görsel ekle"
+                                className={`p-2 rounded-lg transition-colors shrink-0 ${attachedFiles.length > 0 ? 'bg-[var(--accent)]/20' : 'hover:bg-[var(--background-secondary)]'}`}
+                                title="Referans görsel ekle (maks. 10)"
                             >
-                                <Paperclip size={20} style={{ color: attachedFile ? 'var(--accent)' : 'var(--foreground-muted)' }} />
+                                <Paperclip size={20} style={{ color: attachedFiles.length > 0 ? 'var(--accent)' : 'var(--foreground-muted)' }} />
                             </button>
                             <input
                                 ref={fileInputRef}
                                 type="file"
                                 accept="image/*"
+                                multiple
                                 onChange={handleFileSelect}
                                 className="hidden"
                             />
@@ -1076,7 +1154,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
-                                        if (input.trim() || attachedFile || attachedVideoUrl) {
+                                        if (input.trim() || attachedFiles.length > 0 || attachedVideoUrl) {
                                             handleSubmit(e as unknown as React.FormEvent);
                                         }
                                     }
@@ -1148,10 +1226,10 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                                 ) : (
                                     <button
                                         type="submit"
-                                        disabled={(!input.trim() && !attachedFile && !attachedVideoUrl) || isLoading || !isConnected}
+                                        disabled={(!input.trim() && attachedFiles.length === 0 && !attachedVideoUrl) || isLoading || !isConnected}
                                         className="p-2 rounded-full transition-all duration-200 disabled:opacity-40"
                                         style={{
-                                            background: (input.trim() || attachedFile || attachedVideoUrl) && isConnected ? "var(--accent)" : "var(--foreground-muted)",
+                                            background: (input.trim() || attachedFiles.length > 0 || attachedVideoUrl) && isConnected ? "var(--accent)" : "var(--foreground-muted)",
                                             color: "var(--background)"
                                         }}
                                     >

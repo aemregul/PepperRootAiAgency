@@ -147,15 +147,17 @@ export async function getMainChatSession(): Promise<{ session_id: string; title:
 export async function sendMessage(
     sessionId: string,
     message: string,
-    referenceImage?: File,
+    referenceFiles?: File[],
     activeProjectId?: string
 ): Promise<ChatResponse> {
-    // Eğer dosya varsa FormData ile /with-image endpoint kullan
-    if (referenceImage) {
+    // Eğer dosyalar varsa FormData ile /with-files endpoint kullan
+    if (referenceFiles && referenceFiles.length > 0) {
         const formData = new FormData();
         formData.append('session_id', sessionId);
         formData.append('message', message);
-        formData.append('reference_image', referenceImage);
+        for (const file of referenceFiles) {
+            formData.append('reference_files', file);
+        }
         if (activeProjectId) {
             formData.append('active_project_id', activeProjectId);
         }
@@ -167,7 +169,7 @@ export async function sendMessage(
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/with-image`, {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/with-files`, {
             method: 'POST',
             headers,
             body: formData,

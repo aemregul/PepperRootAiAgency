@@ -150,12 +150,12 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "edit_image",
-        "description": "Mevcut bir görseli akıllı düzenleme ile düzenler. FLUX Kontext Pro (en iyi lokal düzenleme), Object Removal, OmniGen ve Flux Inpainting arasında otomatik seçim yapar. Kıyafet değiştirme, nesne ekleme/çıkarma, renk değiştirme gibi işlemler için ideal.",
+        "description": "Mevcut bir görseli akıllı düzenleme ile düzenler (Gemini True Inpainting birincil, fallback: FLUX Kontext, Object Removal). Kıyafet değiştirme, nesne ekleme/çıkarma, renk değiştirme gibi işlemler için ideal. PROMPT ÖNEMLİ: Kısa talimatları zenginleştir! Örn: 'gözlüğü sil' → 'Remove the sunglasses, keep the exact same face, pose, lighting, background unchanged.'",
         "input_schema": {
             "type": "object",
             "properties": {
                 "image_url": {"type": "string", "description": "Düzenlenecek görselin URL'si"},
-                "prompt": {"type": "string", "description": "Düzenleme talimatı"}
+                "prompt": {"type": "string", "description": "Detaylı düzenleme talimatı (İngilizce). KISA YAZMA! Neyin değişeceğini VE neyin korunacağını açıkça belirt. Örn: 'Change the shirt color to blue. Keep the exact same face, pose, angle, background, and all other details unchanged.'"}
             },
             "required": ["image_url", "prompt"]
         }
