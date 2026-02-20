@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.services.agent.tools import AGENT_TOOLS
 from app.services.plugins.fal_plugin_v2 import FalPluginV2
+from app.services.google_video_service import GoogleVideoService
 from app.services.entity_service import entity_service
 from app.services.asset_service import asset_service
 from app.services.stats_service import StatsService
@@ -40,6 +41,7 @@ class AgentOrchestrator:
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         self.async_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.fal_plugin = FalPluginV2()
+        self.google_video = GoogleVideoService()
         self.model = "gpt-4o"
         
         # Session-level reference image cache: {session_id: {"url": str, "base64": str}}
@@ -59,6 +61,12 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 5. Türkçe yanıt ver, tool parametreleri İngilizce olabilir.
 6. Entity isimleri @ olmadan da tanınır: "Emre" = @emre.
 7. **(AUTONOMOUS VIDEO DIRECTOR):** Kullanıcı uzun bir video (örn: `generate_long_video` aracı ile) istediğinde, KESİNLİKLE önce kullanıcıya bir "Roadmap" yani yol haritası sunan bir metin yaz. (Örn: "İşte Yol Haritam: 1. sahnede bu, 2. sahnede bu... Arka planda üretime başlıyorum, bittiğinde sana yazacağım!"). Ardından sahneler için web araştırması (`search_images`) yap ve bulduğun harika B-Roll/Referans URL'lerini `generate_long_video` tool'unun içindeki `scene_descriptions` objelerine `reference_image_url` olarak iliştir ki videoda o web görsellerini canlandıralım!
+8. **(SMART VIDEO MODEL SELECTION):** Video veya uzun video sahneleri kurgularken, her sahnenin içeriğine göre `model` parametresini akıllıca ata (Varsayılan: veo).
+   - **veo:** En yüksek kalite, sinematik, genel amaçlı, fotogerçekçi.
+   - **kling:** Gerçekçi insan hareketleri, lip-sync, fiziksel tutarlılık.
+   - **luma:** Hızlı, sinematik rüya gibi kamera hareketleri, akıcı geçişler.
+   - **runway:** Sanatsal, deneysel, gelişmiş kamera kontrolü (zoom/pan).
+   - **minimax:** Aksiyon sahneleri, hızlı fiziksel etkileşimler, kararlılık.
 
 ## TOOL SEÇİMİ
 **Yeni içerik üret:** generate_image, generate_video, generate_long_video (>10s)
@@ -1674,82 +1682,137 @@ Konuşma:
         
         Entity referansı varsa, önce görsel üretilip image-to-video yapılır.
         """
+    async def _run_video_bg(self, user_id: str, session_id: str, prompt: str, image_url: str, duration: str, aspect_ratio: str, model: str, entity_ids: list = None):
+        """Asenkron kısa video üretimi ve bildirimi."""
+        try:
+            from app.core.database import async_session_maker
+            from app.services.progress_service import progress_service
+            
+            # 🔄 Promptu İngilizce'ye çevir
+            english_prompt = prompt
+            try:
+                from app.services.prompt_translator import translate_to_english
+                english_prompt, _ = await translate_to_english(prompt)
+            except Exception:
+                pass
+            
+            video_payload = {
+                "prompt": english_prompt,
+                "image_url": image_url,
+                "duration": duration,
+                "aspect_ratio": aspect_ratio,
+                "model": model
+            }
+            
+            # Üretim
+            if model == "veo":
+                print(f"🚀 [BG] Video üretiliyor (veo): {prompt[:50]}...")
+                result = await self.google_video.generate_video(video_payload)
+            else:
+                print(f"🚀 [BG] Video üretiliyor ({model}): {prompt[:50]}...")
+                result = await self.fal_plugin._generate_video(video_payload)
+                
+            async with async_session_maker() as db:
+                if result.get("success"):
+                    video_url = result.get("video_url")
+                    model_name = result.get("model", model)
+                    
+                    # Asset Kaydet
+                    await asset_service.save_asset(
+                        db=db,
+                        session_id=uuid.UUID(session_id),
+                        url=video_url,
+                        asset_type="video",
+                        prompt=prompt,
+                        model_name=model_name,
+                        model_params={
+                            "duration": duration,
+                            "aspect_ratio": aspect_ratio,
+                            "source_image": image_url
+                        },
+                        entity_ids=entity_ids,
+                        thumbnail_url=result.get("thumbnail_url")
+                    )
+                    
+                    # İstatistik
+                    await StatsService.track_video_generation(db, uuid.UUID(user_id), model_name)
+                    
+                    # Mesaj oluştur ve Push at
+                    from app.models.models import Message
+                    new_msg_content = f"Videonuz hazır! ({duration}s, Model: {model_name})"
+                    bg_message = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=new_msg_content,
+                        metadata_={"videos": [{"url": video_url}]}
+                    )
+                    db.add(bg_message)
+                    await db.commit()
+                    
+                    await progress_service.send_complete(
+                        session_id=session_id,
+                        task_type="video",
+                        result={
+                            "video_url": video_url,
+                            "message": new_msg_content,
+                            "message_id": str(bg_message.id)
+                        }
+                    )
+                else:
+                    await progress_service.send_error(
+                        session_id=session_id,
+                        task_type="video",
+                        error=result.get("error", "Video üretilemedi")
+                    )
+        except Exception as e:
+            print(f"❌ Background video error: {e}")
+
+    async def _generate_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict, resolved_entities: list = None) -> dict:
+        """Video üret (3-10 sn) - Arka plana atar."""
         try:
             prompt = params.get("prompt", "")
             image_url = params.get("image_url")
             duration = params.get("duration", "5")
             aspect_ratio = params.get("aspect_ratio", "16:9")
+            model = params.get("model", "veo")
+            user_id = await get_user_id_from_session(db, session_id)
             
-            # Entity açıklamalarını prompt'a ekle
+            # Entity'leri IDs olarak hazırla
+            entity_ids = [str(getattr(e, 'id', None)) for e in resolved_entities if getattr(e, 'id', None)] if resolved_entities else None
+            
+            # Entity description injection (Prompt'a ekle - BG'ye gitmeden önce)
+            enriched_prompt = prompt
             if resolved_entities:
                 for entity in resolved_entities:
                     if hasattr(entity, 'description') and entity.description:
-                        prompt = f"{entity.description}. {prompt}"
+                        enriched_prompt = f"{entity.description}. {enriched_prompt}"
             
-            # Image-to-video için görsel lazım
-            # Eğer görsel yoksa ama entity varsa, önce görsel üret
-            if not image_url and resolved_entities:
-                # Önce görsel üret
-                image_result = await self._generate_image(
-                    db, session_id,
-                    {"prompt": prompt, "aspect_ratio": aspect_ratio.replace(":", ":")},
-                    resolved_entities
+            # Eğer image-to-video isteniyorsa ama görsel yoksa, BG'de beklemesi yerine burada generate_image yapamaz mı? 
+            # Hayır, her şey BG'ye gidebilir. Ama user'a hemen bir şey döndürmemiz lazım.
+            
+            import asyncio
+            asyncio.create_task(
+                self._run_video_bg(
+                    user_id=str(user_id),
+                    session_id=str(session_id),
+                    prompt=enriched_prompt,
+                    image_url=image_url,
+                    duration=duration,
+                    aspect_ratio=aspect_ratio,
+                    model=model,
+                    entity_ids=entity_ids
                 )
-                if image_result.get("success"):
-                    image_url = image_result.get("image_url")
+            )
             
-            # Video üret
-            result = await self.fal_plugin._generate_video({
-                "prompt": prompt,
-                "image_url": image_url,
-                "duration": duration,
-                "aspect_ratio": aspect_ratio
-            })
-            
-            if result.get("success"):
-                video_url = result.get("video_url")
-                model_name = result.get("model", "kling-3.0-pro")
-                
-                # 📦 Asset'i veritabanına kaydet (görüntü gibi video da kaydedilmeli)
-                entity_ids = [str(getattr(e, 'id', None)) for e in resolved_entities if getattr(e, 'id', None)] if resolved_entities else None
-                await asset_service.save_asset(
-                    db=db,
-                    session_id=session_id,
-                    url=video_url,
-                    asset_type="video",
-                    prompt=prompt,
-                    model_name=model_name,
-                    model_params={
-                        "duration": duration,
-                        "aspect_ratio": aspect_ratio,
-                        "source_image": image_url
-                    },
-                    entity_ids=entity_ids,
-                    thumbnail_url=result.get("thumbnail_url")
-                )
-                
-                # 📊 İstatistik kaydet
-                user_id = await get_user_id_from_session(db, session_id)
-                await StatsService.track_video_generation(db, user_id, model_name)
-                
-                return {
-                    "success": True,
-                    "video_url": video_url,
-                    "model": model_name,
-                    "message": f"Video başarıyla üretildi ({duration}s) ve kaydedildi.",
-                    "agent_decision": "Image-to-video" if image_url else "Text-to-video"
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": result.get("error", "Video üretilemedi")
-                }
+            decision = "Görselden video (i2v)" if image_url else "Metinden video (t2v)"
+            return {
+                "success": True,
+                "message": f"Harika bir fikir! {duration} saniyelik videonu {model.upper()} ile arka planda üretmeye başladım. ({decision}). Hazır olduğunda sana bildirim atacağım!",
+                "is_background_task": True
+            }
         
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
     
     async def _run_long_video_bg(self, user_id: str, session_id: str, prompt: str, total_duration: int, aspect_ratio: str, scene_descriptions: list):
         """Asenkron arka plan görevi: Video üret, DB'ye asset kaydet, yeni mesaj yarat ve Push at."""

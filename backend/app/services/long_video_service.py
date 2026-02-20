@@ -26,6 +26,7 @@ class VideoSegment:
     status: str  # pending, generating, completed, failed
     video_url: Optional[str] = None
     reference_image_url: Optional[str] = None
+    model: Optional[str] = "veo"  # Varsayılan model Veo 3.1
     error: Optional[str] = None
 
 
@@ -94,9 +95,11 @@ class LongVideoService:
                 if isinstance(desc, dict):
                     prompt_txt = desc.get("prompt", str(desc))
                     ref_img = desc.get("reference_image_url")
+                    model_val = desc.get("model", "veo")
                 else:
                     prompt_txt = str(desc)
                     ref_img = None
+                    model_val = "veo"
                     
                 dur = min(segment_duration, remaining_duration)
                 segments.append(VideoSegment(
@@ -105,7 +108,8 @@ class LongVideoService:
                     prompt=prompt_txt,
                     duration=str(dur),
                     status="pending",
-                    reference_image_url=ref_img
+                    reference_image_url=ref_img,
+                    model=model_val
                 ))
                 remaining_duration -= dur
                 order += 1
@@ -275,34 +279,52 @@ class LongVideoService:
     
     async def _generate_single_segment(
         self, 
-        fal: "FalPluginV2",
+        fal: "FalPluginV2", # Diğer modeller (Kling, Luma, Runway, Minimax) için Fal
         segment: VideoSegment,
         aspect_ratio: str
     ):
-        """Tek bir segment üret."""
+        """Tek bir segment üret. Modele göre fal.ai (fal_plugin_v2) veya Vertex AI/Gemini (veo) kullanılır."""
         try:
             segment.status = "generating"
             
-            # FalPluginV2.execute kullan
             payload = {
                 "prompt": segment.prompt,
                 "duration": segment.duration,
                 "aspect_ratio": aspect_ratio,
+                "model": segment.model,
             }
             if segment.reference_image_url:
                 payload["image_url"] = segment.reference_image_url
                 print(f"🖼️ Scene {segment.order + 1} has reference image! Switching to Image-to-Video.")
                 
-            result = await fal.execute("generate_video", payload)
+            model_to_use = segment.model or "veo"
+            
+            # VEO 3.1 İÇİN VEYA DİĞERLERİ İÇİN ROUTING
+            if model_to_use == "veo":
+                print(f"🎥 Scene {segment.order + 1} Google Veo 3.1 ile üretiliyor...")
+                from app.services.google_video_service import GoogleVideoService # Henüz oluşturmadık, birazdan oluşturacağım
+                veo_svc = GoogleVideoService()
+                result_dict = await veo_svc.generate_video(payload)
+                
+                # Fal pluginin döndürdüğü 'PluginResponse' gibi sarmak için:
+                from app.services.plugins.base import PluginResponse
+                if result_dict.get("success"):
+                    result = PluginResponse(success=True, data={"video_url": result_dict.get("video_url")})
+                else:
+                    result = PluginResponse(success=False, error=result_dict.get("error"))
+            else:
+                # Kling, Luma, Runway, Minimax FalPlugin üzerinden çalışıyor
+                print(f"🎥 Scene {segment.order + 1} {model_to_use.upper()} (Fal.ai) ile üretiliyor...")
+                result = await fal.execute("generate_video", payload)
             
             if result.success and result.data:
                 segment.video_url = result.data.get("video_url")
                 segment.status = "completed"
-                print(f"✅ Segment {segment.order + 1} tamamlandı")
+                print(f"✅ Segment {segment.order + 1} tamamlandı (Model: {model_to_use})")
             else:
                 segment.status = "failed"
                 segment.error = result.error or "Video üretilemedi"
-                print(f"❌ Segment {segment.order + 1} başarısız: {segment.error}")
+                print(f"❌ Segment {segment.order + 1} ({model_to_use}) başarısız: {segment.error}")
                 
         except Exception as e:
             segment.status = "failed"

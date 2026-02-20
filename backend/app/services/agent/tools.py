@@ -110,14 +110,19 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_video",
-        "description": "Video üretir. Smart Router otomatik olarak en iyi modeli seçer: sinematik/gerçekçi sahneler için Veo 3.1, genel için Kling 3.0 Pro. Başarısız olursa otomatik fallback yapılır.",
+        "description": "Video üretir. Smart Router otomatik olarak en iyi modeli seçer. Hangi videoya hangi model uyar? veo (Varsayılan Ana Model): En yüksek kalite, sinematik doğallık. kling: Gerçekçi insan, lip-sync. luma: Sinematik, hızlı sonuçlar, rüya gibi kamera hareketleri. runway: Sanatsal, gelişmiş hareketler, dinamik açılar. minimax: Mükemmel fizik kuralları, aksiyon ve kararlılık.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "prompt": {"type": "string", "description": "Video açıklaması"},
                 "image_url": {"type": "string", "description": "Başlangıç görseli URL (opsiyonel)"},
                 "duration": {"type": "string", "enum": ["3", "5", "10"], "description": "Video süresi"},
-                "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"}
+                "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
+                "model": {
+                    "type": "string", 
+                    "enum": ["veo", "kling", "luma", "runway", "minimax"], 
+                    "description": "Kullanılacak video modeli. Konsepte göre en uygun olanı seç. Belirtilmezse veo kullanılır."
+                }
             },
             "required": ["prompt"]
         }
@@ -150,7 +155,12 @@ AGENT_TOOLS_ANTHROPIC = [
                         "type": "object",
                         "properties": {
                             "prompt": {"type": "string", "description": "Sahne açıklaması"},
-                            "reference_image_url": {"type": "string", "description": "Sahne için kullanılacak referans görselin URL'si (search_images'dan vb.)"}
+                            "reference_image_url": {"type": "string", "description": "Sahne için kullanılacak referans görselin URL'si (search_images'dan vb.)"},
+                            "model": {
+                                "type": "string",
+                                "enum": ["veo", "kling", "luma", "runway", "minimax"],
+                                "description": "BU SAHNE için en uygun video modeli. Örn: Aksiyon için minimax, geçiş/rüya için luma, diyalog/insan yüzü için kling, sanatsal açılar için runway, en yüksek genel kalite için veo."
+                            }
                         },
                         "required": ["prompt"]
                     },

@@ -327,67 +327,79 @@ class FalPluginV2(PluginBase):
     
     async def _generate_video(self, params: dict) -> dict:
         """
-        Akıllı Video Üretim — Smart Router + Auto-Retry Fallback.
-        
-        Modeller:
-        - Kling 3.0 Pro: Genel amaçlı, güvenilir (varsayılan)
-        - Veo 3.1: Sinematik/gerçekçi sahneler için
+        Smart Multi-Model Video Generation (Kling, Luma, Runway, Minimax)
         """
         prompt = params.get("prompt", "")
         image_url = params.get("image_url")  # Opsiyonel - image-to-video
-        duration = params.get("duration", "5")  # 5 veya 10 saniye
-        preferred_model = params.get("model")  # Opsiyonel: Agent belirli model isteyebilir
+        duration = params.get("duration", "5")  
+        preferred_model = params.get("model", "kling")  # Varsayılan kling
         
         has_image = bool(image_url)
-        
-        # Smart Router: en iyi video modelini seç
-        selected_model = preferred_model or self._select_video_model(prompt, has_image)
-        
-        # Fallback zinciri oluştur
         mode = "i2v" if has_image else "t2v"
-        models_to_try = [selected_model]
-        for chain_entry in self.VIDEO_MODEL_CHAIN:
-            model = chain_entry[mode]
-            if model not in models_to_try:
-                models_to_try.append(model)
         
-        last_error = None
-        for model_id in models_to_try:
-            try:
-                logger.info(f"🎥 Video üretim deneniyor: {model_id}")
-                
-                arguments = {
-                    "prompt": prompt,
-                    "duration": duration,
-                    "aspect_ratio": params.get("aspect_ratio", "16:9"),
+        # Model Enum -> Fal.ai Endpoint Mapping
+        # Not: Fal.ai endpoint isimleri sürekli değişebilir, en stabil bilinenleri kullanıyoruz
+        model_endpoints = {
+            "kling": {
+                "i2v": "fal-ai/kling-video/v1/standard/image-to-video",
+                "t2v": "fal-ai/kling-video/v1/standard/text-to-video"
+            },
+            "luma": {
+                "i2v": "fal-ai/luma-dream-machine/image-to-video",
+                "t2v": "fal-ai/luma-dream-machine"
+            },
+            "runway": {
+                "i2v": "fal-ai/runway-gen3/turbo/image-to-video",
+                "t2v": "fal-ai/runway-gen3/turbo/text-to-video"
+            },
+            "minimax": {
+                # Minimax Hailuo AI genelde tek endpoint kullanır i2v/t2v
+                "i2v": "fal-ai/minimax-video/image-to-video",
+                "t2v": "fal-ai/minimax-video"
+            }
+        }
+        
+        # Güvenlik kontrolü
+        if preferred_model not in model_endpoints:
+            logger.warning(f"Bilinmeyen video modeli '{preferred_model}'. Kling'e fallback yapılıyor.")
+            preferred_model = "kling"
+            
+        selected_endpoint = model_endpoints[preferred_model][mode]
+        logger.info(f"🎥 Video model seçildi: {preferred_model.upper()} ({selected_endpoint})")
+        
+        try:
+            arguments = {
+                "prompt": prompt,
+                "duration": duration if preferred_model != "runway" else (5 if int(duration) <= 5 else 10), # Runway genelde katı duration alır
+                "aspect_ratio": params.get("aspect_ratio", "16:9"),
+            }
+            
+            if has_image:
+                arguments["image_url"] = image_url
+            
+            # Bazı modeller (Minimax) image_url kabul etmeyebilir veya farklı isimlendirmiş olabilir, 
+            # ancak standart fal.ai wrapperları genelde image_url standardını destekliyor.
+            
+            result = await fal_client.subscribe_async(
+                selected_endpoint,
+                arguments=arguments,
+                with_logs=True,
+            )
+            
+            if result and "video" in result:
+                return {
+                    "success": True,
+                    "video_url": result["video"]["url"],
+                    "thumbnail_url": result["video"].get("thumbnail_url"),
+                    "model": preferred_model,
+                    "model_id": selected_endpoint,
                 }
+            else:
+                return {"success": False, "error": f"API yanıtı geçersiz. Sonuç: {result}"}
                 
-                if image_url:
-                    arguments["image_url"] = image_url
-                
-                result = await fal_client.subscribe_async(
-                    model_id,
-                    arguments=arguments,
-                    with_logs=True,
-                )
-                
-                if result and "video" in result:
-                    model_name = model_id.split("/")[-1] if "/" in model_id else model_id
-                    logger.info(f"✅ Video üretildi: {model_id}")
-                    return {
-                        "success": True,
-                        "video_url": result["video"]["url"],
-                        "thumbnail_url": result["video"].get("thumbnail_url"),
-                        "model": model_name,
-                        "model_id": model_id,
-                    }
-                    
-            except Exception as e:
-                last_error = str(e)
-                logger.warning(f"⚠️ {model_id} başarısız: {e}. Sonraki model deneniyor...")
-                continue
-        
-        return {"success": False, "error": f"Tüm video modelleri başarısız. Son hata: {last_error}"}
+        except Exception as e:
+            logger.error(f"⚠️ {preferred_model} ({selected_endpoint}) video üretimi başarısız: {e}")
+            return {"success": False, "error": f"Video generation failed: {str(e)}"}
     
     async def _edit_image(self, params: dict) -> dict:
         """

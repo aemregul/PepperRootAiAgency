@@ -55,9 +55,10 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 9: Advanced Features (Phase 2) | ✅ Tamamlandı | %100 |
 | Hafta 10: UI Redesign + Localization | ✅ Tamamlandı | %100 |
 | Hafta 11: Gemini + Multi-Image + Edit Pipeline | ✅ Tamamlandı | %100 |
-| Faz 12-15: Agent Memory & Web Vision | ✅ Tamamlandı | %100 |
-| Faz 16: Autonomous Video Director | ✅ Tamamlandı | %100 |
-| Faz 17: Smart Multi-Model Video Engine | 🟡 Planlandı | %0 |
+- **21 Şubat 2026:** Faz 12-17 Tamamlandı. (Web Vision, Implicit Memory, Gemini Edit, Autonomous Director, Smart Multi-Model Video Engine)
+  - **Multi-Model Video Engine:** Veo 3.1 (Google Cloud), Kling, Luma, Runway ve Minimax entegrasyonu.
+  - **Async UX:** Tüm video üretimleri (kısa/uzun) asenkron arka plan görevlerine taşındı.
+  - **Adaptive Routing:** Sahneler için otomatik model seçimi ve web-aware referans enjeksiyonu.
 
 ---
 
@@ -311,10 +312,17 @@ git add . && git commit -m "mesaj" && git push
 - [ ] Deploy: Railway (Backend) + Vercel (Frontend)
 - [ ] Canlı ortam testleri
 - [x] **Teknik Test (26 Madde): 53/54 ✅**
-- [ ] **Smart Multi-Model Video Engine (Faz 17) ⭐ SIRADA:**
-  - [ ] Google Veo 3.1 entegrasyonu (Ana model)
-  - [ ] `generate_video` aracına `{model: veo|kling|luma|runway|minimax}` parametresi eklenmesi
-  - [ ] Uzun videolarda her sahne için ayrı model seçimi (Per-Scene Adaptive Routing)
+### Phase 17: Smart Multi-Model Video Engine [COMPLETED 2026-02-21]
+- **Multi-Model Routing:** Added `{model: veo|kling|luma|runway|minimax}` support to `generate_video` and `generate_long_video`.
+- **Google Veo 3.1 Integration:** Implemented `GoogleVideoService` using Vertex AI / Google GenAI SDK for the highest fidelity cinematic video.
+- **Per-Scene Adaptive Routing:** `LongVideoService` now selects different models for each scene based on the director's roadmap.
+- **Smart Model Decision:** Updated Orchestrator system prompt to handle model selection based on scene context (e.g., minimax for action, kling for lip-sync).
+- **Fallback Mechanism:** Google Veo 3.1 requests automatically fallback to Luma/Kling via Fal.ai if API errors occur.
+
+### Current Fokus & Roadmap
+- [ ] Phase 18: Real-time Interactive Video Editing (Planned)
+- [ ] Phase 19: Audio-Visual Synchronization (Planned)
+- [ ] Phase 20: Full Autonomous Studio Orchestration (Planned)
 - [ ] **Kısa Video Optimizasyonu:** `generate_video` aracının da senkrandan asenkrona (BackgroundTasks) taşınması
 - [ ] **Video Yükleme Desteği:**
   - [ ] File picker'da video kabul (mp4, mov, webm)
