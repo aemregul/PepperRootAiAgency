@@ -341,8 +341,8 @@ class FalPluginV2(PluginBase):
         # Not: Fal.ai endpoint isimleri sürekli değişebilir, en stabil bilinenleri kullanıyoruz
         model_endpoints = {
             "kling": {
-                "i2v": "fal-ai/kling-video/v1.5/pro/image-to-video",
-                "t2v": "fal-ai/kling-video/v1.5/pro/text-to-video"
+                "i2v": "fal-ai/kling-video/o3/standard/image-to-video",
+                "t2v": "fal-ai/kling-video/o3/standard/text-to-video"
             },
             "luma": {
                 "i2v": "fal-ai/luma-dream-machine/image-to-video",
