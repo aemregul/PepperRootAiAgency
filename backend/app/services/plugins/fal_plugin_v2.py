@@ -375,6 +375,59 @@ class FalPluginV2(PluginBase):
             }
             
             if has_image:
+                # Video API'leri (özellik Kling) için çözünürlük limitleri var. (örn: max 1280x720 civarı bir şeye sığmalı)
+                try:
+                    import httpx
+                    import tempfile
+                    import os as os_module
+                    from PIL import Image
+                    import base64
+                    
+                    max_dim = 1280
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.get(image_url)
+                        resp.raise_for_status()
+                    
+                    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                        tmp.write(resp.content)
+                        tmp_path = tmp.name
+                        
+                    with Image.open(tmp_path) as img:
+                        orig_w, orig_h = img.size
+                        if orig_w > max_dim or orig_h > max_dim:
+                            logger.info(f"Yüksek çözünürlüklü görsel saptandı ({orig_w}x{orig_h}). Video modeli için küçültülüyor...")
+                            if orig_w > orig_h:
+                                new_w = max_dim
+                                new_h = int(orig_h * (max_dim / orig_w))
+                            else:
+                                new_h = max_dim
+                                new_w = int(orig_w * (max_dim / orig_h))
+                            
+                            # Encode dimensions to multiples of 8
+                            new_w = new_w - (new_w % 8)
+                            new_h = new_h - (new_h % 8)
+                            
+                            if img.mode != 'RGB':
+                                img = img.convert('RGB')
+                                
+                            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                            img.save(tmp_path, format="JPEG", quality=95)
+                            
+                            # Yeniden yükle
+                            with open(tmp_path, "rb") as f:
+                                b64_data = base64.b64encode(f.read()).decode("utf-8")
+                            
+                            # Data URI oluşturup upload metodunu çağırıyoruz
+                            upload_res = await self.upload_base64_image(f"data:image/jpeg;base64,{b64_data}")
+                            if upload_res.get("success"):
+                                image_url = upload_res.get("url")
+                                logger.info(f"Optimize edilmiş görsel yüklendi: {image_url}")
+                    
+                    if os_module.path.exists(tmp_path):
+                        os_module.remove(tmp_path)
+                except Exception as resize_err:
+                    logger.warning(f"Görsel boyutlandırma hatası, orijinali ile devam ediliyor: {resize_err}")
+
                 arguments["image_url"] = image_url
             
             # Bazı modeller (Minimax) image_url kabul etmeyebilir veya farklı isimlendirmiş olabilir, 

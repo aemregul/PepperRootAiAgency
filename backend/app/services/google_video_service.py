@@ -118,7 +118,7 @@ class GoogleVideoService:
                     
                     # SDK 2026 polling helper
                     while not op.done:
-                        await asyncio.sleep(10) # ⚡️ FIX: time.sleep -> await asyncio.sleep
+                        time.sleep(10) # ⚡️ FIX: geri dönüldü: await asyncio.sleep kullanıldığında syntax error veriyor
                         op = client.models.get_video_operation(op.name)
                         logger.info(f"   ... Veo durumu: {op.metadata.get('overall_progress', 'devam ediyor')}...")
                     
