@@ -449,6 +449,71 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         loadHistory();
     }, [initialSessionId]);
 
+    // Background processing WebSockets (progress, error, complete)
+    useEffect(() => {
+        if (!sessionId) return;
+
+        let ws: WebSocket | null = null;
+        let pingInterval: NodeJS.Timeout;
+
+        const connect = () => {
+            // WS baseUrl should use the same host as API_URL but ws protocol
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            const wsUrl = apiUrl.replace(/^http/, 'ws');
+
+            ws = new WebSocket(`${wsUrl}/ws/progress/${sessionId}`);
+
+            ws.onmessage = (event) => {
+                if (event.data === 'pong') return;
+
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'progress') {
+                        setLoadingStatus(data.message);
+                    } else if (data.type === 'error') {
+                        setMessages(prev => [...prev, {
+                            id: Date.now().toString(),
+                            role: 'assistant',
+                            content: data.message || "Video üretimi başarısız oldu.",
+                            timestamp: new Date()
+                        }]);
+                        setLoadingStatus("");
+                    } else if (data.type === 'complete') {
+                        if (data.result?.message) {
+                            setMessages(prev => [...prev, {
+                                id: data.result.message_id || Date.now().toString(),
+                                role: 'assistant',
+                                content: data.result.message,
+                                video_url: data.result.video_url,
+                                timestamp: new Date()
+                            }]);
+                            if (data.result.video_url && onNewAsset) {
+                                onNewAsset({ url: data.result.video_url, type: 'video' });
+                            }
+                        }
+                        setLoadingStatus("");
+                    }
+                } catch (err) {
+                    console.error("WS Parse error", err);
+                }
+            };
+
+            pingInterval = setInterval(() => {
+                if (ws?.readyState === WebSocket.OPEN) {
+                    ws.send('ping');
+                }
+            }, 30000);
+        };
+
+        connect();
+
+        return () => {
+            if (pingInterval) clearInterval(pingInterval);
+            if (ws) ws.close();
+        };
+    }, [sessionId, onNewAsset]);
+
     // Workflow'dan gelen prompt'u otomatik gönder
     useEffect(() => {
         if (pendingPrompt && sessionId && !isLoading) {
