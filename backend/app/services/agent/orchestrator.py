@@ -22,6 +22,8 @@ from app.services.preferences_service import preferences_service
 from app.services.episodic_memory_service import episodic_memory
 from app.models.models import Session as SessionModel
 
+# Global referans tutucu (FastAPI arka plan görevlerinin Garbage Collector tarafından silinmesini önler)
+_GLOBAL_BG_TASKS = set()
 
 async def get_user_id_from_session(db: AsyncSession, session_id: uuid.UUID) -> uuid.UUID:
     """Session'dan user_id'yi al."""
@@ -60,6 +62,7 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 4. **(GÖRSEL ZEKA & KAYIT):** Kullanıcının sana attığı görseli veya internetten bulduğun bir URL'yi detaylı incelemek istersen `analyze_image` aracıyla fotoğrafın gerçek içeriğini (dövmelerin şekli vb.) GPT-4o'dan dinle. Harika bir görsel üretir veya bulursan kullanıcı için `save_web_asset` ile Media Panel'ine kalıcı olarak kaydetmeyi unutma.
 5. Türkçe yanıt ver, tool parametreleri İngilizce olabilir.
 6. Entity isimleri @ olmadan da tanınır: "Emre" = @emre.
+7. **(ENTITY YÖNETİMİ & SİLİNMESİ - ÇOK ÖNEMLİ):** Kullanıcı AÇIKÇA "bu karakteri kaydet", "bu mekanı oluştur" DEMEDİĞİ SÜRECE asla kendi kendine `create_character` veya `create_location` ÇAĞIRMA. Görsel ürettiğinde o görseldeki kişileri otomatik olarak karakter yapma! Ayrıca kullanıcı "karakterleri sil", "bunları sil" dediğinde, silinmesi gereken kaç tane entity varsa `delete_entity` aracını O KADAR KERE (paralel olarak) çağır. Sistemi iyi okuyup hafızaya hakim olmalısın. Asla işlemleri reddedip "Senaryo yazma" gibi alakasız halüsinasyon cevaplar verme.
     7. **(AUTONOMOUS VIDEO DIRECTOR):** Kullanıcı video istediğinde (`generate_video` veya `generate_long_video`), KESİNLİKLE videonun hemen hazır olduğunu iddia etme. Bu görevler arka planda yürütülür. 
        - Sadece "Video üretimine başladım, hazır olduğunda bildireceğim" de. 
        - Sohbet geçmişinde senin tarafından atılmış, içinde gerçek bir video URL'si barındıran YENİ bir mesaj görmediğin sürece "Videon hazır" deme. 
@@ -1787,6 +1790,19 @@ Konuşma:
                     await db.commit()
         except Exception as e:
             print(f"❌ Background video error: {e}")
+            try:
+                from app.core.database import async_session_maker
+                async with async_session_maker() as db:
+                    from app.models.models import Message
+                    fail_msg = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=f"⚠️ Beklenmeyen Sistem Hatası: Video üretimi işlenirken bir sorun oluştu ({str(e)}). Lütfen daha sonra tekrar deneyin."
+                    )
+                    db.add(fail_msg)
+                    await db.commit()
+            except Exception as inner_e:
+                print(f"❌ Could not save background crash error to DB: {inner_e}")
 
     async def _generate_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict, resolved_entities: list = None) -> dict:
         """Video üret (3-10 sn) - Arka plana atar."""
@@ -1826,10 +1842,11 @@ Konuşma:
             )
             
             # Prevent Python Garbage Collector from silently destroying the task
-            if not hasattr(self, "_bg_tasks"):
-                self._bg_tasks = set()
-            self._bg_tasks.add(task)
-            task.add_done_callback(self._bg_tasks.discard)
+            global _GLOBAL_BG_TASKS
+            if "_GLOBAL_BG_TASKS" not in globals():
+                _GLOBAL_BG_TASKS = set()
+            _GLOBAL_BG_TASKS.add(task)
+            task.add_done_callback(_GLOBAL_BG_TASKS.discard)
             
             decision = "Görselden video (i2v)" if image_url else "Metinden video (t2v)"
             return {
@@ -1942,6 +1959,19 @@ Konuşma:
                     await db.commit()
         except Exception as e:
             print(f"❌ Background long video error: {e}")
+            try:
+                from app.core.database import async_session_maker
+                async with async_session_maker() as db:
+                    from app.models.models import Message
+                    fail_msg = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=f"⚠️ Beklenmeyen Sistem Hatası: Uzun video üretimi işlenirken bir sorun oluştu ({str(e)}). Lütfen daha sonra tekrar deneyin."
+                    )
+                    db.add(fail_msg)
+                    await db.commit()
+            except Exception as inner_e:
+                print(f"❌ Could not save background crash error to DB: {inner_e}")
 
     async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
         """Uzun video üret (30s - 3 dakika) - Arka plana atar."""
@@ -1963,10 +1993,11 @@ Konuşma:
             )
         )
         
-        if not hasattr(self, "_bg_tasks"):
-            self._bg_tasks = set()
-        self._bg_tasks.add(task)
-        task.add_done_callback(self._bg_tasks.discard)
+        global _GLOBAL_BG_TASKS
+        if "_GLOBAL_BG_TASKS" not in globals():
+            _GLOBAL_BG_TASKS = set()
+        _GLOBAL_BG_TASKS.add(task)
+        task.add_done_callback(_GLOBAL_BG_TASKS.discard)
         
         return {
             "success": True,
