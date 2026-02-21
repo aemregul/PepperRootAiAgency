@@ -1812,7 +1812,7 @@ Konuşma:
             # Hayır, her şey BG'ye gidebilir. Ama user'a hemen bir şey döndürmemiz lazım.
             
             import asyncio
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._run_video_bg(
                     user_id=str(user_id),
                     session_id=str(session_id),
@@ -1824,6 +1824,12 @@ Konuşma:
                     entity_ids=entity_ids
                 )
             )
+            
+            # Prevent Python Garbage Collector from silently destroying the task
+            if not hasattr(self, "_bg_tasks"):
+                self._bg_tasks = set()
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
             
             decision = "Görselden video (i2v)" if image_url else "Metinden video (t2v)"
             return {
@@ -1946,7 +1952,7 @@ Konuşma:
         user_id = await get_user_id_from_session(db, session_id)
         
         import asyncio
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._run_long_video_bg(
                 user_id=str(user_id),
                 session_id=str(session_id),
@@ -1956,6 +1962,11 @@ Konuşma:
                 scene_descriptions=scene_descriptions
             )
         )
+        
+        if not hasattr(self, "_bg_tasks"):
+            self._bg_tasks = set()
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
         
         return {
             "success": True,
