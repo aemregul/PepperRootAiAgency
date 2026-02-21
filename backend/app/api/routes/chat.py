@@ -181,12 +181,13 @@ async def _process_chat(
     try:
         agent_result = await agent.process_message(
             user_message=actual_message,
-            session_id=asset_session_id or session.id,  # Asset'ler aktif projeye
+            session_id=session.id,  # Chat session — WebSocket + messages
             db=db,
             conversation_history=conversation_history,
             reference_image=primary_image,
             reference_images=reference_images_base64,
-            last_reference_urls=last_reference_urls_from_history
+            last_reference_urls=last_reference_urls_from_history,
+            asset_session_id=asset_session_id,  # Project session — asset saving
         )
     except Exception as e:
         import traceback
