@@ -55,10 +55,11 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 9: Advanced Features (Phase 2) | ✅ Tamamlandı | %100 |
 | Hafta 10: UI Redesign + Localization | ✅ Tamamlandı | %100 |
 | Hafta 11: Gemini + Multi-Image + Edit Pipeline | ✅ Tamamlandı | %100 |
-- **21 Şubat 2026:** Faz 12-17 Tamamlandı. (Web Vision, Implicit Memory, Gemini Edit, Autonomous Director, Smart Multi-Model Video Engine)
-  - **Multi-Model Video Engine:** Veo 3.1 (Google Cloud), Kling, Luma, Runway ve Minimax entegrasyonu.
-  - **Async UX:** Tüm video üretimleri (kısa/uzun) asenkron arka plan görevlerine taşındı.
-  - **Adaptive Routing:** Sahneler için otomatik model seçimi ve web-aware referans enjeksiyonu.
+| Hafta 12: Video Robustness + Face Intelligence | ✅ Tamamlandı | %100 |
+- **21 Şubat 2026:** Faz 12-19.5 Tamamlandı. (Video Polling, Intelligent Face Selection, Async Stability)
+  - **Intelligent Reference:** GPT-4o Vision ile çoklu referanslar arasından en uygununu seçme.
+  - **Video Robustness:** Google Veo 3.1 LRO polling ve asenkron stabilite iyileştirmeleri.
+  - **Fail-Safe Video:** Arka pilan görev hatalarının sohbete anlık yansıtılması.
 
 ---
 
@@ -319,10 +320,17 @@ git add . && git commit -m "mesaj" && git push
 - **Smart Model Decision:** Updated Orchestrator system prompt to handle model selection based on scene context (e.g., minimax for action, kling for lip-sync).
 - **Fallback Mechanism:** Google Veo 3.1 requests automatically fallback to Luma/Kling via Fal.ai if API errors occur.
 
+### Phase 18-19.5: Documentation & Robustness [COMPLETED 2026-02-21]
+- **Video Background Robustness:** Fixed blocking `time.sleep` with `await asyncio.sleep` in video services.
+- **Fail-Safe Reporting:** Background task errors are now saved as persistent chat messages.
+- **Intelligent Face Selection:** GPT-4o Vision filters and selects the best matching face reference in multi-subject images.
+- **Hallucination Protection:** Strict system prompt rules prevent AI from claiming video completion prematurely.
+- **Safety Refusal Bypass:** Softened prompts to avoid GPT-4o "I can't identify people" refusals for fictional characters.
+
 ### Current Fokus & Roadmap
-- [ ] Phase 18: Real-time Interactive Video Editing (Planned)
-- [ ] Phase 19: Audio-Visual Synchronization (Planned)
 - [ ] Phase 20: Full Autonomous Studio Orchestration (Planned)
+- [ ] Phase 21: Real-time Interactive Video Editing (Planned)
+- [ ] Phase 22: Audio-Visual Synchronization (Planned)
 - [ ] **Kısa Video Optimizasyonu:** `generate_video` aracının da senkrandan asenkrona (BackgroundTasks) taşınması
 - [ ] **Video Yükleme Desteği:**
   - [ ] File picker'da video kabul (mp4, mov, webm)
@@ -337,7 +345,18 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 📝 SON GELİŞMELER (21 Şubat 2026 - Gece)
+### 📝 SON GELİŞMELER (21 Şubat 2026 - 03:15)
+
+### 🔮 Intelligent Face Selection & Async Stability (Phase 18-19.5) ⭐ YENİ
+1. **Zeki Referans Filtreleme (GPT-4o Vision):**
+   - Çoklu referans görseli (erkek/kadın) yüklendiğinde, sistem artık talimatı analiz edip en uygun olanı seçiyor.
+   - "Erkek karakter ekle" dendiğinde kadın referansı elenerek kimlik karışıklığı (gender-swap) önleniyor.
+2. **Video Arka Plan Stabilizasyonu (LRO Polling):**
+   - Google Veo 3.1 için polling mantığı düzeltildi.
+   - Bloklayan `time.sleep` hataları asenkron `asyncio.sleep`e çevrilerek sunucu kilitlenmesi önlendi.
+3. **Hata Yakalama & Hallüsinasyon Engelleme:**
+   - Arka plan görev hataları artık sohbete kalıcı mesaj olarak kaydediliyor.
+   - Agent'ın video hazır olmadan "Hazır" demesi sistem promptu ile yasaklandı.
 
 ### 🎬 Autonomous Video Director (Faz 16 Tamamlandı) ⭐ YENİ
 1. **Asenkron Mimari (Backend):**

@@ -222,11 +222,11 @@ class GeminiImageService:
             # Gemini'ye ilk görselin "değiştirilecek ana sahne" olduğunu, 
             # diğerlerinin ise "kimlik/nesne referansı" olduğunu açıkla.
             inpainting_prompt = (
-                f"You are an expert image editor. The VERY FIRST image provided is the ORIGINAL image (the canvas) that needs to be modified. "
-                f"The SUBSEQUENT images are identity or subject references. "
-                f"TASK: Modify the ORIGINAL image according to this instruction: {prompt}. "
-                f"CRITICAL: You MUST preserve the facial features and identity from the reference image(s) perfectly when adding or modifying people. "
-                f"Maintain the background, lighting, and style of the ORIGINAL image for everything outside the modification area. "
+                f"You are an expert image editor. The VERY FIRST image provided is the ORIGINAL image (the canvas) that needs to be modified.\n"
+                f"The SUBSEQUENT images are identity/subject references.\n"
+                f"CRITICAL: The SECOND image (the first reference) is the PRIMARY identity donor. You MUST preserve the facial features and identity from this SECOND image perfectly.\n"
+                f"TASK: Modify the ORIGINAL image (first image) according to this instruction: '{prompt}'.\n"
+                f"Ensure the background, lighting, and style of the ORIGINAL image are maintained for everything outside the modification area.\n"
                 "Output the modified image."
             )
             

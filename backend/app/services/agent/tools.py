@@ -110,7 +110,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_video",
-        "description": "Video üretir. Smart Router otomatik olarak en iyi modeli seçer. Hangi videoya hangi model uyar? veo (Varsayılan Ana Model): En yüksek kalite, sinematik doğallık. kling: Gerçekçi insan, lip-sync. luma: Sinematik, hızlı sonuçlar, rüya gibi kamera hareketleri. runway: Sanatsal, gelişmiş hareketler, dinamik açılar. minimax: Mükemmel fizik kuralları, aksiyon ve kararlılık.",
+        "description": "Video üretir (ARKA PLAN GÖREVİ). Bu araç hemen video dönmez, üretimi arka planda başlatır. Üretim bittiğinde asistan otomatik olarak yeni bir mesajla videoyu paylaşacaktır. Kullanıcıya 'başlatıldı' bilgisi ver, ama 'hazır' deme. Modeller: veo (sinematik), kling (insan/lip-sync), luma (hızlı/rüya), runway (sanatsal), minimax (aksiyon).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -142,7 +142,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_long_video",
-        "description": "Uzun video üretir (30 saniye - 3 dakika). Birden fazla kısa klip üretip otomatik birleştirir. Kullanıcı 10 saniyeden uzun video istediğinde bu tool kullanılmalı.",
+        "description": "Uzun video üretir (30 saniye - 3 dakika, ARKA PLAN GÖREVİ). Çok aşamalı bir işlemdir ve arka planda yürütülür. Bittiğinde asistan videoyu yeni bir mesajla paylaşacaktır. Kullanıcıya 'üretim başladı' de, bittiğini iddia etme.",
         "input_schema": {
             "type": "object",
             "properties": {

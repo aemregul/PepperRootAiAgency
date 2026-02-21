@@ -113,8 +113,19 @@ class GoogleVideoService:
                             fps=fps
                         )
                     )
-                    # wait until complete
-                    return op.video_uri
+                    # wait until complete (LRO)
+                    logger.info(f"⏳ Veo 3.1 işlemi bekleniyor (Operation: {op.name})...")
+                    
+                    # SDK 2026 polling helper
+                    while not op.done:
+                        await asyncio.sleep(10) # ⚡️ FIX: time.sleep -> await asyncio.sleep
+                        op = client.models.get_video_operation(op.name)
+                        logger.info(f"   ... Veo durumu: {op.metadata.get('overall_progress', 'devam ediyor')}...")
+                    
+                    if op.error:
+                        raise Exception(f"Veo API Hatası: {op.error.message}")
+                        
+                    return op.result.video.uri
                 
                 # Asenkron loop'ta çalıştır
                 loop = asyncio.get_event_loop()

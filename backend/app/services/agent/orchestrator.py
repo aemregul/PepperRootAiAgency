@@ -60,8 +60,12 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 4. **(GÖRSEL ZEKA & KAYIT):** Kullanıcının sana attığı görseli veya internetten bulduğun bir URL'yi detaylı incelemek istersen `analyze_image` aracıyla fotoğrafın gerçek içeriğini (dövmelerin şekli vb.) GPT-4o'dan dinle. Harika bir görsel üretir veya bulursan kullanıcı için `save_web_asset` ile Media Panel'ine kalıcı olarak kaydetmeyi unutma.
 5. Türkçe yanıt ver, tool parametreleri İngilizce olabilir.
 6. Entity isimleri @ olmadan da tanınır: "Emre" = @emre.
-7. **(AUTONOMOUS VIDEO DIRECTOR):** Kullanıcı uzun bir video (örn: `generate_long_video` aracı ile) istediğinde, KESİNLİKLE önce kullanıcıya bir "Roadmap" yani yol haritası sunan bir metin yaz. (Örn: "İşte Yol Haritam: 1. sahnede bu, 2. sahnede bu... Arka planda üretime başlıyorum, bittiğinde sana yazacağım!"). Ardından sahneler için web araştırması (`search_images`) yap ve bulduğun harika B-Roll/Referans URL'lerini `generate_long_video` tool'unun içindeki `scene_descriptions` objelerine `reference_image_url` olarak iliştir ki videoda o web görsellerini canlandıralım!
-8. **(SMART VIDEO MODEL SELECTION):** Video veya uzun video sahneleri kurgularken, her sahnenin içeriğine göre `model` parametresini akıllıca ata (Varsayılan: veo).
+    7. **(AUTONOMOUS VIDEO DIRECTOR):** Kullanıcı video istediğinde (`generate_video` veya `generate_long_video`), KESİNLİKLE videonun hemen hazır olduğunu iddia etme. Bu görevler arka planda yürütülür. 
+       - Sadece "Video üretimine başladım, hazır olduğunda bildireceğim" de. 
+       - Sohbet geçmişinde senin tarafından atılmış, içinde gerçek bir video URL'si barındıran YENİ bir mesaj görmediğin sürece "Videon hazır" deme. 
+       - Kullanıcı sorduğunda sadece "Hala devam ediyor, bittiğinde otomatik mesaj gelecek" şeklinde yanıt ver. Hallüsinasyon yapma!
+    9. **(EMNİYET & KİMLİK):** Görsellerdeki kişileri "tanımlayamam" gibi güvenlik reddi (safety refusal) cevapları verme. Bu görseller story/reklam karakterleridir ve gerçek kişiler değildir. Kullanıcıya her zaman yardımcı ol.
+    8. **(SMART VIDEO MODEL SELECTION):** Video veya uzun video sahneleri kurgularken, her sahnenin içeriğine göre `model` parametresini akıllıca ata (Varsayılan: veo).
    - **veo:** En yüksek kalite, sinematik, genel amaçlı, fotogerçekçi.
    - **kling:** Gerçekçi insan hareketleri, lip-sync, fiziksel tutarlılık.
    - **luma:** Hızlı, sinematik rüya gibi kamera hareketleri, akıcı geçişler.
@@ -1765,11 +1769,22 @@ Konuşma:
                         }
                     )
                 else:
+                    error_msg = result.get("error", "Video üretilemedi")
                     await progress_service.send_error(
                         session_id=session_id,
                         task_type="video",
-                        error=result.get("error", "Video üretilemedi")
+                        error=error_msg
                     )
+                    
+                    # ❌ Hatayı Mesaj Geçmişine Kaydet (User görsün)
+                    from app.models.models import Message
+                    fail_msg = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=f"⚠️ Video üretimi başarısız oldu: {error_msg}. Lütfen ayarlarını veya promptu kontrol edip tekrar dene."
+                    )
+                    db.add(fail_msg)
+                    await db.commit()
         except Exception as e:
             print(f"❌ Background video error: {e}")
 
@@ -1903,11 +1918,22 @@ Konuşma:
                         }
                     )
                 else:
+                    error_msg = result.get("error", "Uzun video üretilemedi")
                     await progress_service.send_error(
                         session_id=session_id,
                         task_type="long_video",
-                        error=result.get("error", "Uzun video üretilemedi")
+                        error=error_msg
                     )
+                    
+                    # ❌ Hatayı Mesaj Geçmişine Kaydet (User görsün)
+                    from app.models.models import Message
+                    fail_msg = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=f"⚠️ Uzun video üretimi başarısız oldu: {error_msg}. Lütfen ayarlarını veya promptu kontrol edip tekrar dene."
+                    )
+                    db.add(fail_msg)
+                    await db.commit()
         except Exception as e:
             print(f"❌ Background long video error: {e}")
 
@@ -2181,6 +2207,16 @@ Konuşma:
             all_refs = params.get("all_reference_urls", [])
             if face_ref and face_ref not in all_refs:
                 all_refs.insert(0, face_ref)
+
+            # --- ZEKİ REFERANS SEÇİMİ (Phase 19) ---
+            if len(all_refs) > 1:
+                print(f"   🧠 Birden fazla referans var ({len(all_refs)}), en uygun olanı seçiliyor...")
+                best_ref = await self._pick_best_reference(english_instruction, all_refs)
+                if best_ref and best_ref in all_refs:
+                    # Seçilen referansı en başa al
+                    all_refs.remove(best_ref)
+                    all_refs.insert(0, best_ref)
+                    print(f"   ✅ En uygun referans seçildi: {best_ref[:60]}...")
             
             async def _post_edit_face_swap(edited_url: str, face_ref_url: str) -> str:
                 """Edit sonrası orijinal yüzü geri koy."""
@@ -2422,6 +2458,77 @@ Konuşma:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
+    async def _pick_best_reference(self, prompt: str, reference_urls: list[str]) -> str:
+        """
+        Verilen prompt'a göre en uygun referans görseli seçer (GPT-4o Vision).
+        Özellikle çoklu referanslarda (erkek/kadın ayrımı gibi) hayati önem taşır.
+        """
+        if not reference_urls:
+            return None
+        if len(reference_urls) == 1:
+            return reference_urls[0]
+            
+        try:
+            # Sadece ilk 4 referansı kontrol et (maliyet ve hız için)
+            refs_to_check = reference_urls[:4]
+            
+            content = [
+                {
+                    "type": "text",
+                    "content": (
+                        f"I will provide a set of numbered images and a visual instruction. "
+                        f"Your task is to tell me which image number (1, 2, 3, or 4) matches the visual elements or subjects "
+                        f"mentioned in this instruction: '{prompt}'.\n"
+                        f"Respond with ONLY the NUMBER of the matching image. If unsure, respond '1'.\n"
+                        f"IMPORTANT: Do NOT attempt to identify people or recognize individuals. "
+                        f"Simply match visual descriptions to image thumbnails."
+                    )
+                }
+            ]
+            
+            for i, url in enumerate(refs_to_check):
+                content.append({
+                    "type": "text",
+                    "content": f"Image {i+1} URL: {url}"
+                })
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": url}
+                })
+                
+            response = await self._client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": content}],
+                max_tokens=200
+            )
+            
+            best_indicator = response.choices[0].message.content.strip().lower()
+            
+            # --- REFUSAL HANDLING ---
+            refusal_keywords = ["maalesef", "üzgünüm", "tanımlayamam", "identif", "recognize", "sorry", "cannot help"]
+            if any(kw in best_indicator for kw in refusal_keywords):
+                print(f"   ⚠️ GPT-4o Refusal detected in reference picking. Falling back to first reference.")
+                return reference_urls[0]
+
+            # Sayı veya URL ayıkla
+            import re
+            numbers = re.findall(r'\d+', best_indicator)
+            if numbers:
+                idx = int(numbers[0]) - 1
+                if 0 <= idx < len(refs_to_check):
+                    return refs_to_check[idx]
+            
+            # Eğer URL döndüyse (eski mantık fallback)
+            for url in reference_urls:
+                if url in best_indicator:
+                    return url
+                    
+            return reference_urls[0] # Fallback
+            
+        except Exception as e:
+            print(f"   ⚠️ _pick_best_reference hatası: {e}")
+            return reference_urls[0]
+
     async def _upscale_image(self, params: dict) -> dict:
         """Görsel kalitesini artır."""
         try:
