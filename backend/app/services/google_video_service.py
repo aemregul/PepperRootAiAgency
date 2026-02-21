@@ -60,8 +60,6 @@ class GoogleVideoService:
                 aspect_ratio=aspect_ratio,
                 duration_seconds=int(duration),
                 person_generation="allow_all",
-                enhance_prompt=True,
-                generate_audio=True,
                 number_of_videos=1,
             )
             

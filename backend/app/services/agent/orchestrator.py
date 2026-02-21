@@ -955,7 +955,7 @@ Kurallar:
         print(f"{'='*50}")
         
         # Kullanıcı fotoğraf yüklediyse ve tool args'da image_url yoksa, otomatik ekle
-        IMAGE_TOOLS = {"edit_image", "remove_background", "outpaint_image", "upscale_image", "analyze_image"}
+        IMAGE_TOOLS = {"edit_image", "remove_background", "outpaint_image", "upscale_image", "analyze_image", "generate_video", "generate_long_video"}
         if uploaded_reference_url and tool_name in IMAGE_TOOLS:
             if not tool_input.get("image_url"):
                 tool_input["image_url"] = uploaded_reference_url
