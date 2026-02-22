@@ -17,9 +17,7 @@ interface Message {
 }
 
 interface ChatPanelProps {
-    sessionId?: string;
-    activeProjectId?: string;  // Aktif proje — asset'ler buraya kaydedilir
-    onSessionChange?: (sessionId: string) => void;
+    sessionId?: string;  // Proje session ID — hem chat hem asset
     onNewAsset?: (asset: { url: string; type: string }) => void;
     onEntityChange?: () => void;
     pendingPrompt?: string | null;
@@ -166,7 +164,7 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
     return elements.length > 0 ? elements : content;
 }
 
-export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSessionChange, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed, pendingInputText, onInputTextConsumed, installedPlugins = [] }: ChatPanelProps) {
+export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed, pendingInputText, onInputTextConsumed, installedPlugins = [] }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -731,7 +729,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
         try {
             // Reference images varsa FormData endpoint kullan
             if (currentFiles.length > 0) {
-                const response = await sendMessage(sessionId, currentInput, currentFiles, activeProjectId);
+                const response = await sendMessage(sessionId, currentInput, currentFiles, sessionId);
                 const responseContent = typeof response.response === 'string'
                     ? response.response
                     : response.response?.content ?? 'Yanıt alınamadı';
@@ -785,7 +783,7 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                 };
 
                 abortControllerRef.current = new AbortController();
-                await sendMessageStream(sessionId, currentInput, activeProjectId, {
+                await sendMessageStream(sessionId, currentInput, sessionId, {
                     onToken: (token: string) => {
                         // İlk token geldiğinde mesaj oluştur ve loading'i kapat
                         if (!messageCreated) {

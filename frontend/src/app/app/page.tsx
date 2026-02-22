@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { AssetsPanel } from "@/components/AssetsPanel";
 import { NewProjectModal } from "@/components/NewProjectModal";
-import { createSession, getSessions, getMainChatSession } from "@/lib/api";
+import { createSession, getSessions } from "@/lib/api";
 import { FolderPlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -16,10 +16,8 @@ export default function Home() {
 
   const [assetsCollapsed, setAssetsCollapsed] = useState(false);
 
-  // === TEK ASISTAN MİMARİSİ ===
-  // chatSessionId: ana sohbet session (asla değişmez, user başına 1 tane)
-  // activeProjectId: şu an seçili proje (asset + entity container)
-  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+  // === PROJE-BAZLI CHAT MİMARİSİ ===
+  // activeProjectId: seçili proje — hem chat hem asset session
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -42,15 +40,10 @@ export default function Home() {
     }
   }, [authLoading, user, router]);
 
-  // === ANA CHAT SESSION + PROJE LİSTESİ BAŞLAT ===
+  // === PROJE LİSTESİ BAŞLAT ===
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. Ana chat session al (yoksa otomatik oluşturulur)
-        const mainChat = await getMainChatSession();
-        setChatSessionId(mainChat.session_id);
-
-        // 2. Projeleri yükle
         const sessions = await getSessions();
         // main_chat session'ını proje listesinden çıkar
         const projects = sessions.filter(s => s.category !== 'main_chat');
@@ -145,8 +138,8 @@ export default function Home() {
         onAssetRestore={handleAssetRestore}
       />
 
-      {/* Chat her zaman görünür (tek sürekli sohbet) */}
-      {!chatSessionId || (!activeProjectId && hasNoProjects) ? (
+      {/* Chat — proje seçili değilse hoşgeldin ekranı */}
+      {!activeProjectId && hasNoProjects ? (
         <div className="flex-1 flex items-center justify-center" style={{ background: "var(--background)" }}>
           <div className="text-center max-w-md px-6">
             <div
@@ -163,7 +156,6 @@ export default function Home() {
             </h1>
             <p className="mb-8" style={{ color: "var(--foreground-muted)" }}>
               AI destekli görsel ve video üretimi için yeni bir proje oluşturun.
-              Tek asistanınız tüm projelerinizde sizi hatırlayacak.
             </p>
             <button
               onClick={() => setNewProjectModalOpen(true)}
@@ -196,9 +188,7 @@ export default function Home() {
         </div>
       ) : (
         <ChatPanel
-          sessionId={chatSessionId || undefined}
-          activeProjectId={activeProjectId || undefined}
-          onSessionChange={setChatSessionId}
+          sessionId={activeProjectId || undefined}
           onNewAsset={handleNewAsset}
           onEntityChange={handleEntityChange}
           pendingPrompt={pendingPrompt}

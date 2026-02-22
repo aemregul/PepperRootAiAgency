@@ -598,6 +598,16 @@ git add . && git commit -m "mesaj" && git push
      - GPT-4o Vision'a her görsel ayrı `image_url` content part olarak gönderiliyor
      - `_uploaded_image_urls` result dict'e eklendi
 
+### 🌟 22 Şubat 2026 - Otonom Entity Kontrolü ve Silme Düzeltmeleri ⭐ YENİ
+
+1. **Otonom (İzinsiz) Entity Üretimi Engellendi:**
+   - `orchestrator.py` sistem komutlarına kesin bir kısıtlama getirildi: Kullanıcı açıkça "kaydet" demedikçe görsellerden çıkarılan kişiler/mekanlar otonom olarak `create_character` veya `create_location` ile KESİNLİKLE kaydedilmeyecek.
+   - LLM'in bu kısıtlamalara kesin itaati sağlandı.
+
+2. **Çoklu Entity Silme (Halüsinasyon Önleyici) Düzeltmesi:**
+   - Kullanıcı "karakterleri sil" gibi çoğul bir istekte bulunduğunda sistemin senaryo yazma (halüsinasyon) hatasına düşmesi engellendi.
+   - `tools.py` içerisinde `delete_entity` aracının açıklaması güncellenerek hedefteki her bir entity için (örn: @kisi_1, @woman_in_white) bu aracın **paralel olarak (birden çok kez) çağrılması gerektiği** Modele açıkça belirtildi.
+
 ### 🎨 UI Redesign + Türkçe Lokalizasyon (17 Şubat)
 
 1. **Sidebar Yeniden Tasarım:**

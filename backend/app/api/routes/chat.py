@@ -64,15 +64,7 @@ async def _process_chat(
     db: AsyncSession,
     active_project_id: Optional[str] = None
 ) -> ChatResponse:
-    """Chat işleme ortak logic. Mesajlar session'a, asset'ler active_project'e kaydedilir."""
-    
-    # Asset'ler hangi projeye kaydedilecek?
-    asset_session_id = None
-    if active_project_id:
-        try:
-            asset_session_id = UUID(active_project_id)
-        except ValueError:
-            pass
+    """Chat işleme ortak logic. Per-project chat — session_id = proje."""
     
     # Session al veya oluştur
     if actual_session_id:
@@ -181,13 +173,12 @@ async def _process_chat(
     try:
         agent_result = await agent.process_message(
             user_message=actual_message,
-            session_id=session.id,  # Chat session — WebSocket + messages
+            session_id=session.id,  # Proje session — hem chat hem asset
             db=db,
             conversation_history=conversation_history,
             reference_image=primary_image,
             reference_images=reference_images_base64,
             last_reference_urls=last_reference_urls_from_history,
-            asset_session_id=asset_session_id,  # Project session — asset saving
         )
     except Exception as e:
         import traceback
@@ -390,14 +381,6 @@ async def chat_stream(
     active_project_id = str(request.active_project_id) if request.active_project_id else None
     actual_message = request.message
     
-    # Asset hedef session
-    asset_session_id = None
-    if active_project_id:
-        try:
-            asset_session_id = UUID(active_project_id)
-        except ValueError:
-            pass
-    
     # Session al
     if actual_session_id:
         try:
@@ -479,7 +462,7 @@ async def chat_stream(
         try:
             async for event in agent.process_message_stream(
                 user_message=actual_message,
-                session_id=asset_session_id or session.id,
+                session_id=session.id,
                 db=db,
                 conversation_history=conversation_history
             ):

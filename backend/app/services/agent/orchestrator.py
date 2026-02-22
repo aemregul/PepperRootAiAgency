@@ -156,7 +156,7 @@ Kurallar:
         reference_image: str = None,
         reference_images: list = None,
         last_reference_urls: list = None,
-        asset_session_id: uuid.UUID = None
+
     ) -> dict:
         """
         Kullanıcı mesajını işle ve yanıt döndür.
@@ -361,7 +361,7 @@ Kurallar:
             "_current_reference_image": reference_image,  # Mevcut referans görsel (base64)
             "_uploaded_image_url": uploaded_image_url,  # Fal.ai URL (edit/remove için)
             "_uploaded_image_urls": uploaded_image_urls,  # Tüm yüklenen URL'ler
-            "_asset_session_id": asset_session_id or session_id,  # Project session for asset saving
+
         }
         
         print(f"\n🔍 DIAGNOSTIC: process_message result dict created")
@@ -877,7 +877,7 @@ Kurallar:
                     current_reference_image=result.get("_current_reference_image"),
                     uploaded_reference_url=result.get("_uploaded_image_url"),
                     uploaded_reference_urls=result.get("_uploaded_image_urls"),
-                    asset_session_id=result.get("_asset_session_id")
+
                 )
                 
                 # 🔍 DEBUG: Tool çağrısı bitti
@@ -978,7 +978,7 @@ Kurallar:
         current_reference_image: str = None,
         uploaded_reference_url: str = None,
         uploaded_reference_urls: list = None,
-        asset_session_id: uuid.UUID = None
+
     ) -> dict:
         """Araç çağrısını işle."""
         
@@ -1063,7 +1063,7 @@ Kurallar:
         # YENİ ARAÇLAR
         elif tool_name == "generate_video":
             # Video üretimi sonrası thumbnail kaydı için özel işlem
-            result = await self._generate_video(db, session_id, tool_input, resolved_entities or [], asset_session_id=asset_session_id)
+            result = await self._generate_video(db, session_id, tool_input, resolved_entities or [])
             
             # Eğer başarılıysa ve thumbnail varsa DB'ye güncelle (veya save sırasında hallet)
             # Not: _generate_video içinde zaten save_asset çağrılıyor, orayı güncellemeliyiz.
@@ -1753,10 +1753,9 @@ Konuşma:
         
         Entity referansı varsa, önce görsel üretilip image-to-video yapılır.
         """
-    async def _run_video_bg(self, user_id: str, session_id: str, prompt: str, image_url: str, duration: str, aspect_ratio: str, model: str, entity_ids: list = None, asset_session_id: str = None):
-        """Asenkron kısa video üretimi ve bildirimi. session_id=chat, asset_session_id=project."""
-        # asset_session_id yoksa chat session'a kaydet
-        asset_sid = asset_session_id or session_id
+    async def _run_video_bg(self, user_id: str, session_id: str, prompt: str, image_url: str, duration: str, aspect_ratio: str, model: str, entity_ids: list = None):
+        """Asenkron kısa video üretimi ve bildirimi. session_id = proje."""
+        asset_sid = session_id
         try:
             from app.core.database import async_session_maker
             from app.services.progress_service import progress_service
@@ -1865,7 +1864,7 @@ Konuşma:
             except Exception as inner_e:
                 print(f"❌ Could not save background crash error to DB: {inner_e}")
 
-    async def _generate_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict, resolved_entities: list = None, asset_session_id: uuid.UUID = None) -> dict:
+    async def _generate_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict, resolved_entities: list = None) -> dict:
         """Video üret (3-10 sn) - Arka plana atar."""
         try:
             prompt = params.get("prompt", "")
@@ -1897,8 +1896,7 @@ Konuşma:
             task = asyncio.create_task(
                 self._run_video_bg(
                     user_id=str(user_id),
-                    session_id=str(session_id),  # Chat session — WS push + messages
-                    asset_session_id=str(asset_session_id) if asset_session_id else str(session_id),  # Project session — asset saving
+                    session_id=str(session_id),
                     prompt=enriched_prompt,
                     image_url=image_url,
                     duration=duration,
