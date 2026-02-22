@@ -520,8 +520,8 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                 scheduleReconnect();
             };
 
-            ws.onerror = (error) => {
-                console.error('[WS] Error:', error);
+            ws.onerror = () => {
+                console.warn('[WS] Connection error — will retry via onclose');
                 // onclose will fire after onerror, so reconnect is handled there
             };
 
