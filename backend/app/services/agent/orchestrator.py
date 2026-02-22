@@ -68,12 +68,21 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
        - Video arka planda üretilir, bittiğinde kullanıcıya otomatik bildirim gider.
        - Kullanıcı "video nerede" diye sorarsa: "Hala devam ediyor, bittiğinde otomatik mesaj gelecek" de.
     9. **(EMNİYET & KİMLİK):** Görsellerdeki kişileri "tanımlayamam" gibi güvenlik reddi (safety refusal) cevapları verme. Bu görseller story/reklam karakterleridir ve gerçek kişiler değildir. Kullanıcıya her zaman yardımcı ol.
-    8. **(SMART VIDEO MODEL SELECTION):** Video veya uzun video sahneleri kurgularken, her sahnenin içeriğine göre `model` parametresini akıllıca ata (Varsayılan: veo).
+    10. **(SMART VIDEO MODEL SELECTION):** Video veya uzun video sahneleri kurgularken, her sahnenin içeriğine göre `model` parametresini akıllıca ata (Varsayılan: veo).
    - **veo:** En yüksek kalite, sinematik, genel amaçlı, fotogerçekçi.
    - **kling:** Gerçekçi insan hareketleri, lip-sync, fiziksel tutarlılık.
    - **luma:** Hızlı, sinematik rüya gibi kamera hareketleri, akıcı geçişler.
    - **runway:** Sanatsal, deneysel, gelişmiş kamera kontrolü (zoom/pan).
    - **minimax:** Aksiyon sahneleri, hızlı fiziksel etkileşimler, kararlılık.
+    11. **(YARATICI MUHAKEME DÖNGÜSÜ — ÇOK ÖNEMLİ):** Sen sadece emirleri uygulayan bir araç değilsin — sen bir **yaratıcı yönetmensin**. Şu muhakeme adımlarını uygula:
+   - **Kullanıcı düzeltme istediğinde:** Örn "bu yazıyı değiştir", "arka plandaki kişiyi kaldır", "renkleri düzelt" → ÖNCE `analyze_image` veya `analyze_video` ile mevcut içeriği analiz et, sorun noktasını tespit et, SONRA düzeltilmiş promptla yeniden üret.
+   - **Videoda sorun varsa:** Kullanıcı "videodaki yazı yanlış" derse → `analyze_video` ile videoyu incele, yanlış yazıyı tespit et, doğru yazıyla yeni prompt oluştur ve videoyu baştan üret.
+   - **Kendi kararlarını al:** Ürettiğin içerikte bariz bir sorun görürsen (yanlış element, bozuk metin, uyumsuz renk) kullanıcıya bildirip "bunu düzelteyim mi?" de. Proaktif ol.
+   - **Kalite kontrolü:** Yapılan her üretimden sonra, sonucun promptla ne kadar uyumlu olduğunu değerlendir. Ciddi bir uyumsuzluk varsa kullanıcıyı bilgilendir.
+    12. **(VİDEO ANALİZİ):** `analyze_video` aracını şu durumlarda kullan:
+   - Kullanıcı üretilen videoda sorun bildirdiğinde
+   - Kullanıcı bir referans video/klip URL'si verdiğinde (içeriğini anlamak için)
+   - Uzun video üretiminde her segmentin kalitesini kontrol etmek için
 
 ## TOOL SEÇİMİ
 **Yeni içerik üret:** generate_image, generate_video, generate_long_video (>10s)
@@ -1253,16 +1262,7 @@ Kurallar:
     async def _summarize_conversation(self, messages: list, max_messages: int = 15) -> list:
         """
         Uzun konuşmaları özetleyerek context window tasarrufu sağlar.
-        
-        - 15+ mesajda: Eski mesajları özetle, son 5'i koru
-        - Özet + son mesajlar = daha akıllı agent
-        
-        Args:
-            messages: Tüm mesaj listesi
-            max_messages: Özet başlamadan önceki max mesaj sayısı
-            
-        Returns:
-            list: Özetlenmiş + son mesajlar
+        Zehirli mesajları filtreler, kullanıcı parametrelerini korur.
         """
         if len(messages) <= max_messages:
             return messages
@@ -1272,49 +1272,69 @@ Kurallar:
             recent_messages = messages[-5:]
             old_messages = messages[:-5]
             
+            # 🛡️ Zehirli/gürültülü mesajları filtrele (özete dahil etme)
+            NOISE_PATTERNS = [
+                "Video üretimine başladım",
+                "Videonuz hazır",
+                "Video üretimi başarısız",
+                "Beklenmeyen Sistem Hatası",
+                "hata oluştu",
+                "tekrar deneyelim",
+            ]
+            
+            filtered_old = []
+            for msg in old_messages:
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    content = " ".join([c.get("text", "") for c in content if c.get("type") == "text"])
+                
+                # Gürültülü mesajları atla
+                if any(noise in content for noise in NOISE_PATTERNS):
+                    continue
+                filtered_old.append(msg)
+            
             # Eski mesajları özetle
-            summary_prompt = """Aşağıdaki konuşmayı kısa ve öz özetle. 
-Önemli bilgileri koru:
-- Üretilen görsel/video detayları
-- Oluşturulan entity'ler (@karakterler, @mekanlar, @markalar)
-- Kullanıcı tercihleri (aspect ratio, stil, vb.)
-- Başarısız işlemler ve nedenleri
+            summary_prompt = """Aşağıdaki konuşmayı kısa ve öz özetle.
+
+ÖNEMLİ KURALLAR:
+- Kullanıcının belirttiği PARAMETRELERİ (süre, boyut, model, stil) AYNEN koru
+- Oluşturulan entity'leri (@karakterler, @mekanlar) listele
+- Başarılı üretim sonuçlarını (URL'ler) koru
+- Başarısız denemeleri ve hata mesajlarını ATLAMA — bunları özetleme
+- Kullanıcının tercihlerini ve tekrar eden isteklerini belirt
 
 Konuşma:
 """
-            for msg in old_messages:
+            for msg in filtered_old:
                 role = "Kullanıcı" if msg.get("role") == "user" else "Asistan"
                 content = msg.get("content", "")
                 if isinstance(content, list):
-                    # Vision mesajı - sadece text kısmını al
                     content = " ".join([c.get("text", "") for c in content if c.get("type") == "text"])
-                summary_prompt += f"\n{role}: {content[:500]}..."  # Max 500 karakter/mesaj
+                summary_prompt += f"\n{role}: {content[:500]}..."
             
-            # GPT-4o ile özetle
+            # GPT-4o-mini ile özetle
             summary_response = self.client.chat.completions.create(
-                model="gpt-4o-mini",  # Hızlı ve ucuz model özet için
-                max_tokens=500,
+                model="gpt-4o-mini",
+                max_tokens=600,
                 messages=[
-                    {"role": "system", "content": "Sen bir konuşma özetleyicisisin. Kısa ve öz özetler yap."},
+                    {"role": "system", "content": "Sen bir konuşma özetleyicisisin. Kullanıcının verdiği parametreleri (süre, boyut, model) AYNEN koru. Hata mesajlarını ve başarısız denemeleri özetleme — sadece başarılı sonuçları ve kullanıcı tercihlerini yaz."},
                     {"role": "user", "content": summary_prompt}
                 ]
             )
             
             summary_text = summary_response.choices[0].message.content
             
-            # Özet mesajı oluştur
             summary_message = {
                 "role": "system",
-                "content": f"📝 ÖNCEKİ KONUŞMA ÖZETİ:\n{summary_text}\n\n(Son {len(recent_messages)} mesaj aşağıda)"
+                "content": f"📝 ÖNCEKİ KONUŞMA ÖZETİ:\n{summary_text}\n\n⚠️ DİKKAT: Bu özetteki parametreler geçmişe aittir. Yeni isteklerde SADECE kullanıcının SON mesajındaki parametreleri kullan.\n\n(Son {len(recent_messages)} mesaj aşağıda)"
             }
             
-            print(f"🧠 Konuşma özetlendi: {len(old_messages)} mesaj → 1 özet + {len(recent_messages)} güncel mesaj")
+            print(f"🧠 Konuşma özetlendi: {len(old_messages)} mesaj → {len(filtered_old)} filtrelendi → 1 özet + {len(recent_messages)} güncel")
             
             return [summary_message] + recent_messages
             
         except Exception as e:
             print(f"⚠️ Özetleme hatası: {e}")
-            # Hata durumunda son 10 mesajı döndür
             return messages[-10:]
 
     
