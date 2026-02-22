@@ -59,9 +59,10 @@ class LongVideoService:
     3. fal.ai FFmpeg API ile birleştir
     """
     
-    MAX_SEGMENT_DURATION = 10  # saniye (Fal.ai limiti)
-    MIN_SEGMENT_DURATION = 5
-    MAX_PARALLEL = 3  # Aynı anda max segment üretimi
+    MAX_SEGMENT_DURATION = 8   # Saniye (Veo max 8s)
+    MIN_SEGMENT_DURATION = 5   # Saniye
+    MAX_PARALLEL = 2           # Aynı anda max segment (güvenilirlik için)
+    MAX_RETRIES = 2            # Max retry per segment üretimi
     
     def __init__(self):
         self.jobs: dict[str, LongVideoJob] = {}
@@ -200,6 +201,14 @@ class LongVideoService:
         print(f"🎬 Uzun video işi başlatıldı: {job_id} ({len(segments)} segment, {total_duration}s)")
         
         try:
+            # 0. Roadmap göster (planı kullanıcıya bildir)
+            if progress_callback:
+                roadmap_text = f"🗺️ Video Planı ({len(segments)} sahne, {total_duration}s):\n"
+                for s in segments:
+                    model_icon = "🌟" if s.model == "veo" else "🎬"
+                    roadmap_text += f"  {model_icon} Sahne {s.order + 1}: {s.prompt[:60]}... ({s.duration}s, {s.model})\n"
+                await progress_callback(5, roadmap_text)
+            
             # 1. Segment'leri paralel üret
             job.status = "processing"
             await self._generate_segments(job, progress_callback)
@@ -279,57 +288,74 @@ class LongVideoService:
     
     async def _generate_single_segment(
         self, 
-        fal: "FalPluginV2", # Diğer modeller (Kling, Luma, Runway, Minimax) için Fal
+        fal: "FalPluginV2",
         segment: VideoSegment,
         aspect_ratio: str
     ):
-        """Tek bir segment üret. Modele göre fal.ai (fal_plugin_v2) veya Vertex AI/Gemini (veo) kullanılır."""
-        try:
-            segment.status = "generating"
-            
-            payload = {
-                "prompt": segment.prompt,
-                "duration": segment.duration,
-                "aspect_ratio": aspect_ratio,
-                "model": segment.model,
-            }
-            if segment.reference_image_url:
-                payload["image_url"] = segment.reference_image_url
-                print(f"🖼️ Scene {segment.order + 1} has reference image! Switching to Image-to-Video.")
+        """Tek bir segment üret. Retry logic ile."""
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                segment.status = "generating"
                 
-            model_to_use = segment.model or "veo"
-            
-            # VEO 3.1 İÇİN VEYA DİĞERLERİ İÇİN ROUTING
-            if model_to_use == "veo":
-                print(f"🎥 Scene {segment.order + 1} Google Veo 3.1 ile üretiliyor...")
-                from app.services.google_video_service import GoogleVideoService # Henüz oluşturmadık, birazdan oluşturacağım
-                veo_svc = GoogleVideoService()
-                result_dict = await veo_svc.generate_video(payload)
+                # Veo max 8s — daha uzun süreleri Kling'e yönlendir
+                model_to_use = segment.model or "veo"
+                duration = int(segment.duration)
                 
-                # Fal pluginin döndürdüğü 'PluginResponse' gibi sarmak için:
-                from app.services.plugins.base import PluginResponse
-                if result_dict.get("success"):
-                    result = PluginResponse(success=True, data={"video_url": result_dict.get("video_url")})
+                if model_to_use == "veo" and duration > 8:
+                    print(f"   ⚠️ Veo max 8s. Sahne {segment.order+1} ({duration}s) → Kling")
+                    model_to_use = "kling"
+                
+                payload = {
+                    "prompt": segment.prompt,
+                    "duration": segment.duration,
+                    "aspect_ratio": aspect_ratio,
+                    "model": model_to_use,
+                }
+                if segment.reference_image_url:
+                    payload["image_url"] = segment.reference_image_url
+                    print(f"   🖼️ Sahne {segment.order + 1} referans görselli (image-to-video)")
+                
+                if model_to_use == "veo":
+                    print(f"   🎬 Sahne {segment.order + 1} Veo ile üretiliyor (deneme {attempt+1})...")
+                    from app.services.google_video_service import GoogleVideoService
+                    veo_svc = GoogleVideoService()
+                    result_dict = await veo_svc.generate_video(payload)
+                    
+                    from app.services.plugins.base import PluginResponse
+                    if result_dict.get("success"):
+                        result = PluginResponse(success=True, data={"video_url": result_dict.get("video_url")})
+                    else:
+                        result = PluginResponse(success=False, error=result_dict.get("error"))
                 else:
-                    result = PluginResponse(success=False, error=result_dict.get("error"))
-            else:
-                # Kling, Luma, Runway, Minimax FalPlugin üzerinden çalışıyor
-                print(f"🎥 Scene {segment.order + 1} {model_to_use.upper()} (Fal.ai) ile üretiliyor...")
-                result = await fal.execute("generate_video", payload)
-            
-            if result.success and result.data:
-                segment.video_url = result.data.get("video_url")
-                segment.status = "completed"
-                print(f"✅ Segment {segment.order + 1} tamamlandı (Model: {model_to_use})")
-            else:
-                segment.status = "failed"
-                segment.error = result.error or "Video üretilemedi"
-                print(f"❌ Segment {segment.order + 1} ({model_to_use}) başarısız: {segment.error}")
+                    print(f"   🎬 Sahne {segment.order + 1} {model_to_use.upper()} ile üretiliyor (deneme {attempt+1})...")
+                    result = await fal.execute("generate_video", payload)
                 
-        except Exception as e:
-            segment.status = "failed"
-            segment.error = str(e)
-            print(f"❌ Segment {segment.order + 1} hata: {e}")
+                if result.success and result.data:
+                    segment.video_url = result.data.get("video_url")
+                    segment.status = "completed"
+                    print(f"   ✅ Sahne {segment.order + 1} tamamlandı (Model: {model_to_use})")
+                    return  # Başarılı, çık
+                else:
+                    error_msg = result.error or "Video üretilemedi"
+                    print(f"   ⚠️ Sahne {segment.order + 1} başarısız (deneme {attempt+1}): {error_msg}")
+                    
+                    # Veo başarısız olduysa Kling'e fallback
+                    if model_to_use == "veo" and attempt < self.MAX_RETRIES:
+                        print(f"   🔄 Kling'e geçiliyor...")
+                        segment.model = "kling"
+                    elif attempt >= self.MAX_RETRIES:
+                        segment.status = "failed"
+                        segment.error = error_msg
+                        
+            except Exception as e:
+                print(f"   ❌ Sahne {segment.order + 1} hata (deneme {attempt+1}): {e}")
+                if attempt >= self.MAX_RETRIES:
+                    segment.status = "failed"
+                    segment.error = str(e)
+                else:
+                    # Retry ile Kling'e fallback
+                    segment.model = "kling"
+                    await asyncio.sleep(2)  # Kısa bekleme
     
     async def _stitch_segments(self, job: LongVideoJob) -> str:
         """
