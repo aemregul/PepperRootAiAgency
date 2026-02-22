@@ -91,6 +91,7 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 **Entity yönetimi:** create_character, create_location, create_brand, get_entity, list_entities, delete_entity, semantic_search
 **Araştırma:** search_web, search_images, browse_url, research_brand, get_library_docs
 **Diğer:** generate_grid, apply_style, manage_plugin, analyze_image, analyze_video
+**Müzik/Ses:** generate_music (AI müzik üretimi), add_audio_to_video (videoya müzik ekleme)
 
 ## REFERANS GÖRSEL KURALLARI
 1. Kullanıcı bir görsel yüklediğinde URL sana verilir — bunu image_url parametresi olarak kullan.
@@ -1206,6 +1207,13 @@ Kurallar:
         
         elif tool_name == "compare_images":
             return await self._compare_images(tool_input)
+        
+        # MÜZİK / SES ARAÇLARI
+        elif tool_name == "generate_music":
+            return await self._generate_music(tool_input)
+        
+        elif tool_name == "add_audio_to_video":
+            return await self._add_audio_to_video(tool_input)
         
         # ROADMAP / GÖREV PLANLAMA
         elif tool_name == "create_roadmap":
@@ -3032,6 +3040,123 @@ Konuşma:
             traceback.print_exc()
             return {"success": False, "error": f"Video analizi başarısız: {str(e)}"}
 
+    async def _generate_music(self, params: dict) -> dict:
+        """AI müzik üretimi — MiniMax Music via fal.ai."""
+        try:
+            import fal_client
+            
+            prompt = params.get("prompt", "")
+            lyrics = params.get("lyrics")
+            duration = min(params.get("duration", 30), 120)
+            
+            if not prompt:
+                return {"success": False, "error": "Müzik promptu gerekli."}
+            
+            print(f"🎵 Müzik üretimi başlıyor: {prompt[:60]}... ({duration}s)")
+            
+            # MiniMax Music API via fal.ai
+            fal_args = {
+                "prompt": prompt,
+                "duration": duration,
+            }
+            if lyrics:
+                fal_args["lyrics"] = lyrics
+            
+            result = await fal_client.subscribe_async(
+                "fal-ai/minimax-music",
+                arguments=fal_args,
+                with_logs=True,
+            )
+            
+            if result and "audio" in result:
+                audio_url = result["audio"].get("url", "")
+                if audio_url:
+                    print(f"✅ Müzik üretildi: {audio_url[:60]}...")
+                    return {
+                        "success": True,
+                        "audio_url": audio_url,
+                        "duration": duration,
+                        "message": f"🎵 Müzik üretildi ({duration}s): {audio_url}"
+                    }
+            
+            # Fallback — CassetteAI dene
+            print("⚠️ MiniMax başarısız, CassetteAI deneniyor...")
+            result = await fal_client.subscribe_async(
+                "cassetteai/music-gen",
+                arguments={"prompt": prompt, "duration": duration},
+                with_logs=True,
+            )
+            
+            if result and "audio_file" in result:
+                audio_url = result["audio_file"].get("url", "")
+                if audio_url:
+                    print(f"✅ Müzik üretildi (CassetteAI): {audio_url[:60]}...")
+                    return {
+                        "success": True,
+                        "audio_url": audio_url,
+                        "duration": duration,
+                        "message": f"🎵 Müzik üretildi ({duration}s): {audio_url}"
+                    }
+            
+            return {"success": False, "error": "Müzik üretilemedi."}
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": f"Müzik üretimi başarısız: {str(e)}"}
+    
+    async def _add_audio_to_video(self, params: dict) -> dict:
+        """Videoya müzik/ses ekle — fal.ai FFmpeg API ile birleştir."""
+        try:
+            import fal_client
+            
+            video_url = params.get("video_url", "")
+            audio_url = params.get("audio_url", "")
+            replace_audio = params.get("replace_audio", True)
+            
+            if not video_url or not audio_url:
+                return {"success": False, "error": "video_url ve audio_url gerekli."}
+            
+            print(f"🎬+🎵 Video-müzik birleştirme başlıyor...")
+            
+            if replace_audio:
+                # Mevcut sesi kaldır + yeni ses ekle
+                command = (
+                    f"ffmpeg -i {video_url} -i {audio_url} "
+                    f"-c:v copy -map 0:v:0 -map 1:a:0 "
+                    f"-shortest -movflags +faststart output.mp4"
+                )
+            else:
+                # Mevcut ses + yeni ses mix
+                command = (
+                    f"ffmpeg -i {video_url} -i {audio_url} "
+                    f'-filter_complex "[0:a][1:a]amix=inputs=2:duration=shortest[aout]" '
+                    f'-c:v copy -map 0:v:0 -map "[aout]" '
+                    f"-movflags +faststart output.mp4"
+                )
+            
+            result = await fal_client.subscribe_async(
+                "fal-ai/ffmpeg-api",
+                arguments={"command": command},
+                with_logs=True,
+            )
+            
+            if result and "outputs" in result and len(result["outputs"]) > 0:
+                final_url = result["outputs"][0]["url"]
+                print(f"✅ Video-müzik birleştirildi: {final_url[:60]}...")
+                return {
+                    "success": True,
+                    "video_url": final_url,
+                    "message": f"🎬🎵 Video ve müzik birleştirildi: {final_url}"
+                }
+            
+            return {"success": False, "error": "Video-müzik birleştirme başarısız."}
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": f"Video-müzik birleştirme hatası: {str(e)}"}
+    
     async def _save_web_asset(self, db, session_id: str, params: dict) -> dict:
         """
         Agent'ın webt'den bulduğu görseli projenin Media Asset'lerine kaydetmesi.

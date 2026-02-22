@@ -637,6 +637,50 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["asset_url", "asset_type"]
         }
+    },
+    {
+        "name": "generate_music",
+        "description": "AI ile müzik/şarkı üretir (MiniMax Music). Metin promptundan profesyonel kalitede müzik oluşturur. Klip, reklam, içerik senesine uygun müzik üretmek için kullan. Şarkı sözleri de verilebilir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Müzik açıklaması. Örn: 'Upbeat electronic dance music with synth leads, energetic and modern, 120 BPM' veya 'Gentle acoustic guitar melody, warm and intimate, folk style'"
+                },
+                "lyrics": {
+                    "type": "string",
+                    "description": "Opsiyonel şarkı sözleri. [Verse], [Chorus], [Bridge] yapı etiketleri kullanılabilir."
+                },
+                "duration": {
+                    "type": "integer",
+                    "description": "Müzik süresi (saniye). Varsayılan: 30, max: 120"
+                }
+            },
+            "required": ["prompt"]
+        }
+    },
+    {
+        "name": "add_audio_to_video",
+        "description": "Bir videoya müzik/ses ekler veya mevcut sesi değiştirir. Üretilen müziği veya herhangi bir ses dosyasını videoya birleştirir (ffmpeg ile). Kullanıcı 'videoya müzik ekle' veya 'videoyu bu müzikle birleştir' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "video_url": {
+                    "type": "string",
+                    "description": "Müzik eklenecek videonun URL'si"
+                },
+                "audio_url": {
+                    "type": "string",
+                    "description": "Eklenecek müzik/ses dosyasının URL'si"
+                },
+                "replace_audio": {
+                    "type": "boolean",
+                    "description": "true: Mevcut sesi tamamen değiştir. false: Üstüne ekle (mix). Varsayılan: true"
+                }
+            },
+            "required": ["video_url", "audio_url"]
+        }
     }
 ]
 
