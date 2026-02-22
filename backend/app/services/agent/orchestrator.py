@@ -81,7 +81,7 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 **Mevcut videoyu düzenle:** edit_video
 **Entity yönetimi:** create_character, create_location, create_brand, get_entity, list_entities, delete_entity, semantic_search
 **Araştırma:** search_web, search_images, browse_url, research_brand, get_library_docs
-**Diğer:** generate_grid, apply_style, manage_plugin, analyze_image
+**Diğer:** generate_grid, apply_style, manage_plugin, analyze_image, analyze_video
 
 ## REFERANS GÖRSEL KURALLARI
 1. Kullanıcı bir görsel yüklediğinde URL sana verilir — bunu image_url parametresi olarak kullan.
@@ -1188,9 +1188,12 @@ Kurallar:
         elif tool_name == "undo_last":
             return await self._undo_last(db, session_id)
         
-        # GÖRSEL MUHAKEME ARAÇLARI
+        # GÖRSEL & VİDEO MUHAKEME ARAÇLARI
         elif tool_name == "analyze_image":
             return await self._analyze_image(tool_input)
+        
+        elif tool_name == "analyze_video":
+            return await self._analyze_video(tool_input)
         
         elif tool_name == "compare_images":
             return await self._compare_images(tool_input)
@@ -2837,23 +2840,24 @@ Konuşma:
     
     async def _analyze_image(self, params: dict) -> dict:
         """
-        Görsel analiz - GPT-4o Vision ile resim içeriğini ve özelliklerini okuma.
-        Agent bu aracı kullanarak webt'en bulduğu görsellerin detaylarını (örn: dövme yerleri, fiziksel yapılar) öğrenebilir.
+        Gelişmiş görsel analiz — GPT-4o Vision ile görseldeki her detayı okuma.
+        Yazılar, objeler, renkler, ışık, kompozisyon, hatalar dahil.
         """
         try:
             image_url = params.get("image_url", "")
-            question = params.get("question", "Bu görseli detaylı bir şekilde analiz et ve gördüklerini anlat.")
+            question = params.get("question", "Bu görseli son derece detaylı analiz et. Şunları listele: 1) Görseldeki tüm yazılar/metinler, 2) Kişiler ve kıyafetleri, 3) Objeler ve konumları, 4) Arka plan ve mekan, 5) Renkler ve ışık, 6) Kompozisyon, 7) Varsa hatalar veya tutarsızlıklar.")
             
             if not image_url:
-                return {
-                    "success": False,
-                    "error": "Görsel URL'si gerekli."
-                }
+                return {"success": False, "error": "Görsel URL'si gerekli."}
             
-            # GPT-4o Vision çağrısı
+            # GPT-4o Vision çağrısı — detaylı analiz için yüksek token limiti
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
+                    {
+                        "role": "system",
+                        "content": "Sen uzman bir görsel analist ve yaratıcı yönetmensin. Görseli en ince detayına kadar analiz et. Hiçbir şeyi atlama — yazılar, yüz ifadeleri, ışık, gölgeler, arka plan detayları, renk paleti, kompozisyon, varsa AI üretim hataları (deforme eller, tutarsız gölgeler, bulanık yazılar vb.) hepsini raporla."
+                    },
                     {
                         "role": "user",
                         "content": [
@@ -2862,13 +2866,13 @@ Konuşma:
                                 "type": "image_url",
                                 "image_url": {
                                     "url": image_url,
-                                    "detail": "auto"
+                                    "detail": "high"
                                 }
                             }
                         ]
                     }
                 ],
-                max_tokens=300
+                max_tokens=1500
             )
             
             analysis = response.choices[0].message.content
@@ -2876,14 +2880,137 @@ Konuşma:
             return {
                 "success": True,
                 "analysis": analysis,
-                "message": f"Görsel analizi başarıyla tamamlandı: {analysis[:100]}..."
+                "message": f"Görsel analizi tamamlandı:\n\n{analysis}"
             }
         
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"Vision analizi başarısız oldu: {str(e)}"
-            }
+            return {"success": False, "error": f"Vision analizi başarısız: {str(e)}"}
+    
+    async def _analyze_video(self, params: dict) -> dict:
+        """
+        Video analiz — ffmpeg ile key frame'ler çıkarıp GPT-4o Vision ile analiz.
+        Sahneleri, hareketleri, yazıları, hataları tespit eder.
+        """
+        try:
+            import tempfile
+            import subprocess
+            import base64
+            import os
+            import httpx
+            
+            video_url = params.get("video_url", "")
+            question = params.get("question", "Bu videodaki her sahneyi detaylıca analiz et: kişiler, hareketler, arka plan, yazılar, renkler, geçişler ve varsa hatalar.")
+            num_frames = min(params.get("num_frames", 6), 12)
+            
+            if not video_url:
+                return {"success": False, "error": "Video URL'si gerekli."}
+            
+            print(f"🎬 Video analizi başlıyor: {video_url[:60]}... ({num_frames} frame)")
+            
+            # 1. Videoyu indir
+            with tempfile.TemporaryDirectory() as tmpdir:
+                video_path = os.path.join(tmpdir, "video.mp4")
+                
+                async with httpx.AsyncClient(timeout=60) as client:
+                    resp = await client.get(video_url)
+                    if resp.status_code != 200:
+                        return {"success": False, "error": f"Video indirilemedi (HTTP {resp.status_code})"}
+                    with open(video_path, "wb") as f:
+                        f.write(resp.content)
+                
+                # 2. Video süresini öğren
+                probe = subprocess.run(
+                    ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", video_path],
+                    capture_output=True, text=True
+                )
+                import json as json_module
+                try:
+                    probe_data = json_module.loads(probe.stdout)
+                    duration = float(probe_data.get("format", {}).get("duration", 10))
+                except:
+                    duration = 10.0
+                
+                print(f"   Video süresi: {duration:.1f}s")
+                
+                # 3. Key frame'leri çıkar (eşit aralıklarla)
+                frame_paths = []
+                interval = duration / (num_frames + 1)
+                
+                for i in range(num_frames):
+                    timestamp = interval * (i + 1)
+                    frame_path = os.path.join(tmpdir, f"frame_{i:02d}.jpg")
+                    subprocess.run(
+                        [
+                            "ffmpeg", "-y", "-ss", str(timestamp),
+                            "-i", video_path, "-vframes", "1",
+                            "-q:v", "2", frame_path
+                        ],
+                        capture_output=True
+                    )
+                    if os.path.exists(frame_path) and os.path.getsize(frame_path) > 0:
+                        frame_paths.append((frame_path, timestamp))
+                
+                if not frame_paths:
+                    return {"success": False, "error": "Videodan frame çıkarılamadı."}
+                
+                print(f"   {len(frame_paths)} frame çıkarıldı")
+                
+                # 4. Frame'leri base64'e çevir ve GPT-4o'ya gönder
+                content_parts = [
+                    {
+                        "type": "text",
+                        "text": f"Bu bir videonun {len(frame_paths)} key frame'idir (toplam süre: {duration:.1f}s). Her frame'in zamanı belirtilmiştir.\n\nSoru: {question}\n\nHer frame'i sırayla analiz et ve sonra genel bir video özeti ver."
+                    }
+                ]
+                
+                for frame_path, timestamp in frame_paths:
+                    with open(frame_path, "rb") as f:
+                        frame_b64 = base64.b64encode(f.read()).decode("utf-8")
+                    
+                    content_parts.append({
+                        "type": "text",
+                        "text": f"\n--- Frame @ {timestamp:.1f}s ---"
+                    })
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{frame_b64}",
+                            "detail": "high"
+                        }
+                    })
+                
+                # 5. GPT-4o Vision ile analiz
+                response = self.client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Sen uzman bir video analist ve yaratıcı yönetmensin. Videonun key frame'lerini analiz ediyorsun. Her frame'deki detayları (kişiler, hareketler, yazılar, objeler, arka plan, ışık, kamera açısı) titizlikle okuyup raporla. Sahneler arası geçişleri, tutarlılığı ve varsa hataları belirt. Sonunda genel bir video özeti ver."
+                        },
+                        {
+                            "role": "user",
+                            "content": content_parts
+                        }
+                    ],
+                    max_tokens=2000
+                )
+                
+                analysis = response.choices[0].message.content
+                
+                print(f"   ✅ Video analizi tamamlandı")
+                
+                return {
+                    "success": True,
+                    "analysis": analysis,
+                    "duration": duration,
+                    "frames_analyzed": len(frame_paths),
+                    "message": f"Video analizi tamamlandı ({duration:.1f}s, {len(frame_paths)} frame):\n\n{analysis}"
+                }
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": f"Video analizi başarısız: {str(e)}"}
 
     async def _save_web_asset(self, db, session_id: str, params: dict) -> dict:
         """

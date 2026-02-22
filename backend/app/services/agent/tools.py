@@ -207,11 +207,11 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "delete_entity",
-        "description": "Bir karakteri veya mekanı sil.",
+        "description": "Bir karakteri veya mekanı sil. ÖNEMLİ: Eğer kullanıcı 'karakterleri sil' gibi ÇOĞUL bir ifade kullanırsa, oluşturulmuş olan (veya panelde görünen) tüm hedeflenen entity'ler için BU ARACI PARALEL OLARAK BİRDEN FAZLA KEZ ÇAĞIR.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "entity_tag": {"type": "string", "description": "Silinecek entity'nin tag'i"}
+                "entity_tag": {"type": "string", "description": "Silinecek entity'nin tag'i (örn: @emre, @kisi_1)"}
             },
             "required": ["entity_tag"]
         }
@@ -581,20 +581,42 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "analyze_image",
-        "description": "GPT-4o Vision kullanarak webt'en veya sohbetten alınmış bir resmin (URL'nin) içeriğini saniyeler içinde analiz eder. Mesela bulduğun bir adamın fotoğrafında dövmeleri nerede, neye benziyor veya fotoğrafta ne tür detaylar var öğrenmek istersen bu aracı kullan.",
+        "description": "GPT-4o Vision ile bir görseli SON DERECE DETAYLI analiz eder. Görseldeki her şeyi okur: yazılar, logolar, yüz ifadeleri, kıyafetler, mekan detayları, renkler, ışık, objelerin konumları, arka plan, kompozisyon. Bu aracı şu durumlarda kullan: (1) Üretilen görselde hata/eksik aranırken, (2) Kullanıcı 'bunu düzelt/değiştir' dediğinde mevcut görseli analiz etmek için, (3) Referans görsel detaylarını öğrenmek için.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "image_url": {
                     "type": "string",
-                    "description": "Analiz edilecek resmin URL adresi (https://... veya data:image/...)"
+                    "description": "Analiz edilecek resmin URL adresi"
                 },
                 "question": {
                     "type": "string",
-                    "description": "Modele resimle ilgili soracağın açık, spesifik soru (örn: 'Bu karakterin dövmeleri tam olarak vücudunun neresinde ve neye benziyor, detaylıca tasvir et?')"
+                    "description": "Modele resimle ilgili soracağın açık, spesifik soru. Detaylı analiz için: 'Bu görseldeki her şeyi detaylıca listele: yazılar, kişiler, objeler, renkler, ışık, arka plan, kompozisyon, varsa hatalar.'"
                 }
             },
             "required": ["image_url", "question"]
+        }
+    },
+    {
+        "name": "analyze_video",
+        "description": "Bir video URL'sinden key frame'ler çıkararak GPT-4o Vision ile videoyu analiz eder. Videodaki sahneleri, hareketleri, yazıları, hataları, eksikleri tespit eder. Bu aracı şu durumlarda kullan: (1) Üretilen videoda sorun aranırken, (2) Kullanıcı 'bu videodaki yazıyı değiştir' dediğinde, (3) Referans video/klip içeriğini anlamak için, (4) Videonun kalitesini ve promptla uyumunu kontrol etmek için.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "video_url": {
+                    "type": "string",
+                    "description": "Analiz edilecek videonun URL adresi"
+                },
+                "question": {
+                    "type": "string",
+                    "description": "Video hakkında sorulacak soru. Örn: 'Bu videoda neler oluyor, sahneleri listele', 'Videodaki yazıları oku', 'Sahne geçişlerini ve hareketleri anlat'"
+                },
+                "num_frames": {
+                    "type": "integer",
+                    "description": "Videodan kaç frame çıkarılsın (varsayılan: 6, max: 12). Kısa videolar için 4, uzun için 8-12 önerilir."
+                }
+            },
+            "required": ["video_url", "question"]
         }
     },
     {
