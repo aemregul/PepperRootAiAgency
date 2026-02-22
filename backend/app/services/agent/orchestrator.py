@@ -83,6 +83,16 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
    - Kullanıcı üretilen videoda sorun bildirdiğinde
    - Kullanıcı bir referans video/klip URL'si verdiğinde (içeriğini anlamak için)
    - Uzun video üretiminde her segmentin kalitesini kontrol etmek için
+    13. **(UZUN VİDEO ROADMAP — KRİTİK):** Kullanıcı uzun video (>10s) istediğinde `generate_long_video` çağırmadan ÖNCE şu adımları uygula:
+   - ADIM 1: Sahne planını oluştur ve kullanıcıya göster (kaç sahne, her sahnenin promptu, süresi, modeli)
+   - ADIM 2: Kullanıcıdan onay al ("Bu planla devam edeyim mi?")
+   - ADIM 3: Onay gelince `generate_long_video` çağır ve `scene_descriptions` parametresine planı ver.
+   - Onaysız üretme! Kullanıcı "devam et" veya "tamam" derse üretimi başlat.
+    14. **(KLİP REFERANS ANALİZİ):** Kullanıcı bir şarkı klibi, reklam veya video URL'si verip "buna benzer yap" derse:
+   - ÖNCE `analyze_video` ile klibi analiz et — sahneleri, kamera açılarını, renkleri, atmosferi çıkar
+   - SONRA bu analizden ilham alarak benzer bir sahne planı oluştur ve kullanıcıya göster
+   - Onay gelince üret.
+    15. **(MÜZİK ENTEGRASYONu):** Uzun video ürettikten sonra kullanıcıya sor: "Videoya uygun bir müzik üretip ekleyeyim mi?" Müzik üretimi ve birleştirme araçların mevcut: `generate_music` + `add_audio_to_video`.
 
 ## TOOL SEÇİMİ
 **Yeni içerik üret:** generate_image, generate_video, generate_long_video (>10s)
@@ -874,19 +884,30 @@ Kurallar:
                 print(f"🔧 TOOL EXECUTION END: {tool_name}")
                 print(f"   Result: success={tool_result.get('success')}, error={tool_result.get('error', 'None')}")
                 
-                # Görsel üretildiyse ekle
+                # Görsel üretildiyse ekle + otomatik kalite kontrolü
                 if tool_result.get("success") and tool_result.get("image_url"):
+                    image_url = tool_result["image_url"]
+                    original_prompt = tool_args.get("prompt", "")
                     result["images"].append({
-                        "url": tool_result["image_url"],
-                        "prompt": tool_args.get("prompt", "")
+                        "url": image_url,
+                        "prompt": original_prompt
                     })
+                    
+                    # 🔍 OTOMATİK KALİTE KONTROLÜ
+                    try:
+                        qc = await self._auto_quality_check(image_url, original_prompt, "image")
+                        if qc:
+                            tool_result["_quality_check"] = qc
+                            print(f"   🔍 Kalite kontrolü: {qc[:80]}...")
+                    except Exception as qc_err:
+                        print(f"   ⚠️ Kalite kontrolü atlandı: {qc_err}")
                 
                 # Video üretildiyse ekle
                 if tool_result.get("success") and tool_result.get("video_url"):
                     result["videos"].append({
                         "url": tool_result["video_url"],
                         "prompt": tool_args.get("prompt", ""),
-                        "thumbnail_url": tool_result.get("thumbnail_url") # Varsa thumbnail de ekle
+                        "thumbnail_url": tool_result.get("thumbnail_url")
                     })
                 
                 # Entity oluşturulduysa ekle
@@ -1375,6 +1396,8 @@ Konuşma:
             if was_translated:
                 print(f"📝 Prompt çevrildi: '{original_prompt[:50]}...' → '{prompt[:50]}...'")
             
+            # 🎬 PROMPT ZENGİNLEŞTİRME — kısa/belirsiz promptları sinematik detaylı hale getir
+            prompt = await self._enrich_prompt(prompt, "image")            
             # Referans görseli olan karakter var mı kontrol et
             face_reference_url = None
             entity_description = ""
@@ -1743,6 +1766,7 @@ Konuşma:
             try:
                 from app.services.prompt_translator import translate_to_english
                 english_prompt, _ = await translate_to_english(prompt)
+                english_prompt = await self._enrich_prompt(english_prompt, "video")
             except Exception:
                 pass
             
@@ -2865,6 +2889,78 @@ Konuşma:
     # ===============================
     # GÖRSEL MUHAKEME METODLARI
     # ===============================
+    
+    async def _enrich_prompt(self, prompt: str, media_type: str = "image") -> str:
+        """
+        Kısa/belirsiz promptları sinematik detaylı hale getir.
+        Sadece 100 karakterden kısa promptlarda tetiklenir.
+        """
+        if not prompt or len(prompt) > 100:
+            return prompt  # Zaten detaylı, dokunma
+        
+        try:
+            type_context = "görsel" if media_type == "image" else "video"
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"Sen bir sinematik prompt mühendisisin. Verilen kısa {type_context} promptunu zenginleştir: ışık, atmosfer, kamera açısı, renk paleti, detaylar ekle. Orijinal anlamı koru, sadece detay ekle. Cevabın SADECE zenginleştirilmiş İngilizce prompt olsun, başka açıklama yazma. Max 2 cümle."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150
+            )
+            
+            enriched = response.choices[0].message.content.strip()
+            if enriched and len(enriched) > len(prompt):
+                print(f"✨ Prompt zenginleştirildi: '{prompt[:40]}...' → '{enriched[:60]}...'")
+                return enriched
+            return prompt
+            
+        except Exception:
+            return prompt  # Hata durumunda orijinal promptu kullan
+    
+    async def _auto_quality_check(self, media_url: str, original_prompt: str, media_type: str = "image") -> str:
+        """
+        Otomatik kalite kontrolü — üretilen görseli/videoyu promptla karşılaştır.
+        Hızlı analiz (max 200 token) — ciddi sorunları yakalar.
+        """
+        if not media_url or not original_prompt:
+            return None
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",  # Hız için mini
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Sen bir kalite kontrol uzmanısın. Üretilen görseli orijinal promptla karşılaştır. SADECE ciddi sorunları bildir (yanlış yazı, eksik ana element, bariz hata). Küçük farklılıkları yoksay. Sorun yoksa 'OK' yaz. Sorun varsa tek cümleyle belirt."
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Prompt: {original_prompt}\n\nBu görsel promptla uyumlu mu? Ciddi sorun var mı?"},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": media_url, "detail": "low"}
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=200
+            )
+            
+            check_result = response.choices[0].message.content.strip()
+            
+            if check_result.upper() in ["OK", "UYUMLU", "SORUN YOK"]:
+                return None  # Sorun yok, ekleme yapma
+            
+            return f"⚠️ Kalite notu: {check_result}"
+            
+        except Exception:
+            return None  # Hata durumunda sessizce atla
     
     async def _analyze_image(self, params: dict) -> dict:
         """
