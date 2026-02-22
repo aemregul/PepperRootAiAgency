@@ -455,19 +455,35 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
 
         let ws: WebSocket | null = null;
         let pingInterval: NodeJS.Timeout;
+        let reconnectTimeout: NodeJS.Timeout;
+        let reconnectAttempts = 0;
+        let isClosed = false;
 
         const connect = () => {
-            // WS baseUrl should use the same host as API_URL but ws protocol
+            if (isClosed) return;
+
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
             const wsUrl = apiUrl.replace(/^http/, 'ws');
 
-            ws = new WebSocket(`${wsUrl}/ws/progress/${sessionId}`);
+            try {
+                ws = new WebSocket(`${wsUrl}/ws/progress/${sessionId}`);
+            } catch (e) {
+                console.error('[WS] Connection failed:', e);
+                scheduleReconnect();
+                return;
+            }
+
+            ws.onopen = () => {
+                console.log('[WS] Connected to progress channel:', sessionId);
+                reconnectAttempts = 0;
+            };
 
             ws.onmessage = (event) => {
                 if (event.data === 'pong') return;
 
                 try {
                     const data = JSON.parse(event.data);
+                    console.log('[WS] Received:', data.type, data);
 
                     if (data.type === 'progress') {
                         setLoadingStatus(data.message);
@@ -495,21 +511,44 @@ export function ChatPanel({ sessionId: initialSessionId, activeProjectId, onSess
                         setLoadingStatus("");
                     }
                 } catch (err) {
-                    console.error("WS Parse error", err);
+                    console.error("[WS] Parse error", err);
                 }
             };
 
+            ws.onclose = (event) => {
+                console.log(`[WS] Disconnected (code: ${event.code}). Reconnecting...`);
+                scheduleReconnect();
+            };
+
+            ws.onerror = (error) => {
+                console.error('[WS] Error:', error);
+                // onclose will fire after onerror, so reconnect is handled there
+            };
+
+            // Ping every 25 seconds to keep alive
+            if (pingInterval) clearInterval(pingInterval);
             pingInterval = setInterval(() => {
                 if (ws?.readyState === WebSocket.OPEN) {
                     ws.send('ping');
                 }
-            }, 30000);
+            }, 25000);
+        };
+
+        const scheduleReconnect = () => {
+            if (isClosed) return;
+            // Exponential backoff: 1s, 2s, 4s, 8s, max 10s
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+            reconnectAttempts++;
+            console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+            reconnectTimeout = setTimeout(connect, delay);
         };
 
         connect();
 
         return () => {
+            isClosed = true;
             if (pingInterval) clearInterval(pingInterval);
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
             if (ws) ws.close();
         };
     }, [sessionId, onNewAsset]);
