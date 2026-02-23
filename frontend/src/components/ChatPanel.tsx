@@ -213,20 +213,51 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
     const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
 
-    // === PROJE DEĞİŞİMİNDE CHAT STATE SIFIRLA ===
+    // === PROJE BAZLI CHAT STATE SAKLA/GERİ YÜKLE ===
+    const projectStateRef = useRef<Record<string, {
+        input: string;
+        videoUrl: string | null;
+        audioUrl: string | null;
+    }>>({});
+    const prevSessionRef = useRef<string | null>(null);
+
     useEffect(() => {
+        const prevId = prevSessionRef.current;
+
+        // Önceki projenin state'ini kaydet
+        if (prevId) {
+            projectStateRef.current[prevId] = {
+                input,
+                videoUrl: attachedVideoUrl,
+                audioUrl: attachedAudioUrl,
+            };
+        }
+
+        // Yeni projeye geç
         setSessionId(initialSessionId || null);
         setMessages([]);
-        setInput("");
-        setAttachedFiles([]);
-        filePreviews.forEach(url => URL.revokeObjectURL(url));
-        setFilePreviews([]);
-        setAttachedVideoUrl(null);
-        setAttachedAudioUrl(null);
         setError(null);
         setIsLoading(false);
         setLoadingStatus("Düşünüyor...");
+        // File attachments temizle (blob referansları proje arası taşınamaz)
+        setAttachedFiles([]);
+        filePreviews.forEach(url => URL.revokeObjectURL(url));
+        setFilePreviews([]);
         if (fileInputRef.current) fileInputRef.current.value = '';
+
+        // Yeni projenin kaydedilmiş state'ini geri yükle
+        const saved = initialSessionId ? projectStateRef.current[initialSessionId] : null;
+        if (saved) {
+            setInput(saved.input);
+            setAttachedVideoUrl(saved.videoUrl);
+            setAttachedAudioUrl(saved.audioUrl);
+        } else {
+            setInput("");
+            setAttachedVideoUrl(null);
+            setAttachedAudioUrl(null);
+        }
+
+        prevSessionRef.current = initialSessionId || null;
     }, [initialSessionId]);
 
     // === AUTO-SAVE DRAFT TO LOCALSTORAGE ===
