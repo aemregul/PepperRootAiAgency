@@ -733,11 +733,13 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         setMessages((prev) => [...prev, userMessage]);
 
         // Append video/audio URL to content for backend if exists
-        const contentToSend = attachedVideoUrl
-            ? `${input}\n\n[Referans Video](${attachedVideoUrl})`
-            : attachedAudioUrl
-                ? `${input}\n\n[Referans Ses](${attachedAudioUrl})`
-                : input;
+        let contentToSend = input;
+        if (attachedVideoUrl) {
+            contentToSend += `\n\n[Referans Video](${attachedVideoUrl})`;
+        }
+        if (attachedAudioUrl) {
+            contentToSend += `\n\n[Referans Ses](${attachedAudioUrl})`;
+        }
 
         const currentInput = contentToSend;
         const currentFiles = [...attachedFiles];
