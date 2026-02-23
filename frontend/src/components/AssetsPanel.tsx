@@ -555,7 +555,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         ) : (
                                             <img
                                                 src={displayAssets[0].url}
-                                                alt="Öne çıkan görsel"
+                                                alt="Öne çıkan medya"
                                                 className="w-full h-full object-cover"
                                             />
                                         )}
