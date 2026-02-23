@@ -341,21 +341,24 @@ class FalPluginV2(PluginBase):
         # Not: Fal.ai endpoint isimleri sürekli değişebilir, en stabil bilinenleri kullanıyoruz
         model_endpoints = {
             "kling": {
-                "i2v": "fal-ai/kling-video/v1.5/pro/image-to-video",
-                "t2v": "fal-ai/kling-video/v1.5/pro/text-to-video"
+                "i2v": "fal-ai/kling-video/v2.5/pro/image-to-video",
+                "t2v": "fal-ai/kling-video/v2.5/pro/text-to-video"
             },
             "luma": {
-                "i2v": "fal-ai/luma-dream-machine/image-to-video",
-                "t2v": "fal-ai/luma-dream-machine"
+                "i2v": "fal-ai/luma-dream-machine/ray-2/image-to-video",
+                "t2v": "fal-ai/luma-dream-machine/ray-2"
             },
             "runway": {
                 "i2v": "fal-ai/runway-gen3/turbo/image-to-video",
                 "t2v": "fal-ai/runway-gen3/turbo/text-to-video"
             },
             "minimax": {
-                # Minimax Hailuo AI genelde tek endpoint kullanır i2v/t2v
                 "i2v": "fal-ai/minimax-video/image-to-video",
                 "t2v": "fal-ai/minimax-video"
+            },
+            "veo": {
+                "i2v": "fal-ai/veo3.1/image-to-video",
+                "t2v": "fal-ai/veo3.1/image-to-video"
             }
         }
         
