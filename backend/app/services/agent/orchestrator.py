@@ -623,10 +623,19 @@ Kurallar:
                 stream=True
             )
             
+            streamed_text = ""
             async for chunk in final_stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     token = chunk.choices[0].delta.content
+                    streamed_text += token
                     yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
+            
+            # Audio URL enjekte et — AI yanıtında yoksa markdown link olarak ekle
+            pending_audio = result.get("_pending_audio_url")
+            if pending_audio and pending_audio not in streamed_text:
+                audio_link = f"\n\n[Müziği dinle]({pending_audio})"
+                yield f"event: token\ndata: {json.dumps(audio_link, ensure_ascii=False)}\n\n"
+                result.pop("_pending_audio_url", None)
         else:
             print(f"⚠️ STREAMING: NO tool calls — AI responded with text only")
             
@@ -743,6 +752,9 @@ Kurallar:
                     "thumbnail_url": tool_result.get("thumbnail_url")
                 })
             
+            if tool_result.get("success") and tool_result.get("audio_url"):
+                result["_pending_audio_url"] = tool_result["audio_url"]
+            
             if tool_result.get("success") and tool_result.get("entity"):
                 result["entities_created"].append(tool_result["entity"])
             
@@ -768,7 +780,7 @@ Kurallar:
         
         # Son tool sonucunu kontrol et — başarısız mı?
         last_tool_failed = not tool_result.get("success", True)
-        has_any_success = bool(result["images"] or result["videos"])
+        has_any_success = bool(result["images"] or result["videos"] or result.get("_pending_audio_url"))
         
         # Retry logic: sadece son tool başarısızsa VE henüz başarılı sonuç yoksa VE limit aşılmamışsa
         retry_tool_choice = "auto"
@@ -801,7 +813,13 @@ Kurallar:
             )
         elif cont_message.content:
             # Final text — messages'a ekle böylece stream caller kullanabilir
-            messages.append({"role": "assistant", "content": cont_message.content})
+            final_content = cont_message.content
+            # Audio URL enjekte et — AI dahil etmediyse markdown link olarak ekle
+            pending_audio = result.get("_pending_audio_url")
+            if pending_audio and pending_audio not in final_content:
+                final_content += f"\n\n[Müziği dinle]({pending_audio})"
+                result.pop("_pending_audio_url", None)
+            messages.append({"role": "assistant", "content": final_content})
     
     async def _build_entity_context(
         self, 
@@ -913,6 +931,10 @@ Kurallar:
                         "thumbnail_url": tool_result.get("thumbnail_url")
                     })
                 
+                # Audio üretildiyse kaydet
+                if tool_result.get("success") and tool_result.get("audio_url"):
+                    result["_pending_audio_url"] = tool_result["audio_url"]
+                
                 # Entity oluşturulduysa ekle
                 if tool_result.get("success") and tool_result.get("entity"):
                     result["entities_created"].append(tool_result["entity"])
@@ -939,7 +961,7 @@ Kurallar:
                 })
             
             last_tool_failed = not tool_result.get("success", True)
-            has_any_success = bool(result["images"] or result["videos"])
+            has_any_success = bool(result["images"] or result["videos"] or result.get("_pending_audio_url"))
             
             retry_tool_choice = "auto"
             if last_tool_failed and not has_any_success and retry_count < MAX_RETRIES:
