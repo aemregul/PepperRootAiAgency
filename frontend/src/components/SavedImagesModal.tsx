@@ -17,7 +17,7 @@ interface SavedImage {
     name: string;
     imageUrl: string;
     createdAt?: Date;
-    type: 'image' | 'video';
+    type: 'image' | 'video' | 'audio';
 }
 
 export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: SavedImagesModalProps) {
@@ -44,12 +44,13 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                     .filter((e: Entity) => e.entity_type === 'wardrobe' && e.reference_image_url)
                     .map((e: Entity) => {
                         const isVideo = e.reference_image_url?.match(/\.(mp4|mov|webm)(\?.*)?$/i);
+                        const isAudio = e.reference_image_url?.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i);
                         return {
                             id: e.id,
                             name: e.name || e.tag || 'Untitled',
                             imageUrl: e.reference_image_url!,
                             createdAt: e.created_at ? new Date(e.created_at) : undefined,
-                            type: isVideo ? 'video' : 'image'
+                            type: isAudio ? 'audio' : isVideo ? 'video' : 'image'
                         };
                     });
                 setImages(savedImages);
@@ -127,7 +128,7 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${image.name.replace(/\s+/g, '_')}.png`;
+            a.download = `${image.name.replace(/\s+/g, '_')}.${image.type === 'video' ? 'mp4' : image.type === 'audio' ? 'wav' : 'png'}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -182,9 +183,9 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                             <ImageIcon size={24} className="text-white" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">Kaydedilen Görseller</h2>
+                            <h2 className="text-xl font-bold">Kaydedilen Medya Varlıkları</h2>
                             <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                                {images.length} görsel kayıtlı
+                                {images.length} medya kayıtlı
                             </p>
                         </div>
                     </div>
@@ -213,7 +214,7 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--foreground-muted)" }} />
                             <input
                                 type="text"
-                                placeholder="Görsel ara..."
+                                placeholder="Medya ara..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-10 pr-4 py-2 rounded-lg border w-64"
@@ -244,9 +245,9 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                     ) : filteredImages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-center">
                             <ImageIcon size={64} style={{ color: "var(--foreground-muted)" }} className="mb-4 opacity-50" />
-                            <h3 className="text-lg font-medium mb-2">Henüz görsel yok</h3>
+                            <h3 className="text-lg font-medium mb-2">Henüz medya yok</h3>
                             <p style={{ color: "var(--foreground-muted)" }}>
-                                {searchQuery ? "Arama sonucu bulunamadı" : "Oluşturduğun görselleri buraya kaydet!"}
+                                {searchQuery ? "Arama sonucu bulunamadı" : "Oluşturduğun medya varlıklarını buraya kaydet!"}
                             </p>
                         </div>
                     ) : viewMode === "grid" ? (
@@ -282,6 +283,12 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                                 e.currentTarget.currentTime = 0;
                                             }}
                                         />
+                                    ) : image.type === 'audio' ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 p-3">
+                                            <span className="text-3xl mb-2">🎵</span>
+                                            <span className="text-xs text-white/70 text-center truncate w-full">{image.name}</span>
+                                            <audio src={image.imageUrl} controls className="w-full mt-2" style={{ height: '28px' }} onClick={e => e.stopPropagation()} />
+                                        </div>
                                     ) : (
                                         <img
                                             src={image.imageUrl}
@@ -331,11 +338,17 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                     className="flex items-center gap-4 p-3 rounded-xl cursor-pointer hover:bg-[var(--card)] transition-colors border"
                                     style={{ borderColor: "var(--border)" }}
                                 >
-                                    <img
-                                        src={image.imageUrl}
-                                        alt={image.name}
-                                        className="w-16 h-16 rounded-lg object-cover"
-                                    />
+                                    {image.type === 'audio' ? (
+                                        <div className="w-16 h-16 rounded-lg flex items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40">
+                                            <span className="text-2xl">🎵</span>
+                                        </div>
+                                    ) : (
+                                        <img
+                                            src={image.imageUrl}
+                                            alt={image.name}
+                                            className="w-16 h-16 rounded-lg object-cover"
+                                        />
+                                    )}
                                     <div className="flex-1 min-w-0">
                                         {editingId === image.id ? (
                                             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -418,6 +431,14 @@ export function SavedImagesModal({ isOpen, onClose, sessionId, onRefresh }: Save
                                     autoPlay
                                     className="max-w-full max-h-[85vh] object-contain shadow-2xl"
                                 />
+                            ) : selectedImage.type === 'audio' ? (
+                                <div className="bg-[var(--card)] rounded-2xl p-8 shadow-2xl" style={{ minWidth: '400px' }}>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <span className="text-3xl">🎵</span>
+                                        <span className="text-lg font-medium text-white">{selectedImage.name}</span>
+                                    </div>
+                                    <audio src={selectedImage.imageUrl} controls autoPlay className="w-full" />
+                                </div>
                             ) : (
                                 <img
                                     src={selectedImage.imageUrl}

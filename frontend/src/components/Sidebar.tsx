@@ -234,7 +234,7 @@ function SavedImagesSection({ items, onDelete }: SavedImagesSectionProps) {
             >
                 {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 <ImageIcon size={16} />
-                <span className="font-medium">Kaydedilen Görseller</span>
+                <span className="font-medium">Kaydedilen Medya Varlıkları</span>
                 {items.length > 0 && (
                     <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-[var(--accent)]/20" style={{ color: "var(--accent)" }}>
                         {items.length}
