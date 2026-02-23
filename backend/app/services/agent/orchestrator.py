@@ -3276,9 +3276,13 @@ Konuşma:
             return {"success": False, "error": f"Müzik üretimi başarısız: {str(e)}"}
     
     async def _add_audio_to_video(self, db, session_id, params: dict) -> dict:
-        """Videoya müzik/ses ekle — fal.ai FFmpeg API ile birleştir."""
+        """Videoya müzik/ses ekle — LOKAL FFmpeg ile birleştir, fal storage'a yükle."""
         try:
             import fal_client
+            import httpx
+            import tempfile
+            import subprocess
+            import os
             from app.services.asset_service import asset_service
             
             video_url = params.get("video_url", "")
@@ -3288,60 +3292,92 @@ Konuşma:
             if not video_url or not audio_url:
                 return {"success": False, "error": "video_url ve audio_url gerekli."}
             
-            print(f"🎬+🎵 Video-müzik birleştirme başlıyor...")
+            print(f"🎬+🎵 Video-müzik birleştirme başlıyor (lokal FFmpeg)...")
             print(f"   Video: {video_url[:80]}...")
             print(f"   Audio: {audio_url[:80]}...")
             
-            if replace_audio:
-                # Mevcut sesi kaldır + yeni ses ekle
-                command = (
-                    f"ffmpeg -i {video_url} -i {audio_url} "
-                    f"-c:v copy -c:a aac -map 0:v:0 -map 1:a:0 "
-                    f"-shortest -movflags +faststart output.mp4"
-                )
-            else:
-                # Mevcut ses + yeni ses mix
-                command = (
-                    f"ffmpeg -i {video_url} -i {audio_url} "
-                    f'-filter_complex "[0:a][1:a]amix=inputs=2:duration=shortest[aout]" '
-                    f'-c:v copy -map 0:v:0 -map "[aout]" '
-                    f"-movflags +faststart output.mp4"
-                )
-            
-            print(f"   FFmpeg command: {command[:120]}...")
-            
-            result = await fal_client.subscribe_async(
-                "fal-ai/ffmpeg-api",
-                arguments={"command": command},
-                with_logs=True,
-            )
-            
-            if result and "outputs" in result and len(result["outputs"]) > 0:
-                final_url = result["outputs"][0]["url"]
-                print(f"✅ Video-müzik birleştirildi: {final_url[:60]}...")
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                video_path = os.path.join(tmp_dir, "input_video.mp4")
+                audio_path = os.path.join(tmp_dir, "input_audio.wav")
+                output_path = os.path.join(tmp_dir, "output.mp4")
                 
-                # Asset olarak kaydet
-                try:
-                    await asset_service.save_asset(
-                        db=db,
-                        session_id=session_id,
-                        url=final_url,
-                        asset_type="video",
-                        prompt=f"Video + Audio birleştirildi",
-                        model_name="ffmpeg-merge",
-                    )
-                    print(f"💾 Birleştirilmiş video asset olarak kaydedildi")
-                except Exception as save_err:
-                    print(f"⚠️ Asset kaydetme hatası (video yine de döndürülüyor): {save_err}")
+                # 1. Video ve audio dosyalarını indir
+                print("   ⬇️ Dosyalar indiriliyor...")
+                async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+                    video_resp = await client.get(video_url)
+                    if video_resp.status_code != 200:
+                        return {"success": False, "error": f"Video indirilemedi (HTTP {video_resp.status_code})"}
+                    with open(video_path, "wb") as f:
+                        f.write(video_resp.content)
+                    
+                    audio_resp = await client.get(audio_url)
+                    if audio_resp.status_code != 200:
+                        return {"success": False, "error": f"Audio indirilemedi (HTTP {audio_resp.status_code})"}
+                    with open(audio_path, "wb") as f:
+                        f.write(audio_resp.content)
                 
-                return {
-                    "success": True,
-                    "video_url": final_url,
-                    "message": f"🎬🎵 Video ve müzik başarıyla birleştirildi!"
-                }
+                print(f"   ✅ Video: {os.path.getsize(video_path)} bytes, Audio: {os.path.getsize(audio_path)} bytes")
+                
+                # 2. FFmpeg ile birleştir
+                if replace_audio:
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-i", video_path,
+                        "-i", audio_path,
+                        "-c:v", "copy", "-c:a", "aac",
+                        "-map", "0:v:0", "-map", "1:a:0",
+                        "-shortest",
+                        "-movflags", "+faststart",
+                        output_path
+                    ]
+                else:
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-i", video_path,
+                        "-i", audio_path,
+                        "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=shortest[aout]",
+                        "-c:v", "copy",
+                        "-map", "0:v:0", "-map", "[aout]",
+                        "-movflags", "+faststart",
+                        output_path
+                    ]
+                
+                print(f"   🔧 FFmpeg çalıştırılıyor...")
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                
+                if proc.returncode != 0:
+                    print(f"   ❌ FFmpeg hatası: {proc.stderr[:500]}")
+                    return {"success": False, "error": f"FFmpeg birleştirme hatası: {proc.stderr[:200]}"}
+                
+                if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                    return {"success": False, "error": "FFmpeg çıktı dosyası oluşturulamadı."}
+                
+                print(f"   ✅ Birleştirme tamamlandı: {os.path.getsize(output_path)} bytes")
+                
+                # 3. fal storage'a yükle
+                print("   ⬆️ fal.ai storage'a yükleniyor...")
+                final_url = fal_client.upload_file(output_path)
+                print(f"   ✅ Yüklendi: {final_url[:60]}...")
             
-            print(f"❌ FFmpeg API yanıtı beklenmeyen format: {result}")
-            return {"success": False, "error": "Video-müzik birleştirme başarısız. FFmpeg API beklenmeyen yanıt döndü."}
+            # 4. Asset olarak kaydet
+            try:
+                await asset_service.save_asset(
+                    db=db,
+                    session_id=session_id,
+                    url=final_url,
+                    asset_type="video",
+                    prompt=f"Video + Audio birleştirildi",
+                    model_name="ffmpeg-local",
+                )
+                print(f"💾 Birleştirilmiş video asset olarak kaydedildi")
+            except Exception as save_err:
+                print(f"⚠️ Asset kaydetme hatası: {save_err}")
+            
+            return {
+                "success": True,
+                "video_url": final_url,
+                "message": f"🎬🎵 Video ve müzik başarıyla birleştirildi!"
+            }
             
         except Exception as e:
             import traceback
