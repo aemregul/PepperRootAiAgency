@@ -664,7 +664,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         const userMessage: Message = {
             id: Date.now().toString(),
             role: "user",
-            content: input || (attachedFiles.length > 0 ? `[${attachedFiles.length} Referans Görsel]` : ""),
+            content: input || (attachedFiles.length > 0 ? `[${attachedFiles.length} Referans Görsel]` : attachedAudioUrl ? '[🎵 Ses Referansı]' : attachedVideoUrl ? '[📹 Video Referansı]' : ""),
             timestamp: new Date(),
             image_url: filePreviews[0] || undefined,
             image_urls: filePreviews.length > 0 ? [...filePreviews] : undefined,
@@ -694,6 +694,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         setAttachedFiles([]);
         setFilePreviews([]);
         setAttachedVideoUrl(null);
+        setAttachedAudioUrl(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
         setIsLoading(true);
         setError(null);
