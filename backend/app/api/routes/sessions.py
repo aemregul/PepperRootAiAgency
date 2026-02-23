@@ -246,3 +246,28 @@ async def delete_asset(
     # Asset'i sil
     await db.delete(asset)
     await db.commit()
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class AssetRenameRequest(PydanticBaseModel):
+    prompt: str
+
+@router.patch("/assets/{asset_id}/rename", response_model=AssetResponse)
+async def rename_asset(
+    asset_id: UUID,
+    data: AssetRenameRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Asset adını değiştir."""
+    result = await db.execute(
+        select(GeneratedAsset).where(GeneratedAsset.id == asset_id)
+    )
+    asset = result.scalar_one_or_none()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset bulunamadı")
+    
+    asset.prompt = data.prompt.strip()
+    await db.commit()
+    await db.refresh(asset)
+    return asset

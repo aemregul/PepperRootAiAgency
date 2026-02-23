@@ -408,6 +408,20 @@ export async function deleteAsset(assetId: string): Promise<boolean> {
     }
 }
 
+// Rename Asset
+export async function renameAsset(assetId: string, newName: string): Promise<boolean> {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/assets/${assetId}/rename`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ prompt: newName }),
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
 // Save Asset to Wardrobe (creates a wardrobe entity from asset)
 export async function saveAssetToWardrobe(
     sessionId: string,

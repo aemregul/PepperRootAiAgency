@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, CheckSquare, Square, Bookmark } from "lucide-react";
-import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe } from "@/lib/api";
+import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, CheckSquare, Square, Bookmark, Pencil } from "lucide-react";
+import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe, renameAsset } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
 interface Asset {
@@ -176,6 +176,24 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         e.dataTransfer.setData('application/x-asset-id', asset.id);
         e.dataTransfer.setData('application/x-asset-label', asset.label || '');
         e.dataTransfer.effectAllowed = 'copy';
+    };
+
+    // Rename asset
+    const handleRename = async (asset: Asset, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        const currentName = asset.label || '';
+        const newName = window.prompt('Yeni isim girin:', currentName);
+        if (newName === null || newName.trim() === '' || newName === currentName) return;
+        const success = await renameAsset(asset.id, newName.trim());
+        if (success) {
+            setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, label: newName.trim() } : a));
+            if (selectedAsset?.id === asset.id) {
+                setSelectedAsset(prev => prev ? { ...prev, label: newName.trim() } : null);
+            }
+            toast.success('İsim değiştirildi');
+        } else {
+            toast.error('İsim değiştirilemedi');
+        }
     };
 
     // Save to Saved Images (uses wardrobe entity type internally)
@@ -388,6 +406,13 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                     className={selectedAsset.isFavorite ? "text-yellow-500" : "text-white"}
                                 />
                             </button>
+                            <button
+                                onClick={() => handleRename(selectedAsset)}
+                                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                                title="Yeniden Adlandır"
+                            >
+                                <Pencil size={18} className="text-white" />
+                            </button>
                             <span className="text-white/70 text-sm px-2">
                                 {displayAssets.findIndex(a => a.id === selectedAsset.id) + 1} / {displayAssets.length}
                             </span>
@@ -599,6 +624,13 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     title="Sil"
                                                 >
                                                     <Trash2 size={16} className="text-white/70" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleRename(displayAssets[0], e)}
+                                                    className="p-1.5 rounded-full bg-black/40 hover:bg-blue-500/80 transition-colors"
+                                                    title="Yeniden Adlandır"
+                                                >
+                                                    <Pencil size={16} className="text-white/70" />
                                                 </button>
                                             </div>
                                         )}
