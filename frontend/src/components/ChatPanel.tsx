@@ -1239,56 +1239,54 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                             </div>
                         )}
 
-                        {/* Inline Video Preview */}
-                        {attachedVideoUrl && (
-                            <div className="p-3 pb-0">
-                                <div className="relative inline-block">
-                                    <div
-                                        className="w-36 h-24 bg-black rounded-xl overflow-hidden flex items-center justify-center"
-                                        style={{ border: "1px solid var(--border)" }}
-                                    >
-                                        <video
-                                            src={attachedVideoUrl}
-                                            className="w-full h-full object-cover opacity-80"
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-white text-xs font-medium bg-black/50 px-2 py-1 rounded">📹 VİDEO</span>
+                        {/* Inline Video & Audio Previews — Side by Side */}
+                        {(attachedVideoUrl || attachedAudioUrl) && (
+                            <div className="p-3 pb-0 flex gap-3">
+                                {attachedVideoUrl && (
+                                    <div className="relative inline-block">
+                                        <div
+                                            className="w-36 h-24 bg-black rounded-xl overflow-hidden flex items-center justify-center"
+                                            style={{ border: "1px solid var(--border)" }}
+                                        >
+                                            <video
+                                                src={attachedVideoUrl}
+                                                className="w-full h-full object-cover opacity-80"
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="text-white text-xs font-medium bg-black/50 px-2 py-1 rounded">📹 VİDEO</span>
+                                            </div>
                                         </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAttachedVideoUrl(null)}
+                                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
+                                            style={{ background: "rgba(0,0,0,0.5)" }}
+                                            title="Videoyu kaldır"
+                                        >
+                                            <X size={13} className="text-white" />
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={removeAllAttachments}
-                                        className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
-                                        style={{ background: "rgba(0,0,0,0.5)" }}
-                                        title="Videoyu kaldır"
-                                    >
-                                        <X size={13} className="text-white" />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Inline Audio Preview */}
-                        {attachedAudioUrl && (
-                            <div className="p-3 pb-0">
-                                <div className="relative inline-block">
-                                    <div
-                                        className="w-36 h-24 rounded-xl overflow-hidden flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40"
-                                        style={{ border: "1px solid var(--border)" }}
-                                    >
-                                        <span className="text-3xl">🎵</span>
-                                        <span className="text-white text-xs font-medium mt-1">SES DOSYASI</span>
+                                )}
+                                {attachedAudioUrl && (
+                                    <div className="relative inline-block">
+                                        <div
+                                            className="w-36 h-24 rounded-xl overflow-hidden flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40"
+                                            style={{ border: "1px solid var(--border)" }}
+                                        >
+                                            <span className="text-3xl">🎵</span>
+                                            <span className="text-white text-xs font-medium mt-1">SES DOSYASI</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAttachedAudioUrl(null)}
+                                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
+                                            style={{ background: "rgba(0,0,0,0.5)" }}
+                                            title="Ses dosyasını kaldır"
+                                        >
+                                            <X size={13} className="text-white" />
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setAttachedAudioUrl(null)}
-                                        className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
-                                        style={{ background: "rgba(0,0,0,0.5)" }}
-                                        title="Ses dosyasını kaldır"
-                                    >
-                                        <X size={13} className="text-white" />
-                                    </button>
-                                </div>
+                                )}
                             </div>
                         )}
 
