@@ -213,6 +213,22 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
     const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
 
+    // === PROJE DEĞİŞİMİNDE CHAT STATE SIFIRLA ===
+    useEffect(() => {
+        setSessionId(initialSessionId || null);
+        setMessages([]);
+        setInput("");
+        setAttachedFiles([]);
+        filePreviews.forEach(url => URL.revokeObjectURL(url));
+        setFilePreviews([]);
+        setAttachedVideoUrl(null);
+        setAttachedAudioUrl(null);
+        setError(null);
+        setIsLoading(false);
+        setLoadingStatus("Düşünüyor...");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }, [initialSessionId]);
+
     // === AUTO-SAVE DRAFT TO LOCALSTORAGE ===
     const DRAFT_KEY = `pepper_draft_${initialSessionId || 'default'}`;
 
