@@ -129,7 +129,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "edit_video",
-        "description": "Mevcut bir videoyu düzenler. Nesne kaldırma/değiştirme (inpainting), stil değiştirme (v2v) veya talimatlı düzenleme yapar. Asistan otomatik olarak en iyi yöntemi seçer.",
+        "description": "Mevcut bir videoyu GÖRSEL olarak düzenler. Nesne kaldırma/değiştirme (inpainting), stil değiştirme (v2v) veya talimatlı düzenleme yapar. ÖNEMLİ: Bu araç SES/MÜZİK EKLEME YAPMAZ! Ses/müzik birleştirme için add_audio_to_video aracını kullan.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -643,7 +643,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "add_audio_to_video",
-        "description": "Bir videoya müzik/ses ekler veya mevcut sesi değiştirir. Üretilen müziği veya herhangi bir ses dosyasını videoya birleştirir (ffmpeg ile). Kullanıcı 'videoya müzik ekle' veya 'videoyu bu müzikle birleştir' dediğinde kullan.",
+        "description": "MEVCUT bir videoya MEVCUT bir ses/müzik dosyasını FFmpeg ile birleştirir. Kullanıcı 'videoyu müzikle birleştir', 'videoya ses ekle', 'bu müziği videoya koy' dediğinde MUTLAKA bu aracı kullan. video_url ve audio_url ZORUNLU. edit_video veya generate_video KULLANMA — onlar birleştirme yapmaz!",
         "input_schema": {
             "type": "object",
             "properties": {
