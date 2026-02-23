@@ -1259,7 +1259,7 @@ Kurallar:
             return await self._generate_music(db, session_id, tool_input)
         
         elif tool_name == "add_audio_to_video":
-            return await self._add_audio_to_video(tool_input)
+            return await self._add_audio_to_video(db, session_id, tool_input)
         
         # ROADMAP / GÖREV PLANLAMA
         elif tool_name == "create_roadmap":
@@ -1308,8 +1308,7 @@ Kurallar:
         elif tool_name == "transcribe_voice":
             return await self._transcribe_voice(tool_input)
         
-        elif tool_name == "add_audio_to_video":
-            return await self._add_audio_to_video(db, session_id, tool_input)
+        # (add_audio_to_video zaten yukarıda handle ediliyor)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
     
@@ -2224,34 +2223,8 @@ Konuşma:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _add_audio_to_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
-        """Video'ya ses/müzik ekle."""
-        try:
-            from app.services.voice_audio_service import voice_audio_service
-            result = await voice_audio_service.add_audio_to_video(
-                video_url=params.get("video_url", ""),
-                audio_type=params.get("audio_type", "tts"),
-                text=params.get("text"),
-                music_style=params.get("music_style"),
-                voice=params.get("voice", "nova")
-            )
-            
-            # Başarılıysa asset kaydet
-            if result.get("success") and result.get("video_url"):
-                try:
-                    await asset_service.save_asset(
-                        db=db, session_id=session_id,
-                        url=result["video_url"],
-                        asset_type="video",
-                        prompt=f"Audio added: {params.get('audio_type')}",
-                        model_name="ffmpeg-audio",
-                    )
-                except Exception:
-                    pass
-            
-            return result
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+    # _add_audio_to_video eski voice_audio_service versiyonu silindi
+    # Artık tek implementasyon aşağıdaki FFmpeg versiyonu (satır ~3298)
     
     async def _edit_image(self, params: dict) -> dict:
         """
@@ -3295,10 +3268,11 @@ Konuşma:
             traceback.print_exc()
             return {"success": False, "error": f"Müzik üretimi başarısız: {str(e)}"}
     
-    async def _add_audio_to_video(self, params: dict) -> dict:
+    async def _add_audio_to_video(self, db, session_id, params: dict) -> dict:
         """Videoya müzik/ses ekle — fal.ai FFmpeg API ile birleştir."""
         try:
             import fal_client
+            from app.services.asset_service import asset_service
             
             video_url = params.get("video_url", "")
             audio_url = params.get("audio_url", "")
@@ -3308,12 +3282,14 @@ Konuşma:
                 return {"success": False, "error": "video_url ve audio_url gerekli."}
             
             print(f"🎬+🎵 Video-müzik birleştirme başlıyor...")
+            print(f"   Video: {video_url[:80]}...")
+            print(f"   Audio: {audio_url[:80]}...")
             
             if replace_audio:
                 # Mevcut sesi kaldır + yeni ses ekle
                 command = (
                     f"ffmpeg -i {video_url} -i {audio_url} "
-                    f"-c:v copy -map 0:v:0 -map 1:a:0 "
+                    f"-c:v copy -c:a aac -map 0:v:0 -map 1:a:0 "
                     f"-shortest -movflags +faststart output.mp4"
                 )
             else:
@@ -3325,6 +3301,8 @@ Konuşma:
                     f"-movflags +faststart output.mp4"
                 )
             
+            print(f"   FFmpeg command: {command[:120]}...")
+            
             result = await fal_client.subscribe_async(
                 "fal-ai/ffmpeg-api",
                 arguments={"command": command},
@@ -3334,13 +3312,29 @@ Konuşma:
             if result and "outputs" in result and len(result["outputs"]) > 0:
                 final_url = result["outputs"][0]["url"]
                 print(f"✅ Video-müzik birleştirildi: {final_url[:60]}...")
+                
+                # Asset olarak kaydet
+                try:
+                    await asset_service.save_asset(
+                        db=db,
+                        session_id=session_id,
+                        url=final_url,
+                        asset_type="video",
+                        prompt=f"Video + Audio birleştirildi",
+                        model_name="ffmpeg-merge",
+                    )
+                    print(f"💾 Birleştirilmiş video asset olarak kaydedildi")
+                except Exception as save_err:
+                    print(f"⚠️ Asset kaydetme hatası (video yine de döndürülüyor): {save_err}")
+                
                 return {
                     "success": True,
                     "video_url": final_url,
-                    "message": f"🎬🎵 Video ve müzik birleştirildi: {final_url}"
+                    "message": f"🎬🎵 Video ve müzik başarıyla birleştirildi!"
                 }
             
-            return {"success": False, "error": "Video-müzik birleştirme başarısız."}
+            print(f"❌ FFmpeg API yanıtı beklenmeyen format: {result}")
+            return {"success": False, "error": "Video-müzik birleştirme başarısız. FFmpeg API beklenmeyen yanıt döndü."}
             
         except Exception as e:
             import traceback

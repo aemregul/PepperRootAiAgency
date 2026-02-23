@@ -423,25 +423,6 @@ AGENT_TOOLS_ANTHROPIC = [
         }
     },
     {
-        "name": "add_audio_to_video",
-        "description": "Video'ya ses/müzik ekler veya seslendirme yapar (TTS). Mevcut bir videoya arka plan müziği, seslendirme veya ses efekti ekler.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "video_url": {"type": "string", "description": "Video URL'si"},
-                "audio_type": {
-                    "type": "string",
-                    "enum": ["tts", "music", "effect"],
-                    "description": "Ses tipi: tts=seslendirme, music=müzik, effect=ses efekti"
-                },
-                "text": {"type": "string", "description": "TTS için seslendirme metni (audio_type=tts ise zorunlu)"},
-                "music_style": {"type": "string", "description": "Müzik stili (audio_type=music ise, örn: 'cinematic', 'upbeat', 'ambient')"},
-                "voice": {"type": "string", "enum": ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], "description": "TTS ses tonu (varsayılan: 'nova')"}
-            },
-            "required": ["video_url", "audio_type"]
-        }
-    },
-    {
         "name": "outpaint_image",
         "description": "Görseli genişletir (outpainting). Görselin kenarlarına yeni içerik ekleyerek boyutunu büyütür. Kırpılmış görselleri genişletme, yatay→dikey dönüşüm, panoramik genişletme için kullan. Yön belirtilmezse her yöne 256px genişletir.",
         "input_schema": {
