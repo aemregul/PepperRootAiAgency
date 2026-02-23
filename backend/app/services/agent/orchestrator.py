@@ -3134,64 +3134,147 @@ Konuşma:
             return {"success": False, "error": f"Video analizi başarısız: {str(e)}"}
 
     async def _generate_music(self, params: dict) -> dict:
-        """AI müzik üretimi — MiniMax Music via fal.ai."""
+        """
+        AI müzik üretimi — Dual Model Smart Router.
+        
+        Models:
+        - elevenlabs: Vokal + şarkı sözü, uzun parça (10dk), bölüm yapısı
+        - stable_audio: Enstrümantal, ambient, sinematik, remix, inpainting
+        """
         try:
             import fal_client
             
             prompt = params.get("prompt", "")
             lyrics = params.get("lyrics")
-            duration = min(params.get("duration", 30), 120)
+            duration = params.get("duration", 30)
+            model = params.get("model", "auto")  # auto, elevenlabs, stable_audio
             
             if not prompt:
                 return {"success": False, "error": "Müzik promptu gerekli."}
             
-            print(f"🎵 Müzik üretimi başlıyor: {prompt[:60]}... ({duration}s)")
+            # --- Smart Model Selection ---
+            if model == "auto":
+                # Vokal/şarkı sözü varsa → ElevenLabs
+                # Enstrümantal/ambient/sinematik → Stable Audio
+                lower_prompt = prompt.lower()
+                vocal_keywords = ["vokal", "vocal", "şarkı", "song", "lyrics", "söz", 
+                                  "sing", "verse", "chorus", "şarkıcı", "singer"]
+                instrumental_keywords = ["enstrümantal", "instrumental", "ambient", 
+                                         "cinematic", "sinematik", "piano", "piyano",
+                                         "guitar", "gitar", "efekt", "effect", "jingle",
+                                         "background", "arka plan", "lofi", "lo-fi"]
+                
+                if lyrics or any(kw in lower_prompt for kw in vocal_keywords):
+                    model = "elevenlabs"
+                elif any(kw in lower_prompt for kw in instrumental_keywords):
+                    model = "stable_audio"
+                else:
+                    model = "stable_audio"  # Varsayılan: Stable Audio (daha hızlı)
             
-            # MiniMax Music API via fal.ai
-            fal_args = {
-                "prompt": prompt,
-                "duration": duration,
-            }
-            if lyrics:
-                fal_args["lyrics"] = lyrics
+            print(f"🎵 Müzik üretimi başlıyor ({model}): {prompt[:60]}... ({duration}s)")
             
-            result = await fal_client.subscribe_async(
-                "fal-ai/minimax-music",
-                arguments=fal_args,
-                with_logs=True,
-            )
-            
-            if result and "audio" in result:
-                audio_url = result["audio"].get("url", "")
-                if audio_url:
-                    print(f"✅ Müzik üretildi: {audio_url[:60]}...")
-                    return {
-                        "success": True,
-                        "audio_url": audio_url,
-                        "duration": duration,
-                        "message": f"🎵 Müzik üretildi ({duration}s): {audio_url}"
+            # --- ElevenLabs Music ---
+            if model == "elevenlabs":
+                try:
+                    duration_ms = min(int(duration) * 1000, 300000)  # Max 5 dakika (ms)
+                    fal_args = {
+                        "prompt": prompt,
+                        "music_length_ms": duration_ms,
                     }
+                    if lyrics:
+                        # Şarkı sözü varsa prompt'a birleştir
+                        fal_args["prompt"] = f"{prompt}\n\n{lyrics}"
+                    
+                    result = await fal_client.subscribe_async(
+                        "fal-ai/elevenlabs/music-v1",
+                        arguments=fal_args,
+                        with_logs=True,
+                    )
+                    
+                    if result:
+                        audio_url = None
+                        # ElevenLabs farklı response formatları dönebilir
+                        if isinstance(result, dict):
+                            if "audio" in result:
+                                audio_url = result["audio"].get("url") if isinstance(result["audio"], dict) else result["audio"]
+                            elif "audio_url" in result:
+                                audio_url = result["audio_url"]
+                            elif "output" in result:
+                                audio_url = result["output"].get("url") if isinstance(result["output"], dict) else result["output"]
+                        
+                        if audio_url:
+                            print(f"✅ Müzik üretildi (ElevenLabs): {audio_url[:60]}...")
+                            return {
+                                "success": True,
+                                "audio_url": audio_url,
+                                "duration": duration,
+                                "model": "elevenlabs",
+                                "message": f"🎵 Müzik üretildi ({duration}s, ElevenLabs Music)"
+                            }
+                    
+                    print("⚠️ ElevenLabs başarısız, Stable Audio'ya geçiliyor...")
+                except Exception as el_err:
+                    print(f"⚠️ ElevenLabs hatası: {el_err}, Stable Audio'ya geçiliyor...")
             
-            # Fallback — CassetteAI dene
-            print("⚠️ MiniMax başarısız, CassetteAI deneniyor...")
-            result = await fal_client.subscribe_async(
-                "cassetteai/music-gen",
-                arguments={"prompt": prompt, "duration": duration},
-                with_logs=True,
-            )
+            # --- Stable Audio 2.5 (varsayılan veya fallback) ---
+            try:
+                sa_duration = min(int(duration), 190)  # Max 190 saniye
+                fal_args = {
+                    "prompt": prompt,
+                    "duration": sa_duration,
+                    "steps": 8,  # Kalite için önerilen
+                }
+                
+                result = await fal_client.subscribe_async(
+                    "fal-ai/stable-audio",
+                    arguments=fal_args,
+                    with_logs=True,
+                )
+                
+                if result:
+                    audio_url = None
+                    if isinstance(result, dict):
+                        if "audio_file" in result:
+                            audio_url = result["audio_file"].get("url") if isinstance(result["audio_file"], dict) else result["audio_file"]
+                        elif "audio" in result:
+                            audio_url = result["audio"].get("url") if isinstance(result["audio"], dict) else result["audio"]
+                        elif "output" in result:
+                            audio_url = result["output"].get("url") if isinstance(result["output"], dict) else result["output"]
+                    
+                    if audio_url:
+                        print(f"✅ Müzik üretildi (Stable Audio): {audio_url[:60]}...")
+                        return {
+                            "success": True,
+                            "audio_url": audio_url,
+                            "duration": sa_duration,
+                            "model": "stable_audio",
+                            "message": f"🎵 Müzik üretildi ({sa_duration}s, Stable Audio 2.5)"
+                        }
+            except Exception as sa_err:
+                print(f"⚠️ Stable Audio hatası: {sa_err}")
             
-            if result and "audio_file" in result:
-                audio_url = result["audio_file"].get("url", "")
-                if audio_url:
-                    print(f"✅ Müzik üretildi (CassetteAI): {audio_url[:60]}...")
-                    return {
-                        "success": True,
-                        "audio_url": audio_url,
-                        "duration": duration,
-                        "message": f"🎵 Müzik üretildi ({duration}s): {audio_url}"
-                    }
+            # --- Son Fallback: CassetteAI ---
+            try:
+                print("⚠️ Ana modeller başarısız, CassetteAI deneniyor...")
+                result = await fal_client.subscribe_async(
+                    "cassetteai/music-gen",
+                    arguments={"prompt": prompt, "duration": min(int(duration), 120)},
+                    with_logs=True,
+                )
+                if result and "audio_file" in result:
+                    audio_url = result["audio_file"].get("url", "")
+                    if audio_url:
+                        return {
+                            "success": True,
+                            "audio_url": audio_url,
+                            "duration": duration,
+                            "model": "cassetteai",
+                            "message": f"🎵 Müzik üretildi ({duration}s, CassetteAI)"
+                        }
+            except Exception:
+                pass
             
-            return {"success": False, "error": "Müzik üretilemedi."}
+            return {"success": False, "error": "Müzik üretilemedi. Tüm modeller başarısız oldu."}
             
         except Exception as e:
             import traceback
