@@ -169,6 +169,10 @@ class GeminiImageService:
                 "text_response": text_response
             }
             
+        except Exception as e:
+            print(f"   ❌ Gemini üretim hatası: {e}")
+            return {"success": False, "error": str(e)}
+    
     async def edit_with_reference(
         self,
         prompt: str,
