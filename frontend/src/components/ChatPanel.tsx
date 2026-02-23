@@ -15,6 +15,7 @@ interface Message {
     image_urls?: string[];
     video_url?: string;
     audio_url?: string;
+    audio_label?: string;
 }
 
 interface ChatPanelProps {
@@ -197,6 +198,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const [filePreviews, setFilePreviews] = useState<string[]>([]);
     const [attachedVideoUrl, setAttachedVideoUrl] = useState<string | null>(null);
     const [attachedAudioUrl, setAttachedAudioUrl] = useState<string | null>(null);
+    const [attachedAudioLabel, setAttachedAudioLabel] = useState<string>('');
     const MAX_FILES = 10;
     const [isDragOver, setIsDragOver] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -219,6 +221,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         input: string;
         videoUrl: string | null;
         audioUrl: string | null;
+        audioLabel: string;
     }>>({});
     const prevSessionRef = useRef<string | null>(null);
 
@@ -231,6 +234,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                 input,
                 videoUrl: attachedVideoUrl,
                 audioUrl: attachedAudioUrl,
+                audioLabel: attachedAudioLabel,
             };
         }
 
@@ -252,10 +256,12 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             setInput(saved.input);
             setAttachedVideoUrl(saved.videoUrl);
             setAttachedAudioUrl(saved.audioUrl);
+            setAttachedAudioLabel(saved.audioLabel);
         } else {
             setInput("");
             setAttachedVideoUrl(null);
             setAttachedAudioUrl(null);
+            setAttachedAudioLabel('');
         }
 
         prevSessionRef.current = initialSessionId || null;
@@ -371,7 +377,9 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
             // Eğer audio ise URL referansı olarak ekle
             if (assetType === 'audio' || assetUrl.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i)) {
+                const assetLabel = e.dataTransfer.getData('application/x-asset-label') || '';
                 setAttachedAudioUrl(assetUrl);
+                setAttachedAudioLabel(assetLabel);
                 inputRef.current?.focus();
                 toast.success("Ses dosyası eklendi");
                 return;
@@ -453,6 +461,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         setFilePreviews([]);
         setAttachedVideoUrl(null);
         setAttachedAudioUrl(null);
+        setAttachedAudioLabel('');
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -717,7 +726,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             image_url: filePreviews[0] || undefined,
             image_urls: filePreviews.length > 0 ? [...filePreviews] : undefined,
             video_url: attachedVideoUrl || undefined,
-            audio_url: attachedAudioUrl || undefined
+            audio_url: attachedAudioUrl || undefined,
+            audio_label: attachedAudioLabel || undefined
         };
 
         setMessages((prev) => [...prev, userMessage]);
@@ -1141,8 +1151,11 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             )}
                                             {msg.audio_url && (
                                                 <div>
-                                                    <div className="w-36 h-24 rounded-lg flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                                                        <span className="text-xl mb-1">🎵</span>
+                                                    <div className="w-36 h-24 rounded-lg flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 overflow-hidden px-1" style={{ border: '1px solid var(--border)' }}>
+                                                        <span className="text-lg mb-0.5">🎵</span>
+                                                        {msg.audio_label && (
+                                                            <span className="text-[9px] text-white/80 text-center leading-tight line-clamp-2 mb-0.5">{msg.audio_label}</span>
+                                                        )}
                                                         <audio src={msg.audio_url} controls className="w-[120px] h-6" style={{ transform: 'scale(0.85)' }} />
                                                     </div>
                                                     <div className="text-[10px] mt-0.5 text-[var(--foreground-muted)] flex items-center gap-1">
@@ -1340,11 +1353,15 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             style={{ border: "1px solid var(--border)" }}
                                         >
                                             <span className="text-3xl">🎵</span>
-                                            <span className="text-white text-xs font-medium mt-1">SES DOSYASI</span>
+                                            {attachedAudioLabel ? (
+                                                <span className="text-white text-[9px] font-medium mt-0.5 text-center leading-tight line-clamp-2 px-1">{attachedAudioLabel}</span>
+                                            ) : (
+                                                <span className="text-white text-xs font-medium mt-1">SES DOSYASI</span>
+                                            )}
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => setAttachedAudioUrl(null)}
+                                            onClick={() => { setAttachedAudioUrl(null); setAttachedAudioLabel(''); }}
                                             className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
                                             style={{ background: "rgba(0,0,0,0.5)" }}
                                             title="Ses dosyasını kaldır"
