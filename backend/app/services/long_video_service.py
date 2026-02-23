@@ -103,6 +103,11 @@ class LongVideoService:
                     model_val = "veo"
                     
                 dur = min(segment_duration, remaining_duration)
+                # API sadece 5 veya 10 kabul ediyor — en yakına snap
+                if dur <= 7:
+                    dur = 5
+                else:
+                    dur = 10
                 segments.append(VideoSegment(
                     id=str(uuid.uuid4()),
                     order=order,
@@ -131,8 +136,13 @@ class LongVideoService:
             
             while remaining_duration > 0:
                 dur = min(self.MAX_SEGMENT_DURATION, remaining_duration)
+                # API sadece 5 veya 10 kabul ediyor
+                if dur <= 7:
+                    dur = 5
+                elif dur > 7:
+                    dur = 10
                 if dur < self.MIN_SEGMENT_DURATION and remaining_duration > self.MIN_SEGMENT_DURATION:
-                    dur = self.MIN_SEGMENT_DURATION
+                    dur = 5
                 elif dur < self.MIN_SEGMENT_DURATION:
                     # Çok kısa kaldı — son segment'e ekle
                     if segments:
@@ -359,14 +369,18 @@ class LongVideoService:
     
     async def _stitch_segments(self, job: LongVideoJob) -> str:
         """
-        Segment'leri fal.ai FFmpeg API ile birleştir.
+        Segment'leri LOKAL FFmpeg ile birleştir.
         
         1. Completed segment'leri sıraya koy
-        2. FFmpeg concat komutu oluştur
-        3. fal.ai FFmpeg API'ye gönder
-        4. Final video URL'sini döndür
+        2. Her birini indir
+        3. Lokal FFmpeg concat ile birleştir
+        4. fal.ai storage'a yükle
         """
         import fal_client
+        import httpx
+        import tempfile
+        import subprocess
+        import os
         
         completed = sorted(
             [s for s in job.segments if s.status == "completed"],
@@ -376,61 +390,83 @@ class LongVideoService:
         if len(completed) < 2:
             return completed[0].video_url
         
-        # FFmpeg concat komutu oluştur
-        # Input olarak tüm video URL'lerini al, concat filtresi ile birleştir
-        inputs = " ".join(f"-i {s.video_url}" for s in completed)
         n = len(completed)
         
-        # filter_complex ile concat filtresi
-        filter_inputs = "".join(f"[{i}:v:0][{i}:a:0]" for i in range(n))
-        concat_filter = f"{filter_inputs}concat=n={n}:v=1:a=1[outv][outa]"
-        
-        command = (
-            f"ffmpeg {inputs} "
-            f'-filter_complex "{concat_filter}" '
-            f'-map "[outv]" -map "[outa]" '
-            f"-c:v libx264 -c:a aac -movflags +faststart "
-            f"output.mp4"
-        )
-        
         try:
-            print(f"🔧 FFmpeg stitching: {n} segment birleştiriliyor...")
-            result = await fal_client.subscribe_async(
-                "fal-ai/ffmpeg-api",
-                arguments={"command": command},
-                with_logs=True,
-            )
+            print(f"🔧 FFmpeg stitching: {n} segment birleştiriliyor (lokal)...")
             
-            if result and "outputs" in result and len(result["outputs"]) > 0:
-                final_url = result["outputs"][0]["url"]
-                print(f"✅ Video birleştirildi: {final_url[:60]}...")
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                # 1. Tüm segment'leri indir
+                segment_paths = []
+                async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+                    for i, seg in enumerate(completed):
+                        seg_path = os.path.join(tmp_dir, f"segment_{i}.mp4")
+                        print(f"   ⬇️ Segment {i+1}/{n} indiriliyor...")
+                        resp = await client.get(seg.video_url)
+                        if resp.status_code != 200:
+                            print(f"   ⚠️ Segment {i+1} indirilemedi, atlanıyor")
+                            continue
+                        with open(seg_path, "wb") as f:
+                            f.write(resp.content)
+                        segment_paths.append(seg_path)
+                
+                if len(segment_paths) < 2:
+                    print("⚠️ Yeterli segment indirilemedi")
+                    return completed[0].video_url
+                
+                # 2. concat dosyası oluştur
+                concat_file = os.path.join(tmp_dir, "concat.txt")
+                with open(concat_file, "w") as f:
+                    for path in segment_paths:
+                        f.write(f"file '{path}'\n")
+                
+                output_path = os.path.join(tmp_dir, "output.mp4")
+                
+                # 3. FFmpeg concat demuxer ile birleştir
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-f", "concat",
+                    "-safe", "0",
+                    "-i", concat_file,
+                    "-c", "copy",
+                    "-movflags", "+faststart",
+                    output_path
+                ]
+                
+                print(f"   🔧 FFmpeg concat çalıştırılıyor...")
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+                
+                if proc.returncode != 0:
+                    # Codec uyumsuzluğu olabilir — re-encode dene
+                    print(f"   ⚠️ Copy concat başarısız, re-encode deneniyor...")
+                    cmd_reencode = [
+                        "ffmpeg", "-y",
+                        "-f", "concat",
+                        "-safe", "0",
+                        "-i", concat_file,
+                        "-c:v", "libx264", "-preset", "fast",
+                        "-c:a", "aac",
+                        "-movflags", "+faststart",
+                        output_path
+                    ]
+                    proc = subprocess.run(cmd_reencode, capture_output=True, text=True, timeout=300)
+                    
+                    if proc.returncode != 0:
+                        print(f"   ❌ Re-encode de başarısız: {proc.stderr[:300]}")
+                        return completed[0].video_url
+                
+                if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                    print("   ❌ Çıktı dosyası oluşturulamadı")
+                    return completed[0].video_url
+                
+                print(f"   ✅ Birleştirme tamamlandı: {os.path.getsize(output_path)} bytes")
+                
+                # 4. fal storage'a yükle
+                print("   ⬆️ fal.ai storage'a yükleniyor...")
+                final_url = fal_client.upload_file(output_path)
+                print(f"   ✅ Yüklendi: {final_url[:60]}...")
+                
                 return final_url
-            
-            # Fallback: ses olmadan dene
-            print("⚠️ Audio concat başarısız, sessiz birleştirme deneniyor...")
-            filter_inputs_v = "".join(f"[{i}:v:0]" for i in range(n))
-            concat_filter_v = f"{filter_inputs_v}concat=n={n}:v=1:a=0[outv]"
-            
-            command_v = (
-                f"ffmpeg {inputs} "
-                f'-filter_complex "{concat_filter_v}" '
-                f'-map "[outv]" '
-                f"-c:v libx264 -movflags +faststart "
-                f"output.mp4"
-            )
-            
-            result = await fal_client.subscribe_async(
-                "fal-ai/ffmpeg-api",
-                arguments={"command": command_v},
-                with_logs=True,
-            )
-            
-            if result and "outputs" in result and len(result["outputs"]) > 0:
-                final_url = result["outputs"][0]["url"]
-                print(f"✅ Video birleştirildi (sessiz): {final_url[:60]}...")
-                return final_url
-            
-            raise RuntimeError("FFmpeg birleştirme başarısız")
             
         except Exception as e:
             print(f"❌ FFmpeg stitch hatası: {e}")
