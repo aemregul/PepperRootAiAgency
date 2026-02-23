@@ -58,7 +58,6 @@ class GoogleVideoService:
             # --- Config ---
             config = types.GenerateVideosConfig(
                 aspect_ratio=aspect_ratio,
-                duration_seconds=int(duration),
                 person_generation="allow_all",
                 number_of_videos=1,
             )
@@ -143,24 +142,38 @@ class GoogleVideoService:
                             config=config,
                         )
                     
-                    logger.info(f"⏳ Veo işlemi bekleniyor...")
+                    logger.info(f"⏳ Veo işlemi bekleniyor... (op name: {op.name})")
                     
-                    # Poll until the operation is done
-                    while not op.done:
+                    # Poll using operation name (SDK no longer has refresh())
+                    max_polls = 60  # Max 10 min
+                    for i in range(max_polls):
                         time.sleep(10)
-                        op.refresh()
-                        logger.info(f"   ... Veo durumu: devam ediyor...")
+                        try:
+                            updated_op = client.operations.get(name=op.name)
+                            logger.info(f"   ... Veo poll #{i+1}: done={updated_op.done}")
+                            if updated_op.done:
+                                if updated_op.error:
+                                    raise Exception(f"Veo API Hatası: {updated_op.error}")
+                                # Extract video
+                                result = updated_op.result
+                                if result and result.generated_videos:
+                                    video = result.generated_videos[0]
+                                    return video.video.uri
+                                else:
+                                    raise Exception("Veo boş sonuç döndürdü")
+                        except AttributeError:
+                            # If operations.get doesn't work, try polling done on original op
+                            if op.done:
+                                if op.error:
+                                    raise Exception(f"Veo API Hatası: {op.error}")
+                                result = op.result
+                                if result and result.generated_videos:
+                                    video = result.generated_videos[0]
+                                    return video.video.uri
+                                else:
+                                    raise Exception("Veo boş sonuç döndürdü")
                     
-                    if op.error:
-                        raise Exception(f"Veo API Hatası: {op.error}")
-                    
-                    # Extract video URL
-                    result = op.result
-                    if result and result.generated_videos:
-                        video = result.generated_videos[0]
-                        return video.video.uri
-                    else:
-                        raise Exception("Veo boş sonuç döndürdü")
+                    raise Exception("Veo zaman aşımı (10 dakika)")
                 
                 loop = asyncio.get_event_loop()
                 video_url = await loop.run_in_executor(None, run_veo_sync)
