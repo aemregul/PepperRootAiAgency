@@ -3265,7 +3265,7 @@ Konuşma:
                 "audio_url": audio_url,
                 "duration": duration,
                 "model": used_model,
-                "message": f"🎵 Müzik üretildi ({duration}s, {used_model})"
+                "message": f"🎵 Müzik üretildi ({duration}s, {used_model}). Kullanıcıya şu markdown linkini VER: [Müziği dinle]({audio_url})"
             }
             
         except Exception as e:

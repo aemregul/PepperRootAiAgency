@@ -8,7 +8,7 @@ import { useToast } from "./ToastProvider";
 interface Asset {
     id: string;
     url: string;
-    type: "image" | "video";
+    type: "image" | "video" | "audio";
     label?: string;
     duration?: string;
     isFavorite?: boolean;
@@ -90,7 +90,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                 const mappedAssets: Asset[] = apiAssets.map((a: GeneratedAsset) => ({
                     id: a.id,
                     url: a.url,
-                    type: a.asset_type as "image" | "video",
+                    type: a.asset_type as "image" | "video" | "audio",
                     label: a.prompt?.substring(0, 30),
                     isFavorite: false,
                     thumbnailUrl: a.thumbnail_url
@@ -216,7 +216,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `asset_${asset.id}.${asset.type === 'video' ? 'mp4' : 'png'}`;
+                a.download = `asset_${asset.id}.${asset.type === 'video' ? 'mp4' : asset.type === 'audio' ? 'wav' : 'png'}`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -289,7 +289,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `pepper_asset_${asset.id}.${asset.type === 'video' ? 'mp4' : 'png'}`;
+            a.download = `pepper_asset_${asset.id}.${asset.type === 'video' ? 'mp4' : asset.type === 'audio' ? 'wav' : 'png'}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -350,6 +350,14 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                     autoPlay
                                     className="max-w-full max-h-[85vh] object-contain shadow-2xl"
                                 />
+                            </div>
+                        ) : selectedAsset.type === 'audio' ? (
+                            <div className="bg-[var(--card)] rounded-2xl p-8 shadow-2xl" style={{ minWidth: '400px' }}>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className="text-3xl">🎵</span>
+                                    <span className="text-lg font-medium text-white">{selectedAsset.label || 'Müzik'}</span>
+                                </div>
+                                <audio src={selectedAsset.url} controls autoPlay className="w-full" />
                             </div>
                         ) : (
                             <img
@@ -538,6 +546,12 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     />
                                                 )}
                                             </div>
+                                        ) : displayAssets[0].type === 'audio' ? (
+                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 p-4">
+                                                <span className="text-4xl mb-2">🎵</span>
+                                                <span className="text-xs text-white/70 mb-2">{displayAssets[0].label || 'Müzik'}</span>
+                                                <audio src={displayAssets[0].url} controls className="w-full" style={{ height: '32px' }} />
+                                            </div>
                                         ) : (
                                             <img
                                                 src={displayAssets[0].url}
@@ -599,6 +613,11 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                 </div>
                                             </>
                                         )}
+                                        {displayAssets[0].type === "audio" && (
+                                            <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
+                                                🎵 SES
+                                            </div>
+                                        )}
                                         {/* Drag hint */}
                                         {!isSelectMode && (
                                             <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -650,6 +669,11 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                         />
                                                     )}
                                                 </div>
+                                            ) : asset.type === 'audio' ? (
+                                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/30 to-purple-900/30 p-2">
+                                                    <span className="text-2xl mb-1">🎵</span>
+                                                    <span className="text-[10px] text-white/60 text-center truncate w-full px-1">{asset.label || 'Müzik'}</span>
+                                                </div>
                                             ) : (
                                                 <img
                                                     src={asset.url}
@@ -675,6 +699,11 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             {asset.type === "video" && !isSelectMode && (
                                                 <div className="absolute top-2 left-2">
                                                     <Play size={16} fill="white" className="text-white drop-shadow-lg" />
+                                                </div>
+                                            )}
+                                            {asset.type === "audio" && !isSelectMode && (
+                                                <div className="absolute top-2 left-2">
+                                                    <span className="text-sm drop-shadow-lg">🎵</span>
                                                 </div>
                                             )}
 
