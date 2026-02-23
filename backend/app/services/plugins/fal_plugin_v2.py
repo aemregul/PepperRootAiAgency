@@ -371,9 +371,20 @@ class FalPluginV2(PluginBase):
         logger.info(f"🎥 Video model seçildi: {preferred_model.upper()} ({selected_endpoint})")
         
         try:
+            # Model-specific duration formatting
+            if preferred_model == "luma":
+                # Luma Ray2 requires '5s' or '9s' format
+                dur_int = int(duration)
+                luma_duration = "9s" if dur_int > 5 else "5s"
+                formatted_duration = luma_duration
+            elif preferred_model == "runway":
+                formatted_duration = 5 if int(duration) <= 5 else 10
+            else:
+                formatted_duration = duration
+            
             arguments = {
                 "prompt": prompt,
-                "duration": duration if preferred_model != "runway" else (5 if int(duration) <= 5 else 10), # Runway genelde katı duration alır
+                "duration": formatted_duration,
                 "aspect_ratio": params.get("aspect_ratio", "16:9"),
             }
             
