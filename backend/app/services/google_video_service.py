@@ -21,7 +21,7 @@ class GoogleVideoService:
     
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
-        self.veo_model = "veo-3.0-generate-001"  # Veo 3 — stable production model
+        self.veo_model = "veo-3.1-fast-generate-001"  # Veo 3.1 Fast — latest stable model
         self._client = None
         
     @property
