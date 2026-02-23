@@ -1124,27 +1124,32 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             onClick={() => setLightboxImage(msg.image_url!)}
                                         />
                                     )}
-                                    {msg.video_url && (
-                                        <div className="mb-2">
-                                            <video
-                                                src={msg.video_url}
-                                                controls
-                                                className="w-48 max-w-full rounded-lg border border-[var(--border)] bg-black/10"
-                                            />
-                                            <div className="text-xs mt-1 text-[var(--foreground-muted)] flex items-center gap-1">
-                                                <span>📹 Video Referansı</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {msg.audio_url && (
-                                        <div className="mb-2">
-                                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-900/30 to-purple-900/30" style={{ border: '1px solid var(--border)' }}>
-                                                <span className="text-lg">🎵</span>
-                                                <audio src={msg.audio_url} controls className="h-8 flex-1" style={{ maxWidth: '200px' }} />
-                                            </div>
-                                            <div className="text-xs mt-1 text-[var(--foreground-muted)] flex items-center gap-1">
-                                                <span>🎵 Ses Referansı</span>
-                                            </div>
+                                    {/* Video & Audio References — Side by Side */}
+                                    {(msg.video_url || msg.audio_url) && (
+                                        <div className="flex gap-2 mb-2 flex-wrap">
+                                            {msg.video_url && (
+                                                <div>
+                                                    <video
+                                                        src={msg.video_url}
+                                                        controls
+                                                        className="w-36 h-24 object-cover rounded-lg border border-[var(--border)] bg-black/10"
+                                                    />
+                                                    <div className="text-[10px] mt-0.5 text-[var(--foreground-muted)] flex items-center gap-1">
+                                                        <span>📹 Video</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {msg.audio_url && (
+                                                <div>
+                                                    <div className="w-36 h-24 rounded-lg flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                                        <span className="text-xl mb-1">🎵</span>
+                                                        <audio src={msg.audio_url} controls className="w-[120px] h-6" style={{ transform: 'scale(0.85)' }} />
+                                                    </div>
+                                                    <div className="text-[10px] mt-0.5 text-[var(--foreground-muted)] flex items-center gap-1">
+                                                        <span>🎵 Ses</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     <div className="text-sm lg:text-[15px] leading-relaxed">
