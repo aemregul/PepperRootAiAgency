@@ -144,34 +144,22 @@ class GoogleVideoService:
                     
                     logger.info(f"⏳ Veo işlemi bekleniyor... (op name: {op.name})")
                     
-                    # Poll using operation name (SDK no longer has refresh())
+                    # Poll using operations.get(op) — positional arg, returns updated op
                     max_polls = 60  # Max 10 min
                     for i in range(max_polls):
                         time.sleep(10)
-                        try:
-                            updated_op = client.operations.get(name=op.name)
-                            logger.info(f"   ... Veo poll #{i+1}: done={updated_op.done}")
-                            if updated_op.done:
-                                if updated_op.error:
-                                    raise Exception(f"Veo API Hatası: {updated_op.error}")
-                                # Extract video
-                                result = updated_op.result
-                                if result and result.generated_videos:
-                                    video = result.generated_videos[0]
-                                    return video.video.uri
-                                else:
-                                    raise Exception("Veo boş sonuç döndürdü")
-                        except AttributeError:
-                            # If operations.get doesn't work, try polling done on original op
-                            if op.done:
-                                if op.error:
-                                    raise Exception(f"Veo API Hatası: {op.error}")
-                                result = op.result
-                                if result and result.generated_videos:
-                                    video = result.generated_videos[0]
-                                    return video.video.uri
-                                else:
-                                    raise Exception("Veo boş sonuç döndürdü")
+                        op = client.operations.get(op)
+                        logger.info(f"   ... Veo poll #{i+1}: done={op.done}")
+                        if op.done:
+                            if op.error:
+                                raise Exception(f"Veo API Hatası: {op.error}")
+                            # Extract video
+                            result = op.result
+                            if result and result.generated_videos:
+                                video = result.generated_videos[0]
+                                return video.video.uri
+                            else:
+                                raise Exception("Veo boş sonuç döndürdü")
                     
                     raise Exception("Veo zaman aşımı (10 dakika)")
                 
