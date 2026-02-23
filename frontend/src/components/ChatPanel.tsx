@@ -14,6 +14,7 @@ interface Message {
     image_url?: string;
     image_urls?: string[];
     video_url?: string;
+    audio_url?: string;
 }
 
 interface ChatPanelProps {
@@ -715,7 +716,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             timestamp: new Date(),
             image_url: filePreviews[0] || undefined,
             image_urls: filePreviews.length > 0 ? [...filePreviews] : undefined,
-            video_url: attachedVideoUrl || undefined
+            video_url: attachedVideoUrl || undefined,
+            audio_url: attachedAudioUrl || undefined
         };
 
         setMessages((prev) => [...prev, userMessage]);
@@ -1131,6 +1133,17 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             />
                                             <div className="text-xs mt-1 text-[var(--foreground-muted)] flex items-center gap-1">
                                                 <span>📹 Video Referansı</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {msg.audio_url && (
+                                        <div className="mb-2">
+                                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-900/30 to-purple-900/30" style={{ border: '1px solid var(--border)' }}>
+                                                <span className="text-lg">🎵</span>
+                                                <audio src={msg.audio_url} controls className="h-8 flex-1" style={{ maxWidth: '200px' }} />
+                                            </div>
+                                            <div className="text-xs mt-1 text-[var(--foreground-muted)] flex items-center gap-1">
+                                                <span>🎵 Ses Referansı</span>
                                             </div>
                                         </div>
                                     )}
