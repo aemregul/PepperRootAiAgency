@@ -195,6 +195,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
     const [filePreviews, setFilePreviews] = useState<string[]>([]);
     const [attachedVideoUrl, setAttachedVideoUrl] = useState<string | null>(null);
+    const [attachedAudioUrl, setAttachedAudioUrl] = useState<string | null>(null);
     const MAX_FILES = 10;
     const [isDragOver, setIsDragOver] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -315,10 +316,16 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             // Eğer video ise URL referansı olarak ekle (dosya indirme yapma)
             if (assetType === 'video' || assetUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i)) {
                 setAttachedVideoUrl(assetUrl);
-                // Videos don't affect image attachments
-
                 inputRef.current?.focus();
                 toast.success("Video eklendi");
+                return;
+            }
+
+            // Eğer audio ise URL referansı olarak ekle
+            if (assetType === 'audio' || assetUrl.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i)) {
+                setAttachedAudioUrl(assetUrl);
+                inputRef.current?.focus();
+                toast.success("Ses dosyası eklendi");
                 return;
             }
 
@@ -397,6 +404,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         setAttachedFiles([]);
         setFilePreviews([]);
         setAttachedVideoUrl(null);
+        setAttachedAudioUrl(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -640,7 +648,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const hasContent = input.trim() || attachedFiles.length > 0 || attachedVideoUrl;
+        const hasContent = input.trim() || attachedFiles.length > 0 || attachedVideoUrl || attachedAudioUrl;
         if (!hasContent || isLoading || !sessionId) return;
 
         // If offline, queue the message
@@ -665,10 +673,12 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
         setMessages((prev) => [...prev, userMessage]);
 
-        // Append video URL to content for backend if exists
+        // Append video/audio URL to content for backend if exists
         const contentToSend = attachedVideoUrl
             ? `${input}\n\n[Referans Video](${attachedVideoUrl})`
-            : input;
+            : attachedAudioUrl
+                ? `${input}\n\n[Referans Ses](${attachedAudioUrl})`
+                : input;
 
         const currentInput = contentToSend;
         const currentFiles = [...attachedFiles];
@@ -1181,25 +1191,38 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                     )}
                                 </div>
                                 <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
-                                    {filePreviews.map((preview, index) => (
-                                        <div key={index} className="relative shrink-0">
-                                            <img
-                                                src={preview}
-                                                alt={`Referans görsel ${index + 1}`}
-                                                className="w-20 h-20 object-cover rounded-lg"
-                                                style={{ border: '1px solid var(--border)' }}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => removeFileAt(index)}
-                                                className="absolute -top-1.5 -right-1.5 p-1 rounded-full transition-colors hover:bg-red-500/80"
-                                                style={{ background: 'rgba(0,0,0,0.6)' }}
-                                                title="Kaldır"
-                                            >
-                                                <X size={10} className="text-white" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                    {filePreviews.map((preview, index) => {
+                                        const isAudioPreview = preview.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i);
+                                        return (
+                                            <div key={index} className="relative shrink-0">
+                                                {isAudioPreview ? (
+                                                    <div
+                                                        className="w-20 h-20 rounded-lg flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40"
+                                                        style={{ border: '1px solid var(--border)' }}
+                                                    >
+                                                        <span className="text-2xl">🎵</span>
+                                                        <span className="text-[9px] text-white/60 mt-1">Ses</span>
+                                                    </div>
+                                                ) : (
+                                                    <img
+                                                        src={preview}
+                                                        alt={`Referans görsel ${index + 1}`}
+                                                        className="w-20 h-20 object-cover rounded-lg"
+                                                        style={{ border: '1px solid var(--border)' }}
+                                                    />
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeFileAt(index)}
+                                                    className="absolute -top-1.5 -right-1.5 p-1 rounded-full transition-colors hover:bg-red-500/80"
+                                                    style={{ background: 'rgba(0,0,0,0.6)' }}
+                                                    title="Kaldır"
+                                                >
+                                                    <X size={10} className="text-white" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                     {/* Add more button */}
                                     {filePreviews.length < MAX_FILES && (
                                         <button
@@ -1245,6 +1268,30 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                             </div>
                         )}
 
+                        {/* Inline Audio Preview */}
+                        {attachedAudioUrl && (
+                            <div className="p-3 pb-0">
+                                <div className="relative inline-block">
+                                    <div
+                                        className="w-36 h-24 rounded-xl overflow-hidden flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40"
+                                        style={{ border: "1px solid var(--border)" }}
+                                    >
+                                        <span className="text-3xl">🎵</span>
+                                        <span className="text-white text-xs font-medium mt-1">SES DOSYASI</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAttachedAudioUrl(null)}
+                                        className="absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-sm transition-colors hover:bg-black/60"
+                                        style={{ background: "rgba(0,0,0,0.5)" }}
+                                        title="Ses dosyasını kaldır"
+                                    >
+                                        <X size={13} className="text-white" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
 
                         {/* Text Input Row */}
                         <div className="flex items-center gap-2 p-2">
@@ -1277,7 +1324,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
-                                        if (input.trim() || attachedFiles.length > 0 || attachedVideoUrl) {
+                                        if (input.trim() || attachedFiles.length > 0 || attachedVideoUrl || attachedAudioUrl) {
                                             handleSubmit(e as unknown as React.FormEvent);
                                         }
                                     }
@@ -1349,10 +1396,10 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                 ) : (
                                     <button
                                         type="submit"
-                                        disabled={(!input.trim() && attachedFiles.length === 0 && !attachedVideoUrl) || isLoading || !isConnected}
+                                        disabled={(!input.trim() && attachedFiles.length === 0 && !attachedVideoUrl && !attachedAudioUrl) || isLoading || !isConnected}
                                         className="p-2 rounded-full transition-all duration-200 disabled:opacity-40"
                                         style={{
-                                            background: (input.trim() || attachedFiles.length > 0 || attachedVideoUrl) && isConnected ? "var(--accent)" : "var(--foreground-muted)",
+                                            background: (input.trim() || attachedFiles.length > 0 || attachedVideoUrl || attachedAudioUrl) && isConnected ? "var(--accent)" : "var(--foreground-muted)",
                                             color: "var(--background)"
                                         }}
                                     >
