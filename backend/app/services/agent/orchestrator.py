@@ -1780,13 +1780,9 @@ Konuşma:
                 "model": model
             }
             
-            # Üretim
-            if model == "veo":
-                print(f"🚀 [BG] Video üretiliyor (veo): {prompt[:50]}...")
-                result = await self.google_video.generate_video(video_payload)
-            else:
-                print(f"🚀 [BG] Video üretiliyor ({model}): {prompt[:50]}...")
-                result = await self.fal_plugin._generate_video(video_payload)
+            # Üretim — Tüm modeller fal.ai üzerinden
+            print(f"🚀 [BG] Video üretiliyor ({model}): {prompt[:50]}...")
+            result = await self.fal_plugin._generate_video(video_payload)
                 
             async with async_session_maker() as db:
                 if result.get("success"):
