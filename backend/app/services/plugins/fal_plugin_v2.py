@@ -341,8 +341,8 @@ class FalPluginV2(PluginBase):
         # Not: Fal.ai endpoint isimleri sürekli değişebilir, en stabil bilinenleri kullanıyoruz
         model_endpoints = {
             "kling": {
-                "i2v": "fal-ai/kling-video/v2.5/pro/image-to-video",
-                "t2v": "fal-ai/kling-video/v2.5/pro/text-to-video"
+                "i2v": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+                "t2v": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"
             },
             "luma": {
                 "i2v": "fal-ai/luma-dream-machine/ray-2/image-to-video",
@@ -372,21 +372,32 @@ class FalPluginV2(PluginBase):
         
         try:
             # Model-specific duration formatting
+            dur_int = int(duration)
+            
             if preferred_model == "luma":
                 # Luma Ray2 requires '5s' or '9s' format
-                dur_int = int(duration)
-                luma_duration = "9s" if dur_int > 5 else "5s"
-                formatted_duration = luma_duration
+                formatted_duration = "9s" if dur_int > 5 else "5s"
             elif preferred_model == "runway":
-                formatted_duration = 5 if int(duration) <= 5 else 10
+                formatted_duration = 5 if dur_int <= 5 else 10
+            elif preferred_model == "veo":
+                # Veo uses durationSeconds (4-8 range)
+                formatted_duration = max(4, min(8, dur_int))
             else:
                 formatted_duration = duration
             
-            arguments = {
-                "prompt": prompt,
-                "duration": formatted_duration,
-                "aspect_ratio": params.get("aspect_ratio", "16:9"),
-            }
+            # Model-specific arguments
+            if preferred_model == "veo":
+                arguments = {
+                    "prompt": prompt,
+                    "durationSeconds": formatted_duration,
+                    "aspectRatio": params.get("aspect_ratio", "16:9"),
+                }
+            else:
+                arguments = {
+                    "prompt": prompt,
+                    "duration": formatted_duration,
+                    "aspect_ratio": params.get("aspect_ratio", "16:9"),
+                }
             
             if has_image:
                 # Video API'leri (özellik Kling) için çözünürlük limitleri var. (örn: max 1280x720 civarı bir şeye sığmalı)
