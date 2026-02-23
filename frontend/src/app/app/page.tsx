@@ -49,7 +49,10 @@ export default function Home() {
         const projects = sessions.filter(s => s.category !== 'main_chat');
 
         if (projects.length > 0) {
-          setActiveProjectId(projects[0].id);
+          // localStorage'dan son aktif projeyi geri yükle
+          const savedProjectId = localStorage.getItem('pepper_active_project');
+          const savedProject = savedProjectId ? projects.find(p => p.id === savedProjectId) : null;
+          setActiveProjectId(savedProject ? savedProject.id : projects[0].id);
           setHasNoProjects(false);
         } else {
           setActiveProjectId(null);
@@ -69,6 +72,7 @@ export default function Home() {
   // Proje değiştiğinde SADECE activeProjectId güncellenir, chat aynı kalır
   const handleProjectChange = (projectId: string) => {
     setActiveProjectId(projectId);
+    localStorage.setItem('pepper_active_project', projectId);
     setHasNoProjects(false);
   };
 
@@ -101,6 +105,7 @@ export default function Home() {
     try {
       const newSession = await createSession(name, description, category);
       setActiveProjectId(newSession.id);
+      localStorage.setItem('pepper_active_project', newSession.id);
       setHasNoProjects(false);
       setEntityRefreshKey(prev => prev + 1);
     } catch (error) {
