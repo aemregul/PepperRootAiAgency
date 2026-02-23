@@ -113,6 +113,27 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                         </div>
                     </div>
                 );
+            } else if (url.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i)) {
+                // Audio player for music/sound files
+                elements.push(
+                    <div key={key++} className="mt-2 mb-2 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]" style={{ maxWidth: '400px' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">🎵</span>
+                            <span className="text-sm font-medium text-[var(--foreground)]">{text || 'Müzik'}</span>
+                        </div>
+                        <audio
+                            src={url}
+                            controls
+                            className="w-full"
+                            style={{ height: '36px' }}
+                        />
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <a href={url} download className="text-xs text-[var(--accent)] hover:underline">
+                                ⬇️ İndir
+                            </a>
+                        </div>
+                    </div>
+                );
             } else {
                 elements.push(
                     <a

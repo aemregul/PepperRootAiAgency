@@ -1234,7 +1234,7 @@ Kurallar:
         
         # MÜZİK / SES ARAÇLARI
         elif tool_name == "generate_music":
-            return await self._generate_music(tool_input)
+            return await self._generate_music(db, session_id, tool_input)
         
         elif tool_name == "add_audio_to_video":
             return await self._add_audio_to_video(tool_input)
@@ -3133,13 +3133,13 @@ Konuşma:
             traceback.print_exc()
             return {"success": False, "error": f"Video analizi başarısız: {str(e)}"}
 
-    async def _generate_music(self, params: dict) -> dict:
+    async def _generate_music(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
         """
         AI müzik üretimi — Dual Model Smart Router.
         
         Models:
-        - elevenlabs: Vokal + şarkı sözü, uzun parça (10dk), bölüm yapısı
-        - stable_audio: Enstrümantal, ambient, sinematik, remix, inpainting
+        - elevenlabs: Vokal + şarkı sözü, uzun parça (5dk), bölüm yapısı
+        - stable_audio: Enstrümantal, ambient, sinematik, remix (Stable Audio 2.5)
         """
         try:
             import fal_client
@@ -3154,36 +3154,27 @@ Konuşma:
             
             # --- Smart Model Selection ---
             if model == "auto":
-                # Vokal/şarkı sözü varsa → ElevenLabs
-                # Enstrümantal/ambient/sinematik → Stable Audio
                 lower_prompt = prompt.lower()
                 vocal_keywords = ["vokal", "vocal", "şarkı", "song", "lyrics", "söz", 
                                   "sing", "verse", "chorus", "şarkıcı", "singer"]
-                instrumental_keywords = ["enstrümantal", "instrumental", "ambient", 
-                                         "cinematic", "sinematik", "piano", "piyano",
-                                         "guitar", "gitar", "efekt", "effect", "jingle",
-                                         "background", "arka plan", "lofi", "lo-fi"]
-                
                 if lyrics or any(kw in lower_prompt for kw in vocal_keywords):
                     model = "elevenlabs"
-                elif any(kw in lower_prompt for kw in instrumental_keywords):
-                    model = "stable_audio"
                 else:
-                    model = "stable_audio"  # Varsayılan: Stable Audio (daha hızlı)
+                    model = "stable_audio"
             
             print(f"🎵 Müzik üretimi başlıyor ({model}): {prompt[:60]}... ({duration}s)")
+            
+            audio_url = None
+            used_model = model
             
             # --- ElevenLabs Music ---
             if model == "elevenlabs":
                 try:
                     duration_ms = min(int(duration) * 1000, 300000)  # Max 5 dakika (ms)
                     fal_args = {
-                        "prompt": prompt,
+                        "prompt": f"{prompt}\n\n{lyrics}" if lyrics else prompt,
                         "music_length_ms": duration_ms,
                     }
-                    if lyrics:
-                        # Şarkı sözü varsa prompt'a birleştir
-                        fal_args["prompt"] = f"{prompt}\n\n{lyrics}"
                     
                     result = await fal_client.subscribe_async(
                         "fal-ai/elevenlabs/music-v1",
@@ -3191,90 +3182,91 @@ Konuşma:
                         with_logs=True,
                     )
                     
-                    if result:
-                        audio_url = None
-                        # ElevenLabs farklı response formatları dönebilir
-                        if isinstance(result, dict):
-                            if "audio" in result:
-                                audio_url = result["audio"].get("url") if isinstance(result["audio"], dict) else result["audio"]
-                            elif "audio_url" in result:
-                                audio_url = result["audio_url"]
-                            elif "output" in result:
-                                audio_url = result["output"].get("url") if isinstance(result["output"], dict) else result["output"]
-                        
-                        if audio_url:
-                            print(f"✅ Müzik üretildi (ElevenLabs): {audio_url[:60]}...")
-                            return {
-                                "success": True,
-                                "audio_url": audio_url,
-                                "duration": duration,
-                                "model": "elevenlabs",
-                                "message": f"🎵 Müzik üretildi ({duration}s, ElevenLabs Music)"
-                            }
+                    if result and isinstance(result, dict):
+                        for key in ["audio", "audio_url", "output"]:
+                            if key in result:
+                                val = result[key]
+                                audio_url = val.get("url") if isinstance(val, dict) else val
+                                if audio_url:
+                                    used_model = "elevenlabs"
+                                    break
                     
-                    print("⚠️ ElevenLabs başarısız, Stable Audio'ya geçiliyor...")
+                    if not audio_url:
+                        print("⚠️ ElevenLabs başarısız, Stable Audio'ya geçiliyor...")
                 except Exception as el_err:
                     print(f"⚠️ ElevenLabs hatası: {el_err}, Stable Audio'ya geçiliyor...")
             
             # --- Stable Audio 2.5 (varsayılan veya fallback) ---
-            try:
-                sa_duration = min(int(duration), 190)  # Max 190 saniye
-                fal_args = {
-                    "prompt": prompt,
-                    "duration": sa_duration,
-                    "steps": 8,  # Kalite için önerilen
-                }
-                
-                result = await fal_client.subscribe_async(
-                    "fal-ai/stable-audio",
-                    arguments=fal_args,
-                    with_logs=True,
-                )
-                
-                if result:
-                    audio_url = None
-                    if isinstance(result, dict):
-                        if "audio_file" in result:
-                            audio_url = result["audio_file"].get("url") if isinstance(result["audio_file"], dict) else result["audio_file"]
-                        elif "audio" in result:
-                            audio_url = result["audio"].get("url") if isinstance(result["audio"], dict) else result["audio"]
-                        elif "output" in result:
-                            audio_url = result["output"].get("url") if isinstance(result["output"], dict) else result["output"]
+            if not audio_url:
+                try:
+                    sa_duration = min(int(duration), 190)  # Max 190 saniye
+                    fal_args = {
+                        "prompt": prompt,
+                        "seconds_total": sa_duration,
+                        "num_inference_steps": 8,
+                    }
                     
-                    if audio_url:
-                        print(f"✅ Müzik üretildi (Stable Audio): {audio_url[:60]}...")
-                        return {
-                            "success": True,
-                            "audio_url": audio_url,
-                            "duration": sa_duration,
-                            "model": "stable_audio",
-                            "message": f"🎵 Müzik üretildi ({sa_duration}s, Stable Audio 2.5)"
-                        }
-            except Exception as sa_err:
-                print(f"⚠️ Stable Audio hatası: {sa_err}")
+                    result = await fal_client.subscribe_async(
+                        "fal-ai/stable-audio-25/text-to-audio",
+                        arguments=fal_args,
+                        with_logs=True,
+                    )
+                    
+                    if result and isinstance(result, dict):
+                        for key in ["audio_file", "audio", "output"]:
+                            if key in result:
+                                val = result[key]
+                                audio_url = val.get("url") if isinstance(val, dict) else val
+                                if audio_url:
+                                    used_model = "stable_audio"
+                                    break
+                except Exception as sa_err:
+                    print(f"⚠️ Stable Audio hatası: {sa_err}")
             
             # --- Son Fallback: CassetteAI ---
-            try:
-                print("⚠️ Ana modeller başarısız, CassetteAI deneniyor...")
-                result = await fal_client.subscribe_async(
-                    "cassetteai/music-gen",
-                    arguments={"prompt": prompt, "duration": min(int(duration), 120)},
-                    with_logs=True,
-                )
-                if result and "audio_file" in result:
-                    audio_url = result["audio_file"].get("url", "")
-                    if audio_url:
-                        return {
-                            "success": True,
-                            "audio_url": audio_url,
-                            "duration": duration,
-                            "model": "cassetteai",
-                            "message": f"🎵 Müzik üretildi ({duration}s, CassetteAI)"
-                        }
-            except Exception:
-                pass
+            if not audio_url:
+                try:
+                    print("⚠️ Ana modeller başarısız, CassetteAI deneniyor...")
+                    result = await fal_client.subscribe_async(
+                        "cassetteai/music-gen",
+                        arguments={"prompt": prompt, "duration": min(int(duration), 120)},
+                        with_logs=True,
+                    )
+                    if result and isinstance(result, dict) and "audio_file" in result:
+                        val = result["audio_file"]
+                        audio_url = val.get("url") if isinstance(val, dict) else val
+                        used_model = "cassetteai"
+                except Exception:
+                    pass
             
-            return {"success": False, "error": "Müzik üretilemedi. Tüm modeller başarısız oldu."}
+            if not audio_url:
+                return {"success": False, "error": "Müzik üretilemedi. Tüm modeller başarısız oldu."}
+            
+            print(f"✅ Müzik üretildi ({used_model}): {audio_url[:60]}...")
+            
+            # --- Asset olarak kaydet (Medya Varlıkları paneline) ---
+            try:
+                from app.services.asset_service import asset_service
+                await asset_service.save_asset(
+                    db=db,
+                    session_id=session_id,
+                    url=audio_url,
+                    asset_type="audio",
+                    prompt=prompt,
+                    model_name=used_model,
+                    model_params={"duration": duration, "model": used_model}
+                )
+                print(f"💾 Ses dosyası Medya Varlıklarına kaydedildi.")
+            except Exception as save_err:
+                print(f"⚠️ Ses asset kaydetme hatası: {save_err}")
+            
+            return {
+                "success": True,
+                "audio_url": audio_url,
+                "duration": duration,
+                "model": used_model,
+                "message": f"🎵 Müzik üretildi ({duration}s, {used_model})"
+            }
             
         except Exception as e:
             import traceback
