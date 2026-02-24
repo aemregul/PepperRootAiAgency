@@ -58,7 +58,6 @@ class GoogleVideoService:
             # --- Config ---
             config = types.GenerateVideosConfig(
                 aspect_ratio=aspect_ratio,
-                person_generation="allow_all",
                 number_of_videos=1,
             )
             
