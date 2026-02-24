@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, Play, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, CheckSquare, Square, Bookmark, Pencil } from "lucide-react";
+import { Download, Copy, Globe, RefreshCw, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, CheckSquare, Square, Bookmark, Pencil } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe, renameAsset } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
@@ -555,7 +555,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                         playsInline
                                                         onMouseOver={e => {
                                                             const p = e.currentTarget.play();
-                                                            if (p !== undefined) p.catch(() => {});
+                                                            if (p !== undefined) p.catch(() => { });
                                                         }}
                                                         onMouseOut={e => {
                                                             e.currentTarget.pause();
@@ -597,16 +597,9 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                             </div>
                                         )}
                                         {asset.type === "video" && (
-                                            <>
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                    <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-                                                        <Play size={24} fill="white" className="text-white ml-1" />
-                                                    </div>
-                                                </div>
-                                                <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
-                                                    VİDEO • {asset.duration}
-                                                </div>
-                                            </>
+                                            <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
+                                                VİDEO • {asset.duration}
+                                            </div>
                                         )}
                                         {asset.type === "audio" && (
                                             <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
