@@ -80,6 +80,8 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                     alt={alt}
                     className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
                     onClick={() => onImageClick ? onImageClick(url) : window.open(url, '_blank')}
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => {
                         const target = e.currentTarget;
                         target.style.display = 'none';
@@ -105,6 +107,7 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                             src={url}
                             controls
                             playsInline
+                            preload="metadata"
                             className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10"
                         />
                         <div className="flex items-center gap-2 mt-1">
@@ -180,6 +183,8 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                         alt={text || 'Görsel'}
                         className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
                         onClick={() => onImageClick ? onImageClick(url) : window.open(url, '_blank')}
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => {
                             const target = e.currentTarget;
                             target.style.display = 'none';
@@ -221,6 +226,7 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                         src={url}
                         controls
                         playsInline
+                        preload="metadata"
                         className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10"
                     />
                     <div className="flex items-center gap-2 mt-1">
@@ -1208,6 +1214,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                     alt={`Referans görsel ${i + 1}`}
                                                     className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
                                                     onClick={() => setLightboxImage(url)}
+                                                    loading="lazy"
+                                                    decoding="async"
                                                 />
                                             ))}
                                         </div>
@@ -1217,6 +1225,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             alt="Referans görsel"
                                             className="w-32 h-32 object-cover rounded-lg mb-2 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
                                             onClick={() => setLightboxImage(msg.image_url!)}
+                                            loading="lazy"
+                                            decoding="async"
                                         />
                                     )}
                                     {/* Video & Audio References — Side by Side */}
@@ -1272,6 +1282,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                     alt="Üretilen görsel"
                                                     className="mt-3 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
                                                     onClick={() => setLightboxImage(msg.image_url!)}
+                                                    loading="lazy"
+                                                    decoding="async"
                                                 />
                                             )}
                                         </div>

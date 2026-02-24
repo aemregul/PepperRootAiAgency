@@ -551,7 +551,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         {asset.type === 'video' ? (
                                             <div className="w-full h-full flex items-center justify-center">
                                                 {asset.thumbnailUrl ? (
-                                                    <img src={asset.thumbnailUrl} alt="Video önizleme" className="w-full h-full object-cover" />
+                                                    <img src={asset.thumbnailUrl} alt="Video önizleme" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                                 ) : (
                                                     <video
                                                         src={asset.url}
@@ -559,6 +559,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                         muted
                                                         loop
                                                         playsInline
+                                                        preload="none"
                                                         onMouseOver={e => {
                                                             const p = e.currentTarget.play();
                                                             if (p !== undefined) p.catch(() => { });
@@ -576,7 +577,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                 <span className="text-xs text-white/70">{asset.label || 'Müzik'}</span>
                                             </div>
                                         ) : (
-                                            <img src={asset.url} alt="Üretilen görsel" className="w-full h-full object-cover" />
+                                            <img src={asset.url} alt="Üretilen görsel" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                         )}
                                         {isSelectMode && (
                                             <div className="absolute top-2 left-2 z-10">
