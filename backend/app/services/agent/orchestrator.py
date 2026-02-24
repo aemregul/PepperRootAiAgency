@@ -2086,7 +2086,7 @@ Konuşma:
         
         # ⛔ Guard 2: Konuşma geçmişinde plan gösterilmiş mi kontrol et
         from sqlalchemy import select
-        from app.models import Message
+        from app.models.models import Message
         recent_msgs = await db.execute(
             select(Message)
             .where(Message.session_id == session_id)
