@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Trash2, RotateCcw, Clock, AlertCircle, CheckSquare, Square, Trash, ImageIcon, Video } from "lucide-react";
 
 export interface TrashItem {
@@ -73,6 +73,44 @@ function getTypeColor(type: TrashItem["type"]): string {
         asset: "#f97316"
     };
     return colors[type] || "#6b7280";
+}
+
+// Lazy video thumbnail — only loads when scrolled into view
+function LazyVideoThumb({ src }: { src: string }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => { if (entry.isIntersecting) { setIsVisible(true); observer.disconnect(); } },
+            { rootMargin: '100px' }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    return (
+        <div ref={ref} className="w-full h-full">
+            {isVisible ? (
+                <video
+                    src={src + '#t=1'}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                        (e.currentTarget as HTMLVideoElement).style.display = 'none';
+                    }}
+                />
+            ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-xl">🎬</span>
+                </div>
+            )}
+        </div>
+    );
 }
 
 export function TrashModal({
@@ -362,16 +400,7 @@ export function TrashModal({
                                         {item.assetType === 'video' ? (
                                             <div className="w-14 h-14 rounded-lg shrink-0 border border-[var(--border)] bg-gradient-to-br from-purple-900/50 to-indigo-900/50 flex items-center justify-center overflow-hidden">
                                                 {item.imageUrl ? (
-                                                    <video
-                                                        src={item.imageUrl + '#t=1'}
-                                                        muted
-                                                        playsInline
-                                                        preload="metadata"
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => {
-                                                            (e.currentTarget as HTMLVideoElement).style.display = 'none';
-                                                        }}
-                                                    />
+                                                    <LazyVideoThumb src={item.imageUrl} />
                                                 ) : (
                                                     <span className="text-2xl">🎬</span>
                                                 )}
