@@ -533,37 +533,29 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {/* Featured video/image */}
-                            {displayAssets[0] && (
+                            {displayAssets.map((asset) => (
                                 <div
-                                    className={`asset-card cursor-pointer ${isSelectMode && selectedIds.has(displayAssets[0].id) ? 'ring-2 ring-emerald-500' : ''}`}
+                                    key={asset.id}
+                                    className={`asset-card group cursor-pointer ${isSelectMode && selectedIds.has(asset.id) ? 'ring-2 ring-emerald-500' : ''}`}
                                     draggable={!isSelectMode}
-                                    onDragStart={(e) => !isSelectMode && handleDragStart(e, displayAssets[0])}
-                                    onClick={(e) => isSelectMode ? toggleSelection(displayAssets[0].id, e) : setSelectedAsset(displayAssets[0])}
+                                    onDragStart={(e) => !isSelectMode && handleDragStart(e, asset)}
+                                    onClick={(e) => isSelectMode ? toggleSelection(asset.id, e) : setSelectedAsset(asset)}
                                 >
-                                    <div className="aspect-video relative group bg-black/10">
-                                        {displayAssets[0].type === 'video' ? (
-                                            <div className="w-full h-full flex items-center justify-center bg-black/20">
-                                                {displayAssets[0].thumbnailUrl ? (
-                                                    <img
-                                                        src={displayAssets[0].thumbnailUrl}
-                                                        alt="Video önizleme"
-                                                        className="w-full h-full object-cover opacity-80"
-                                                    />
+                                    <div className="aspect-video relative bg-black/10">
+                                        {asset.type === 'video' ? (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                {asset.thumbnailUrl ? (
+                                                    <img src={asset.thumbnailUrl} alt="Video önizleme" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <video
-                                                        src={displayAssets[0].url}
+                                                        src={asset.url}
                                                         className="w-full h-full object-cover"
                                                         muted
                                                         loop
                                                         playsInline
                                                         onMouseOver={e => {
                                                             const p = e.currentTarget.play();
-                                                            if (p !== undefined) {
-                                                                p.catch(error => {
-                                                                    if (error.name !== 'AbortError' && error.name !== 'NotSupportedError') console.error("Video play error:", error);
-                                                                });
-                                                            }
+                                                            if (p !== undefined) p.catch(() => {});
                                                         }}
                                                         onMouseOut={e => {
                                                             e.currentTarget.pause();
@@ -572,69 +564,39 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     />
                                                 )}
                                             </div>
-                                        ) : displayAssets[0].type === 'audio' ? (
+                                        ) : asset.type === 'audio' ? (
                                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 p-4">
                                                 <span className="text-4xl mb-2">🎵</span>
-                                                <span className="text-xs text-white/70 mb-2">{displayAssets[0].label || 'Müzik'}</span>
-                                                <audio src={displayAssets[0].url} controls className="w-full" style={{ height: '32px' }} />
+                                                <span className="text-xs text-white/70 mb-2">{asset.label || 'Müzik'}</span>
+                                                <audio src={asset.url} controls className="w-full" style={{ height: '32px' }} />
                                             </div>
                                         ) : (
-                                            <img
-                                                src={displayAssets[0].url}
-                                                alt="Öne çıkan medya"
-                                                className="w-full h-full object-cover"
-                                            />
+                                            <img src={asset.url} alt="Üretilen görsel" className="w-full h-full object-cover" />
                                         )}
-                                        {/* Selection checkbox */}
                                         {isSelectMode && (
                                             <div className="absolute top-2 left-2 z-10">
-                                                <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(displayAssets[0].id)
-                                                    ? 'bg-emerald-500 border-emerald-500'
-                                                    : 'bg-black/40 border-white/60 hover:border-white'
-                                                    }`}>
-                                                    {selectedIds.has(displayAssets[0].id) && (
-                                                        <CheckSquare size={14} className="text-white" />
-                                                    )}
+                                                <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(asset.id) ? 'bg-emerald-500 border-emerald-500' : 'bg-black/40 border-white/60 hover:border-white'}`}>
+                                                    {selectedIds.has(asset.id) && <CheckSquare size={14} className="text-white" />}
                                                 </div>
                                             </div>
                                         )}
-                                        {/* Action buttons */}
                                         {!isSelectMode && (
                                             <div className="absolute top-2 right-2 flex gap-1 z-10">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(displayAssets[0].id); }}
-                                                    className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-                                                >
-                                                    <Star
-                                                        size={16}
-                                                        fill={displayAssets[0].isFavorite ? "#eab308" : "none"}
-                                                        className={displayAssets[0].isFavorite ? "text-yellow-500" : "text-white/70"}
-                                                    />
+                                                <button onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }} className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors">
+                                                    <Star size={16} fill={asset.isFavorite ? "#eab308" : "none"} className={asset.isFavorite ? "text-yellow-500" : "text-white/70"} />
                                                 </button>
-                                                <button
-                                                    onClick={(e) => handleSaveToImages(displayAssets[0], e)}
-                                                    className={`p-1.5 rounded-full transition-colors ${displayAssets[0].savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
-                                                    title="Görseli Kaydet"
-                                                >
-                                                    <Bookmark size={16} className={displayAssets[0].savedToImages ? "text-white" : "text-white/70"} />
+                                                <button onClick={(e) => handleSaveToImages(asset, e)} className={`p-1.5 rounded-full transition-colors ${asset.savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`} title="Görseli Kaydet">
+                                                    <Bookmark size={16} className={asset.savedToImages ? "text-white" : "text-white/70"} />
                                                 </button>
-                                                <button
-                                                    onClick={(e) => handleDelete(displayAssets[0].id, e)}
-                                                    className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
-                                                    title="Sil"
-                                                >
+                                                <button onClick={(e) => handleDelete(asset.id, e)} className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors" title="Sil">
                                                     <Trash2 size={16} className="text-white/70" />
                                                 </button>
-                                                <button
-                                                    onClick={(e) => handleRename(displayAssets[0], e)}
-                                                    className="p-1.5 rounded-full bg-black/40 hover:bg-blue-500/80 transition-colors"
-                                                    title="Yeniden Adlandır"
-                                                >
+                                                <button onClick={(e) => handleRename(asset, e)} className="p-1.5 rounded-full bg-black/40 hover:bg-blue-500/80 transition-colors" title="Yeniden Adlandır">
                                                     <Pencil size={16} className="text-white/70" />
                                                 </button>
                                             </div>
                                         )}
-                                        {displayAssets[0].type === "video" && (
+                                        {asset.type === "video" && (
                                             <>
                                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                                     <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
@@ -642,16 +604,15 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     </div>
                                                 </div>
                                                 <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
-                                                    VİDEO • {displayAssets[0].duration}
+                                                    VİDEO • {asset.duration}
                                                 </div>
                                             </>
                                         )}
-                                        {displayAssets[0].type === "audio" && (
+                                        {asset.type === "audio" && (
                                             <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
                                                 🎵 SES
                                             </div>
                                         )}
-                                        {/* Drag hint */}
                                         {!isSelectMode && (
                                             <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 Sürükle → Chat
@@ -659,127 +620,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         )}
                                     </div>
                                 </div>
-                            )}
-
-                            {/* Grid of smaller assets */}
-                            <div className="grid grid-cols-2 gap-2">
-                                {displayAssets.slice(1).map((asset) => (
-                                    <div
-                                        key={asset.id}
-                                        className={`asset-card group cursor-pointer ${isSelectMode && selectedIds.has(asset.id) ? 'ring-2 ring-emerald-500' : ''}`}
-                                        draggable={!isSelectMode}
-                                        onDragStart={(e) => !isSelectMode && handleDragStart(e, asset)}
-                                        onClick={(e) => isSelectMode ? toggleSelection(asset.id, e) : setSelectedAsset(asset)}
-                                    >
-                                        <div className="aspect-square relative bg-black/10">
-                                            {asset.type === 'video' ? (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    {asset.thumbnailUrl ? (
-                                                        <img
-                                                            src={asset.thumbnailUrl}
-                                                            alt="Video önizleme"
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <video
-                                                            src={asset.url}
-                                                            className="w-full h-full object-cover"
-                                                            muted
-                                                            loop
-                                                            playsInline
-                                                            onMouseOver={e => {
-                                                                const p = e.currentTarget.play();
-                                                                if (p !== undefined) {
-                                                                    p.catch(error => {
-                                                                        if (error.name !== 'AbortError' && error.name !== 'NotSupportedError') console.error("Video play error:", error);
-                                                                    });
-                                                                }
-                                                            }}
-                                                            onMouseOut={e => {
-                                                                e.currentTarget.pause();
-                                                                e.currentTarget.currentTime = 0;
-                                                            }}
-                                                        />
-                                                    )}
-                                                </div>
-                                            ) : asset.type === 'audio' ? (
-                                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/30 to-purple-900/30 p-2">
-                                                    <span className="text-2xl mb-1">🎵</span>
-                                                    <span className="text-[10px] text-white/60 text-center truncate w-full px-1">{asset.label || 'Müzik'}</span>
-                                                </div>
-                                            ) : (
-                                                <img
-                                                    src={asset.url}
-                                                    alt="Üretilen görsel"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            )}
-
-                                            {/* Selection checkbox */}
-                                            {isSelectMode && (
-                                                <div className="absolute top-2 left-2 z-10">
-                                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(asset.id)
-                                                        ? 'bg-emerald-500 border-emerald-500'
-                                                        : 'bg-black/40 border-white/60 hover:border-white'
-                                                        }`}>
-                                                        {selectedIds.has(asset.id) && (
-                                                            <CheckSquare size={12} className="text-white" />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {asset.type === "video" && !isSelectMode && (
-                                                <div className="absolute top-2 left-2">
-                                                    <Play size={16} fill="white" className="text-white drop-shadow-lg" />
-                                                </div>
-                                            )}
-                                            {asset.type === "audio" && !isSelectMode && (
-                                                <div className="absolute top-2 left-2">
-                                                    <span className="text-sm drop-shadow-lg">🎵</span>
-                                                </div>
-                                            )}
-
-                                            {/* Action buttons */}
-                                            {!isSelectMode && (
-                                                <div className="absolute top-2 right-2 flex gap-1">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }}
-                                                        className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-                                                    >
-                                                        <Star
-                                                            size={14}
-                                                            fill={asset.isFavorite ? "#eab308" : "none"}
-                                                            className={asset.isFavorite ? "text-yellow-500" : "text-white/70"}
-                                                        />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleSaveToImages(asset, e)}
-                                                        className={`p-1 rounded-full transition-colors ${asset.savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`}
-                                                        title="Görseli Kaydet"
-                                                    >
-                                                        <Bookmark size={14} className={asset.savedToImages ? "text-white" : "text-white/70"} />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleDelete(asset.id, e)}
-                                                        className="p-1 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors"
-                                                        title="Sil"
-                                                    >
-                                                        <Trash2 size={14} className="text-white/70" />
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {/* Hover overlay with download */}
-                                            {!isSelectMode && (
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                                    <span className="text-xs text-white/70 px-2 py-1 bg-black/50 rounded">Sürükle → Chat</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            ))}
                         </div>
                     )}
                 </div>
