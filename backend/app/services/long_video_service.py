@@ -378,11 +378,11 @@ class LongVideoService:
                     veo_svc = GoogleVideoService()
                     result_dict = await veo_svc.generate_video(payload)
                     
-                    from app.services.plugins.base import PluginResponse
+                    from types import SimpleNamespace
                     if result_dict.get("success"):
-                        result = PluginResponse(success=True, data={"video_url": result_dict.get("video_url")})
+                        result = SimpleNamespace(success=True, data={"video_url": result_dict.get("video_url")}, error=None)
                     else:
-                        result = PluginResponse(success=False, error=result_dict.get("error"))
+                        result = SimpleNamespace(success=False, data=None, error=result_dict.get("error"))
                 else:
                     print(f"   🎬 Sahne {segment.order + 1} {model_to_use.upper()} ile üretiliyor (deneme {attempt+1})...")
                     result = await fal.execute("generate_video", payload)
