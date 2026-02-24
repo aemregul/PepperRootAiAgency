@@ -59,10 +59,11 @@ class LongVideoService:
     3. fal.ai FFmpeg API ile birleştir
     """
     
-    MAX_SEGMENT_DURATION = 8   # Saniye (Veo max 8s)
+    MAX_SEGMENT_DURATION = 10  # Saniye (API max 10s)
     MIN_SEGMENT_DURATION = 5   # Saniye
-    MAX_PARALLEL = 2           # Aynı anda max segment (güvenilirlik için)
+    MAX_PARALLEL = 1           # Sıralı üretim (karakter tutarlılığı için zincirleme i2v)
     MAX_RETRIES = 2            # Max retry per segment üretimi
+    CROSSFADE_DURATION = 0.5   # Sahne geçiş süresi (saniye)
     
     def __init__(self):
         self.jobs: dict[str, LongVideoJob] = {}
@@ -268,21 +269,30 @@ class LongVideoService:
             return {"success": False, "error": str(e)}
     
     async def _generate_segments(self, job: LongVideoJob, progress_callback=None):
-        """Tüm segment'leri batch halinde paralel üret."""
+        """Segment'leri SIRALI üret — her sahne bir öncekinin son frame'inden başlar (karakter tutarlılığı)."""
         from app.services.plugins.fal_plugin_v2 import FalPluginV2
         fal = FalPluginV2()
         
         total_segments = len(job.segments)
+        last_frame_url = None  # Bir önceki sahnenin son karesi
         
-        for i in range(0, total_segments, self.MAX_PARALLEL):
-            batch = job.segments[i:i + self.MAX_PARALLEL]
+        for i, segment in enumerate(job.segments):
+            # Zincirleme i2v: önceki sahnenin son frame'ini referans olarak ver
+            if last_frame_url and not segment.reference_image_url:
+                segment.reference_image_url = last_frame_url
+                print(f"   🔗 Sahne {i+1}: Önceki sahnenin son karesi referans olarak verildi (i2v)")
             
-            tasks = [
-                self._generate_single_segment(fal, segment, job.aspect_ratio)
-                for segment in batch
-            ]
+            await self._generate_single_segment(fal, segment, job.aspect_ratio)
             
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # Başarılıysa son frame'ı çıkar
+            if segment.status == "completed" and segment.video_url:
+                try:
+                    extracted = await self._extract_last_frame(segment.video_url)
+                    if extracted:
+                        last_frame_url = extracted
+                        print(f"   📸 Sahne {i+1} son frame çıkarıldı: {extracted[:50]}...")
+                except Exception as e:
+                    print(f"   ⚠️ Son frame çıkarılamadı: {e}")
             
             # Progress güncelle
             completed = sum(1 for s in job.segments if s.status == "completed")
@@ -291,10 +301,48 @@ class LongVideoService:
             if progress_callback:
                 await progress_callback(
                     job.progress, 
-                    f"Segment {completed}/{total_segments} tamamlandı"
+                    f"Sahne {completed}/{total_segments} tamamlandı"
                 )
             
             print(f"📊 Long Video Progress: {completed}/{total_segments} segment")
+    
+    async def _extract_last_frame(self, video_url: str) -> str:
+        """Video'nun son karesini çıkar, fal storage'a yükle, URL döndür."""
+        import httpx
+        import tempfile
+        import subprocess
+        import os
+        import fal_client
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            video_path = os.path.join(tmp_dir, "video.mp4")
+            frame_path = os.path.join(tmp_dir, "last_frame.jpg")
+            
+            # Video indir
+            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                resp = await client.get(video_url)
+                if resp.status_code != 200:
+                    return None
+                with open(video_path, "wb") as f:
+                    f.write(resp.content)
+            
+            # Son kareyi çıkar
+            cmd = [
+                "ffmpeg", "-y",
+                "-sseof", "-0.1",  # Son 0.1 saniye
+                "-i", video_path,
+                "-frames:v", "1",
+                "-q:v", "2",
+                frame_path
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if proc.returncode != 0 or not os.path.exists(frame_path):
+                return None
+            
+            # fal'a yükle
+            frame_url = fal_client.upload_file(frame_path)
+            return frame_url
     
     async def _generate_single_segment(
         self, 
@@ -369,12 +417,11 @@ class LongVideoService:
     
     async def _stitch_segments(self, job: LongVideoJob) -> str:
         """
-        Segment'leri LOKAL FFmpeg ile birleştir.
+        Segment'leri LOKAL FFmpeg ile birleştir + crossfade geçiş ekle.
         
-        1. Completed segment'leri sıraya koy
-        2. Her birini indir
-        3. Lokal FFmpeg concat ile birleştir
-        4. fal.ai storage'a yükle
+        1. Completed segment'leri indir
+        2. Crossfade (xfade) geçişle birleştir
+        3. fal.ai storage'a yükle
         """
         import fal_client
         import httpx
@@ -393,7 +440,7 @@ class LongVideoService:
         n = len(completed)
         
         try:
-            print(f"🔧 FFmpeg stitching: {n} segment birleştiriliyor (lokal)...")
+            print(f"🔧 FFmpeg stitching: {n} segment birleştiriliyor (lokal + crossfade)...")
             
             with tempfile.TemporaryDirectory() as tmp_dir:
                 # 1. Tüm segment'leri indir
@@ -414,45 +461,101 @@ class LongVideoService:
                     print("⚠️ Yeterli segment indirilemedi")
                     return completed[0].video_url
                 
-                # 2. concat dosyası oluştur
-                concat_file = os.path.join(tmp_dir, "concat.txt")
-                with open(concat_file, "w") as f:
-                    for path in segment_paths:
-                        f.write(f"file '{path}'\n")
-                
                 output_path = os.path.join(tmp_dir, "output.mp4")
+                fade_dur = self.CROSSFADE_DURATION
                 
-                # 3. FFmpeg concat demuxer ile birleştir
-                cmd = [
-                    "ffmpeg", "-y",
-                    "-f", "concat",
-                    "-safe", "0",
-                    "-i", concat_file,
-                    "-c", "copy",
-                    "-movflags", "+faststart",
-                    output_path
-                ]
+                # 2. Crossfade ile birleştir (xfade filter)
+                if len(segment_paths) == 2:
+                    # 2 segment: basit xfade
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-i", segment_paths[0],
+                        "-i", segment_paths[1],
+                        "-filter_complex",
+                        f"[0:v][1:v]xfade=transition=fade:duration={fade_dur}:offset=4.5[outv]",
+                        "-map", "[outv]",
+                        "-c:v", "libx264", "-preset", "fast",
+                        "-movflags", "+faststart",
+                        "-an",
+                        output_path
+                    ]
+                else:
+                    # 3+ segment: zincirleme xfade
+                    inputs = []
+                    for p in segment_paths:
+                        inputs.extend(["-i", p])
+                    
+                    # Her segment ~5s durations için offset hesapla
+                    # Get durations with ffprobe
+                    durations = []
+                    for p in segment_paths:
+                        probe_cmd = [
+                            "ffprobe", "-v", "error",
+                            "-show_entries", "format=duration",
+                            "-of", "csv=p=0", p
+                        ]
+                        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
+                        try:
+                            dur = float(probe_result.stdout.strip())
+                        except:
+                            dur = 5.0
+                        durations.append(dur)
+                    
+                    # Build xfade filter chain
+                    filter_parts = []
+                    current_offset = durations[0] - fade_dur
+                    
+                    # First pair
+                    filter_parts.append(
+                        f"[0:v][1:v]xfade=transition=fade:duration={fade_dur}:offset={current_offset}[v1]"
+                    )
+                    
+                    for i in range(2, len(segment_paths)):
+                        current_offset += durations[i-1] - fade_dur
+                        prev_label = f"v{i-1}"
+                        out_label = f"v{i}" if i < len(segment_paths) - 1 else "outv"
+                        filter_parts.append(
+                            f"[{prev_label}][{i}:v]xfade=transition=fade:duration={fade_dur}:offset={current_offset}[{out_label}]"
+                        )
+                    
+                    filter_complex = ";".join(filter_parts)
+                    
+                    cmd = inputs + [
+                        "-filter_complex", filter_complex,
+                        "-map", "[outv]",
+                        "-c:v", "libx264", "-preset", "fast",
+                        "-movflags", "+faststart",
+                        "-an",
+                        output_path
+                    ]
+                    cmd = ["ffmpeg", "-y"] + cmd
                 
-                print(f"   🔧 FFmpeg concat çalıştırılıyor...")
-                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+                print(f"   🔧 FFmpeg crossfade birleştirme çalıştırılıyor...")
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                 
                 if proc.returncode != 0:
-                    # Codec uyumsuzluğu olabilir — re-encode dene
-                    print(f"   ⚠️ Copy concat başarısız, re-encode deneniyor...")
-                    cmd_reencode = [
+                    # Crossfade başarısız — basit concat dene
+                    print(f"   ⚠️ Crossfade başarısız, basit concat deneniyor...")
+                    print(f"   FFmpeg stderr: {proc.stderr[:300]}")
+                    
+                    concat_file = os.path.join(tmp_dir, "concat.txt")
+                    with open(concat_file, "w") as f:
+                        for path in segment_paths:
+                            f.write(f"file '{path}'\n")
+                    
+                    cmd_fallback = [
                         "ffmpeg", "-y",
-                        "-f", "concat",
-                        "-safe", "0",
+                        "-f", "concat", "-safe", "0",
                         "-i", concat_file,
                         "-c:v", "libx264", "-preset", "fast",
                         "-c:a", "aac",
                         "-movflags", "+faststart",
                         output_path
                     ]
-                    proc = subprocess.run(cmd_reencode, capture_output=True, text=True, timeout=300)
+                    proc = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=300)
                     
                     if proc.returncode != 0:
-                        print(f"   ❌ Re-encode de başarısız: {proc.stderr[:300]}")
+                        print(f"   ❌ Concat de başarısız: {proc.stderr[:200]}")
                         return completed[0].video_url
                 
                 if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
@@ -461,7 +564,7 @@ class LongVideoService:
                 
                 print(f"   ✅ Birleştirme tamamlandı: {os.path.getsize(output_path)} bytes")
                 
-                # 4. fal storage'a yükle
+                # 3. fal storage'a yükle
                 print("   ⬆️ fal.ai storage'a yükleniyor...")
                 final_url = fal_client.upload_file(output_path)
                 print(f"   ✅ Yüklendi: {final_url[:60]}...")
@@ -470,7 +573,8 @@ class LongVideoService:
             
         except Exception as e:
             print(f"❌ FFmpeg stitch hatası: {e}")
-            # Ultimate fallback: ilk tamamlanan segmenti döndür
+            import traceback
+            traceback.print_exc()
             print("⚠️ Fallback: İlk segment döndürülüyor")
             return completed[0].video_url
     
