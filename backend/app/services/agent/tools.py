@@ -140,6 +140,7 @@ AGENT_TOOLS_ANTHROPIC = [
             "required": ["video_url", "prompt"]
         }
     },
+    {
         "name": "generate_long_video",
         "description": "Uzun video üretir (30 saniye - 3 dakika, ARKA PLAN GÖREVİ). Çok aşamalı bir işlemdir ve arka planda yürütülür. ÖNEMLİ: Bu aracı çağırmadan ÖNCE kullanıcıya sahne planını göster ve ONAY al! Plan onayı OLMADAN çağırırsan HATA mesajı döner.",
         "input_schema": {
