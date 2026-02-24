@@ -30,7 +30,8 @@ import {
     Pencil,
     Grid3x3,
     LogOut,
-    Tag
+    Tag,
+    GripVertical
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/contexts/AuthContext";
@@ -317,6 +318,58 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
     const [entitySearchQuery, setEntitySearchQuery] = useState("");
 
+    // Drag-and-drop reorder state
+    const [dragProjectId, setDragProjectId] = useState<string | null>(null);
+    const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null);
+
+    const applyProjectOrder = (list: typeof projects) => {
+        try {
+            const savedOrder = localStorage.getItem('projectOrder');
+            if (!savedOrder) return list;
+            const order: string[] = JSON.parse(savedOrder);
+            const sorted = [...list].sort((a, b) => {
+                const ai = order.indexOf(a.id);
+                const bi = order.indexOf(b.id);
+                if (ai === -1 && bi === -1) return 0;
+                if (ai === -1) return 1;
+                if (bi === -1) return -1;
+                return ai - bi;
+            });
+            return sorted;
+        } catch { return list; }
+    };
+
+    const handleProjectDragStart = (e: React.DragEvent, projectId: string) => {
+        setDragProjectId(projectId);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleProjectDragOver = (e: React.DragEvent, projectId: string) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (projectId !== dragProjectId) setDragOverProjectId(projectId);
+    };
+
+    const handleProjectDrop = (e: React.DragEvent, targetId: string) => {
+        e.preventDefault();
+        if (!dragProjectId || dragProjectId === targetId) return;
+        const fromIdx = projects.findIndex(p => p.id === dragProjectId);
+        const toIdx = projects.findIndex(p => p.id === targetId);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const reordered = [...projects];
+        const [moved] = reordered.splice(fromIdx, 1);
+        reordered.splice(toIdx, 0, moved);
+        setProjects(reordered);
+        localStorage.setItem('projectOrder', JSON.stringify(reordered.map(p => p.id)));
+        setDragProjectId(null);
+        setDragOverProjectId(null);
+    };
+
+    const handleProjectDragEnd = () => {
+        setDragProjectId(null);
+        setDragOverProjectId(null);
+    };
+
     // Keyboard shortcuts
     useKeyboardShortcuts({
         shortcuts: [
@@ -410,7 +463,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         category: s.category || undefined,
                         description: s.description || undefined
                     }));
-                setProjects(projectList);
+                setProjects(applyProjectOrder(projectList));
             } catch (error) {
                 console.error('Proje yükleme hatası:', error);
                 setProjects([]);
@@ -1068,15 +1121,21 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                         return (
                                             <div
                                                 key={project.id}
-                                                className={`project-card-v2 group ${project.active ? 'active' : ''}`}
+                                                draggable={!isEditing}
+                                                onDragStart={(e) => handleProjectDragStart(e, project.id)}
+                                                onDragOver={(e) => handleProjectDragOver(e, project.id)}
+                                                onDrop={(e) => handleProjectDrop(e, project.id)}
+                                                onDragEnd={handleProjectDragEnd}
+                                                className={`project-card-v2 group ${project.active ? 'active' : ''} ${dragProjectId === project.id ? 'opacity-40' : ''} ${dragOverProjectId === project.id ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                                                style={{ cursor: isEditing ? 'text' : 'grab' }}
                                                 onClick={() => !isEditing && handleProjectClick(project.id)}
                                                 onDoubleClick={(e) => {
                                                     e.stopPropagation();
                                                     startEditingProject(project.id, project.name);
                                                 }}
                                             >
-                                                {/* Thumbnail */}
-                                                <div className="project-thumb">
+                                                {/* Drag handle + Thumbnail */}
+                                                <div className="project-thumb" style={{ position: 'relative' }}>
                                                     {categoryEmoji(project.category)}
                                                 </div>
 
