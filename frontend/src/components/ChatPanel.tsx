@@ -136,6 +136,27 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                         </div>
                     </div>
                 );
+            } else if (url.match(/\.(png|jpg|jpeg|webp|gif|bmp|svg)(\?.*)?$/i)) {
+                // Image link rendered as inline image
+                elements.push(
+                    <img
+                        key={key++}
+                        src={url}
+                        alt={text || 'Görsel'}
+                        className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
+                        onClick={() => onImageClick ? onImageClick(url) : window.open(url, '_blank')}
+                        onError={(e) => {
+                            const target = e.currentTarget;
+                            target.style.display = 'none';
+                            const fallback = document.createElement('a');
+                            fallback.href = url;
+                            fallback.target = '_blank';
+                            fallback.textContent = `🔗 ${text}`;
+                            fallback.className = 'text-[var(--accent)] underline';
+                            target.parentNode?.insertBefore(fallback, target);
+                        }}
+                    />
+                );
             } else {
                 elements.push(
                     <a
@@ -1180,8 +1201,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                 {renderContent(msg.content, setLightboxImage)}
                                             </div>
 
-                                            {/* Only show image_url if it's NOT already in content as markdown */}
-                                            {msg.image_url && !msg.content?.includes(msg.image_url) && (
+                                            {/* Only show image_url if it's NOT already in content as a markdown IMAGE (![](url)) */}
+                                            {msg.image_url && !msg.content?.includes(`![`) && (
                                                 <img
                                                     src={msg.image_url}
                                                     alt="Üretilen görsel"
