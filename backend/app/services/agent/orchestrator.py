@@ -1900,6 +1900,14 @@ Konuşma:
             duration = params.get("duration", "5")
             aspect_ratio = params.get("aspect_ratio", "16:9")
             model = params.get("model", "veo")
+            
+            # ⛔ 10s üstü videolar için plan zorunlu — generate_long_video'ya yönlendir
+            if int(duration) > 10:
+                return {
+                    "success": False,
+                    "error": f"⛔ {duration}s video 10 saniyeden uzun! 10s üstü videolar için generate_long_video aracını kullan. ÖNCE kullanıcıya sahne planı göster, onay al, sonra generate_long_video çağır."
+                }
+            
             user_id = await get_user_id_from_session(db, session_id)
             
             # Entity'leri IDs olarak hazırla
@@ -2068,12 +2076,44 @@ Konuşma:
 
     async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
         """Uzun video üret (30s - 3 dakika) - Arka plana atar."""
-        # ⛔ Plan onayı kontrolü — zorunlu
-        plan_confirmed = params.get("plan_confirmed", False)
-        if not plan_confirmed:
+        # ⛔ Guard 1: scene_descriptions zorunlu ve en az 2 sahne
+        scene_descriptions = params.get("scene_descriptions")
+        if not scene_descriptions or len(scene_descriptions) < 2:
             return {
                 "success": False, 
-                "error": "⛔ PLAN ONAYSIZ ÜRETİM ENGELLENDİ! Önce kullanıcıya sahne planını göster, onay al, sonra plan_confirmed=true ile tekrar çağır."
+                "error": "⛔ PLAN GEREKLİ! scene_descriptions parametresine en az 2 detaylı sahne açıklaması ver. ÖNCE kullanıcıya sahne planını göster, onay al, sonra sahne açıklamalarıyla birlikte tekrar çağır."
+            }
+        
+        # ⛔ Guard 2: Konuşma geçmişinde plan gösterilmiş mi kontrol et
+        from sqlalchemy import select
+        from app.models import Message
+        recent_msgs = await db.execute(
+            select(Message)
+            .where(Message.session_id == session_id)
+            .order_by(Message.created_at.desc())
+            .limit(6)
+        )
+        messages = recent_msgs.scalars().all()
+        
+        plan_shown = False
+        user_approved = False
+        for msg in messages:
+            content = (msg.content or "").lower()
+            if msg.role == "assistant" and ("sahne" in content and ("plan" in content or "süre" in content or "model" in content)):
+                plan_shown = True
+            if msg.role == "user" and any(w in content for w in ["onay", "tamam", "devam", "başla", "evet", "ok"]):
+                user_approved = True
+        
+        if not plan_shown:
+            return {
+                "success": False,
+                "error": "⛔ PLAN GÖSTERİLMEMİŞ! Son mesajlarda sahne planı bulunamadı. Kullanıcıya önce sahne planı göster (Sahne 1, Sahne 2... formatında), onay al, sonra tekrar çağır."
+            }
+        
+        if not user_approved:
+            return {
+                "success": False,
+                "error": "⛔ KULLANICI ONAYI YOK! Kullanıcıdan 'onaylıyorum', 'tamam', 'devam et' gibi bir onay mesajı al, sonra tekrar çağır."
             }
         
         prompt = params.get("prompt", "")
