@@ -335,7 +335,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             {/* Lightbox Modal */}
             {selectedAsset && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+                    className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90"
                     onClick={() => setSelectedAsset(null)}
                 >
                     {/* Close button */}
@@ -350,54 +350,69 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                     {displayAssets.length > 1 && (
                         <button
                             onClick={(e) => { e.stopPropagation(); navigateLightbox('prev'); }}
-                            className="absolute left-4 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
                         >
                             <ChevronLeft size={28} className="text-white" />
                         </button>
                     )}
 
-                    {/* Image */}
+                    {/* Next button */}
+                    {displayAssets.length > 1 && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); navigateLightbox('next'); }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
+                        >
+                            <ChevronRight size={28} className="text-white" />
+                        </button>
+                    )}
+
+                    {/* Media content */}
                     <div
-                        className="max-w-[90vw] max-h-[85vh] relative"
+                        className="flex flex-col items-center gap-4 max-w-[90vw]"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {selectedAsset.type === 'video' ? (
-                            <div className="relative bg-black rounded-lg overflow-hidden flex items-center justify-center max-h-[85vh]">
+                            <div className="relative bg-black rounded-xl overflow-hidden flex items-center justify-center" style={{ maxHeight: '75vh' }}>
                                 <video
                                     src={selectedAsset.url}
                                     controls
                                     autoPlay
-                                    className="max-w-full max-h-[85vh] object-contain shadow-2xl"
+                                    className="max-w-full object-contain rounded-xl"
+                                    style={{ maxHeight: '75vh' }}
                                 />
                             </div>
                         ) : selectedAsset.type === 'audio' ? (
-                            <div className="bg-[var(--card)] rounded-2xl p-8 shadow-2xl" style={{ minWidth: '400px' }}>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <span className="text-3xl">🎵</span>
-                                    <span className="text-lg font-medium text-white">{selectedAsset.label || 'Müzik'}</span>
+                            <div className="rounded-2xl overflow-hidden shadow-2xl" style={{ minWidth: '420px', maxWidth: '500px' }}>
+                                <div className="bg-gradient-to-br from-emerald-900/80 via-purple-900/70 to-indigo-900/80 p-8 flex flex-col items-center">
+                                    <span className="text-6xl mb-4">🎵</span>
+                                    <h3 className="text-lg font-semibold text-white text-center mb-1 px-4 line-clamp-2">
+                                        {selectedAsset.label || 'Müzik'}
+                                    </h3>
+                                    <span className="text-sm text-white/50 mb-6">{selectedAsset.model || 'AI Generated'}</span>
+                                    <audio src={selectedAsset.url} controls autoPlay className="w-full rounded-lg" />
                                 </div>
-                                <audio src={selectedAsset.url} controls autoPlay className="w-full" />
                             </div>
                         ) : (
                             <img
                                 src={selectedAsset.url}
                                 alt="Tam boyut görsel"
-                                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                                className="max-w-full object-contain rounded-xl shadow-2xl"
+                                style={{ maxHeight: '75vh' }}
                             />
                         )}
 
-                        {/* Bottom controls */}
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-black/60">
+                        {/* Bottom controls — BELOW the media, not overlapping */}
+                        <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10">
                             <button
                                 onClick={() => downloadAsset(selectedAsset)}
-                                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                                className="p-2 rounded-full hover:bg-white/15 transition-colors"
                                 title="İndir"
                             >
                                 <Download size={18} className="text-white" />
                             </button>
                             <button
                                 onClick={() => toggleFavorite(selectedAsset.id)}
-                                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                                className="p-2 rounded-full hover:bg-white/15 transition-colors"
                                 title="Favori"
                             >
                                 <Star
@@ -408,26 +423,17 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                             </button>
                             <button
                                 onClick={() => handleRename(selectedAsset)}
-                                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                                className="p-2 rounded-full hover:bg-white/15 transition-colors"
                                 title="Yeniden Adlandır"
                             >
                                 <Pencil size={18} className="text-white" />
                             </button>
-                            <span className="text-white/70 text-sm px-2">
+                            <div className="w-px h-5 bg-white/20 mx-1" />
+                            <span className="text-white/60 text-sm px-1">
                                 {displayAssets.findIndex(a => a.id === selectedAsset.id) + 1} / {displayAssets.length}
                             </span>
                         </div>
                     </div>
-
-                    {/* Next button */}
-                    {displayAssets.length > 1 && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); navigateLightbox('next'); }}
-                            className="absolute right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                        >
-                            <ChevronRight size={28} className="text-white" />
-                        </button>
-                    )}
                 </div>
             )}
 
