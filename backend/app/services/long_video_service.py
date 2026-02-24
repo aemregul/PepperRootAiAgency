@@ -474,6 +474,7 @@ class LongVideoService:
                         f"[0:v][1:v]xfade=transition=fade:duration={fade_dur}:offset=4.5[outv]",
                         "-map", "[outv]",
                         "-c:v", "libx264", "-preset", "fast",
+                        "-crf", "23", "-maxrate", "4M", "-bufsize", "8M",
                         "-movflags", "+faststart",
                         "-an",
                         output_path
@@ -523,6 +524,7 @@ class LongVideoService:
                         "-filter_complex", filter_complex,
                         "-map", "[outv]",
                         "-c:v", "libx264", "-preset", "fast",
+                        "-crf", "23", "-maxrate", "4M", "-bufsize", "8M",
                         "-movflags", "+faststart",
                         "-an",
                         output_path
@@ -547,6 +549,7 @@ class LongVideoService:
                         "-f", "concat", "-safe", "0",
                         "-i", concat_file,
                         "-c:v", "libx264", "-preset", "fast",
+                        "-crf", "23", "-maxrate", "4M", "-bufsize", "8M",
                         "-c:a", "aac",
                         "-movflags", "+faststart",
                         output_path
