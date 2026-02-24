@@ -173,7 +173,7 @@ class FalPluginV2(PluginBase):
     
     VIDEO_MODEL_CHAIN = [
         {"i2v": "fal-ai/kling-video/v3/pro/image-to-video", "t2v": "fal-ai/kling-video/v3/pro/text-to-video"},
-        {"i2v": "fal-ai/veo3.1/image-to-video", "t2v": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"},
+        {"i2v": "fal-ai/veo3.1/image-to-video", "t2v": "fal-ai/veo3.1/text-to-video"},
     ]
     
     EDIT_MODEL_CHAIN = [
@@ -341,8 +341,8 @@ class FalPluginV2(PluginBase):
         # Not: Fal.ai endpoint isimleri sürekli değişebilir, en stabil bilinenleri kullanıyoruz
         model_endpoints = {
             "kling": {
-                "i2v": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
-                "t2v": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"
+                "i2v": "fal-ai/kling-video/v3/pro/image-to-video",
+                "t2v": "fal-ai/kling-video/v3/pro/text-to-video"
             },
             "luma": {
                 "i2v": "fal-ai/luma-dream-machine/ray-2/image-to-video",
@@ -358,7 +358,7 @@ class FalPluginV2(PluginBase):
             },
             "veo": {
                 "i2v": "fal-ai/veo3.1/image-to-video",
-                "t2v": "fal-ai/veo3.1/image-to-video"
+                "t2v": "fal-ai/veo3.1/text-to-video"
             }
         }
         
