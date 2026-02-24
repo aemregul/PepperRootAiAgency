@@ -360,8 +360,21 @@ export function TrashModal({
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
                                         {/* Thumbnail — assetType based */}
                                         {item.assetType === 'video' ? (
-                                            <div className="w-14 h-14 rounded-lg shrink-0 border border-[var(--border)] bg-gradient-to-br from-purple-900/50 to-indigo-900/50 flex items-center justify-center">
-                                                <span className="text-2xl">🎬</span>
+                                            <div className="w-14 h-14 rounded-lg shrink-0 border border-[var(--border)] bg-gradient-to-br from-purple-900/50 to-indigo-900/50 flex items-center justify-center overflow-hidden">
+                                                {item.imageUrl ? (
+                                                    <video
+                                                        src={item.imageUrl + '#t=1'}
+                                                        muted
+                                                        playsInline
+                                                        preload="metadata"
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            (e.currentTarget as HTMLVideoElement).style.display = 'none';
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <span className="text-2xl">🎬</span>
+                                                )}
                                             </div>
                                         ) : item.assetType === 'audio' ? (
                                             <div className="w-14 h-14 rounded-lg shrink-0 border border-[var(--border)] bg-gradient-to-br from-emerald-900/50 to-teal-900/50 flex items-center justify-center">
