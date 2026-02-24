@@ -1201,8 +1201,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                 {renderContent(msg.content, setLightboxImage)}
                                             </div>
 
-                                            {/* Only show image_url if it's NOT already in content as a markdown IMAGE (![](url)) */}
-                                            {msg.image_url && !msg.content?.includes(`![`) && (
+                                            {/* Only show image_url if it's NOT already rendered in content */}
+                                            {msg.image_url && !msg.content?.includes(msg.image_url) && (
                                                 <img
                                                     src={msg.image_url}
                                                     alt="Üretilen görsel"
