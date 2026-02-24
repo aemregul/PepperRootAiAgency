@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn, Palette } from "lucide-react";
+import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn, Palette, Download } from "lucide-react";
 import { useToast } from "./ToastProvider";
 import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory } from "@/lib/api";
 
@@ -116,23 +116,35 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                     </div>
                 );
             } else if (url.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i)) {
-                // Audio player for music/sound files
+                // Audio player — premium card
                 elements.push(
-                    <div key={key++} className="mt-2 mb-2 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]" style={{ maxWidth: '400px' }}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="text-lg">🎵</span>
-                            <span className="text-sm font-medium text-[var(--foreground)]">{text || 'Müzik'}</span>
-                        </div>
-                        <audio
-                            src={url}
-                            controls
-                            className="w-full"
-                            style={{ height: '36px' }}
-                        />
-                        <div className="flex items-center gap-2 mt-1.5">
-                            <a href={url} download className="text-xs text-[var(--accent)] hover:underline">
-                                ⬇️ İndir
-                            </a>
+                    <div key={key++} className="mt-3 mb-2 rounded-2xl overflow-hidden" style={{ maxWidth: '360px' }}>
+                        <div className="bg-gradient-to-br from-emerald-900/60 via-[#1a1a2e] to-purple-900/50 p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                                    <span className="text-xl">🎵</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <span className="text-sm font-medium text-white block truncate">{text || 'Müzik'}</span>
+                                    <span className="text-xs text-white/40">AI Generated</span>
+                                </div>
+                            </div>
+                            <audio
+                                src={url}
+                                controls
+                                className="w-full rounded-lg"
+                                style={{ height: '36px' }}
+                            />
+                            <div className="flex items-center mt-2.5">
+                                <a
+                                    href={url}
+                                    download
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-xs text-white/70 hover:text-white"
+                                >
+                                    <Download size={12} />
+                                    İndir
+                                </a>
+                            </div>
                         </div>
                     </div>
                 );
@@ -200,9 +212,12 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
         lastIndex = match.index + match[0].length;
     }
 
-    // Add remaining text after last match
+    // Add remaining text after last match (skip lone punctuation/whitespace)
     if (lastIndex < content.length) {
-        elements.push(content.slice(lastIndex));
+        const remaining = content.slice(lastIndex);
+        if (remaining.trim() && remaining.trim() !== '.' && remaining.trim() !== ',') {
+            elements.push(remaining);
+        }
     }
 
     return elements.length > 0 ? elements : content;
