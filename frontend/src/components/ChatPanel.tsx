@@ -119,9 +119,18 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                 // Audio player — premium card
                 elements.push(
                     <div key={key++} className="mt-3 mb-2 rounded-2xl overflow-hidden" style={{ maxWidth: '360px' }}>
-                        <div className="bg-gradient-to-br from-emerald-900/60 via-[#1a1a2e] to-purple-900/50 p-4">
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                        <div className="bg-gradient-to-br from-emerald-900/60 via-[#1a1a2e] to-purple-900/50 p-4 relative">
+                            {/* Download — top right */}
+                            <a
+                                href={url}
+                                download
+                                className="absolute top-3 right-3 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                                title="İndir"
+                            >
+                                <Download size={14} className="text-white/70" />
+                            </a>
+                            <div className="flex items-center gap-3 mb-4 pr-10">
+                                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
                                     <span className="text-xl">🎵</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -129,22 +138,13 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                                     <span className="text-xs text-white/40">AI Generated</span>
                                 </div>
                             </div>
+                            {/* Audio controls — bottom */}
                             <audio
                                 src={url}
                                 controls
                                 className="w-full rounded-lg"
                                 style={{ height: '36px' }}
                             />
-                            <div className="flex items-center mt-2.5">
-                                <a
-                                    href={url}
-                                    download
-                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-xs text-white/70 hover:text-white"
-                                >
-                                    <Download size={12} />
-                                    İndir
-                                </a>
-                            </div>
                         </div>
                     </div>
                 );
