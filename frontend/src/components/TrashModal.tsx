@@ -359,7 +359,7 @@ export function TrashModal({
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
                                         {/* Thumbnail for assets */}
                                         {item.imageUrl ? (
-                                            <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-[var(--border)]">
+                                            <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 border border-[var(--border)] bg-[var(--card)]">
                                                 {item.imageUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i) ? (
                                                     <video
                                                         src={item.imageUrl}
@@ -367,27 +367,43 @@ export function TrashModal({
                                                         preload="metadata"
                                                         className="w-full h-full object-cover"
                                                         onLoadedData={(e) => {
-                                                            const vid = e.currentTarget;
-                                                            vid.currentTime = 0.5;
+                                                            e.currentTarget.currentTime = 0.5;
+                                                        }}
+                                                        onError={(e) => {
+                                                            (e.currentTarget as HTMLVideoElement).style.display = 'none';
+                                                            (e.currentTarget as HTMLVideoElement).parentElement!.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="font-size:24px">🎬</span></div>';
                                                         }}
                                                     />
+                                                ) : item.imageUrl.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i) ? (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <span className="text-2xl">🎵</span>
+                                                    </div>
                                                 ) : (
                                                     <img
                                                         src={item.imageUrl}
                                                         alt={item.name}
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => {
-                                                            (e.target as HTMLImageElement).style.display = 'none';
-                                                            (e.target as HTMLImageElement).parentElement!.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--card)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>';
+                                                            (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                                            (e.currentTarget as HTMLImageElement).parentElement!.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="font-size:24px">🖼️</span></div>';
                                                         }}
                                                     />
                                                 )}
                                             </div>
                                         ) : (
                                             <div
-                                                className="w-2 h-2 rounded-full shrink-0"
-                                                style={{ background: getTypeColor(item.type) }}
-                                            />
+                                                className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center"
+                                                style={{ background: `${getTypeColor(item.type)}20` }}
+                                            >
+                                                <span className="text-lg">
+                                                    {item.type === 'proje' || item.type === 'session' ? '📁' :
+                                                        item.type === 'karakter' || item.type === 'character' ? '👤' :
+                                                            item.type === 'lokasyon' || item.type === 'location' ? '📍' :
+                                                                item.type === 'wardrobe' ? '👗' :
+                                                                    item.type === 'marka' || item.type === 'brand' ? '🏷️' :
+                                                                        item.type === 'plugin' ? '🔌' : '📄'}
+                                                </span>
+                                            </div>
                                         )}
                                         <div className="flex-1 min-w-0">
                                             <div className="font-medium truncate text-sm">
