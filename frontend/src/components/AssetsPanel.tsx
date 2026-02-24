@@ -567,8 +567,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         ) : asset.type === 'audio' ? (
                                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 p-4">
                                                 <span className="text-4xl mb-2">🎵</span>
-                                                <span className="text-xs text-white/70 mb-2">{asset.label || 'Müzik'}</span>
-                                                <audio src={asset.url} controls className="w-full" style={{ height: '32px' }} />
+                                                <span className="text-xs text-white/70">{asset.label || 'Müzik'}</span>
                                             </div>
                                         ) : (
                                             <img src={asset.url} alt="Üretilen görsel" className="w-full h-full object-cover" />
