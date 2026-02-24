@@ -110,13 +110,13 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_video",
-        "description": "Video üretir (ARKA PLAN GÖREVİ). Bu araç hemen video dönmez, üretimi arka planda başlatır. Üretim bittiğinde asistan otomatik olarak yeni bir mesajla videoyu paylaşacaktır. Kullanıcıya 'başlatıldı' bilgisi ver, ama 'hazır' deme. HER ZAMAN veo kullan, başarısız olursa kling'e otomatik geçer.",
+        "description": "Kısa video üretir (5-10 saniye, ARKA PLAN GÖREVİ). Bu araç hemen video dönmez, üretimi arka planda başlatır. Üretim bittiğinde asistan otomatik olarak yeni bir mesajla videoyu paylaşacaktır. ÖNEMLİ: 10 saniyeden KISA veya 10 saniye video için BU ARACI kullan. 10 saniyeden UZUN istekler için generate_long_video kullan. BU ARACI TEK SEFERDE SADECE 1 KERE ÇAĞIR!",
         "input_schema": {
             "type": "object",
             "properties": {
                 "prompt": {"type": "string", "description": "Video açıklaması"},
                 "image_url": {"type": "string", "description": "Başlangıç görseli URL (opsiyonel)"},
-                "duration": {"type": "string", "enum": ["3", "5", "10"], "description": "Video süresi"},
+                "duration": {"type": "string", "enum": ["5", "8", "10"], "description": "Video süresi (saniye). Kullanıcı süre belirtmediyse '5'. 3-6s isterse '5', 7-8s isterse '8', 9-10s isterse '10' kullan."},
                 "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
                 "model": {
                     "type": "string", 
@@ -147,7 +147,7 @@ AGENT_TOOLS_ANTHROPIC = [
             "type": "object",
             "properties": {
                 "prompt": {"type": "string", "description": "Video senaryosu / ana açıklama"},
-                "total_duration": {"type": "integer", "description": "Hedef süre (saniye). Min: 30, Max: 180. Varsayılan: 60"},
+                "total_duration": {"type": "integer", "description": "Hedef süre (saniye). Min: 15, Max: 180. Varsayılan: 60. ÖNEMLİ: Kullanıcı ne kadar süre istediyse TAM O SÜREYI yaz! 2 dakika=120, 1 dakika=60, 30 saniye=30, 15 saniye=15. ASLA istenen süreden farklı bir değer gönderme!"},
                 "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
                 "plan_confirmed": {"type": "boolean", "description": "ÖNCE kullanıcıya sahne planını gösterip onay aldıysan TRUE yap. Plan göstermeden çağırdıysan FALSE yap (HATA döner)."},
                 "scene_descriptions": {
