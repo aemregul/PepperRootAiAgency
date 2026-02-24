@@ -972,6 +972,9 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     };
                     checkQueue();
                 });
+
+                // Stream bitti — assets panelini yenile (audio gibi SSE ile gönderilmeyen asset'ler için)
+                onNewAsset?.({ url: '', type: 'refresh' });
             }
         } catch (err) {
             // User-initiated stop — don't show error
