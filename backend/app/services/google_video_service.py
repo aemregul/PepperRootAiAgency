@@ -163,9 +163,36 @@ class GoogleVideoService:
                     raise Exception("Veo zaman aşımı (10 dakika)")
                 
                 loop = asyncio.get_event_loop()
-                video_url = await loop.run_in_executor(None, run_veo_sync)
+                google_video_url = await loop.run_in_executor(None, run_veo_sync)
                 
-                logger.info(f"✅ Veo ile video başarıyla üretildi: {video_url}")
+                logger.info(f"✅ Veo ile video üretildi (Google URL): {google_video_url[:80]}...")
+                
+                # Google API URL'si tarayıcıda doğrudan açılamıyor — fal.ai'ya yükle
+                try:
+                    import tempfile
+                    import os
+                    import fal_client
+                    
+                    # API key ile Google'dan indir
+                    download_url = f"{google_video_url}&key={self.api_key}" if "?" in google_video_url else f"{google_video_url}?key={self.api_key}"
+                    async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+                        resp = await client.get(download_url)
+                        resp.raise_for_status()
+                    
+                    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                        tmp.write(resp.content)
+                        tmp_path = tmp.name
+                    
+                    # fal.ai storage'a yükle (public URL)
+                    public_url = fal_client.upload_file(tmp_path)
+                    os.remove(tmp_path)
+                    
+                    logger.info(f"✅ Veo video fal.ai'ya yüklendi: {public_url[:80]}...")
+                    video_url = public_url
+                except Exception as upload_err:
+                    logger.warning(f"⚠️ fal.ai yükleme hatası: {upload_err}. Google URL döndürülüyor.")
+                    video_url = google_video_url
+                
                 return {
                     "success": True,
                     "video_url": video_url,
