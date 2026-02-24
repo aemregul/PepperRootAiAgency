@@ -142,8 +142,31 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                             <audio
                                 src={url}
                                 controls
+                                preload="none"
                                 className="w-full rounded-lg"
                                 style={{ height: '36px' }}
+                                onError={(e) => {
+                                    const el = e.currentTarget;
+                                    el.style.display = 'none';
+                                    const msg = document.createElement('div');
+                                    msg.style.cssText = 'color:rgba(255,255,255,0.5);font-size:12px;text-align:center;padding:8px 0';
+                                    msg.textContent = '⚠️ Bu ses dosyası artık mevcut değil';
+                                    el.parentElement?.appendChild(msg);
+                                }}
+                                onPlay={(e) => {
+                                    // Timeout: if still not playing after 8s, show error
+                                    const el = e.currentTarget;
+                                    const timer = setTimeout(() => {
+                                        if (el.readyState < 2) {
+                                            el.style.display = 'none';
+                                            const msg = document.createElement('div');
+                                            msg.style.cssText = 'color:rgba(255,255,255,0.5);font-size:12px;text-align:center;padding:8px 0';
+                                            msg.textContent = '⚠️ Ses dosyası yüklenemedi';
+                                            el.parentElement?.appendChild(msg);
+                                        }
+                                    }, 8000);
+                                    el.addEventListener('playing', () => clearTimeout(timer), { once: true });
+                                }}
                             />
                         </div>
                     </div>
@@ -1218,7 +1241,9 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         {msg.audio_label && (
                                                             <span className="text-[9px] text-white/80 text-center leading-tight line-clamp-2 mb-0.5">{msg.audio_label}</span>
                                                         )}
-                                                        <audio src={msg.audio_url} controls className="w-[120px] h-6" style={{ transform: 'scale(0.85)' }} />
+                                                        <audio src={msg.audio_url} controls className="w-[120px] h-6" style={{ transform: 'scale(0.85)' }}
+                                                            onError={(e) => { (e.currentTarget as HTMLAudioElement).style.display = 'none'; }}
+                                                        />
                                                     </div>
                                                     <div className="text-[10px] mt-0.5 text-[var(--foreground-muted)] flex items-center gap-1">
                                                         <span>🎵 Ses</span>
