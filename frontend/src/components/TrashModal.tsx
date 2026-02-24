@@ -9,6 +9,7 @@ export interface TrashItem {
     type: "proje" | "karakter" | "lokasyon" | "wardrobe" | "plugin" | "marka" | "session" | "character" | "location" | "brand" | "asset";
     deletedAt: Date;
     imageUrl?: string;
+    assetType?: "image" | "video" | "audio"; // from original_data.type
     originalData: any;
 }
 
@@ -357,37 +358,28 @@ export function TrashModal({
                                     </button>
 
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        {/* Thumbnail for assets */}
-                                        {item.imageUrl ? (
-                                            <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 border border-[var(--border)] bg-[var(--card)]">
-                                                {item.imageUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i) ? (
-                                                    <video
-                                                        src={item.imageUrl}
-                                                        muted
-                                                        preload="metadata"
-                                                        className="w-full h-full object-cover"
-                                                        onLoadedData={(e) => {
-                                                            e.currentTarget.currentTime = 0.5;
-                                                        }}
-                                                        onError={(e) => {
-                                                            (e.currentTarget as HTMLVideoElement).style.display = 'none';
-                                                            (e.currentTarget as HTMLVideoElement).parentElement!.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="font-size:24px">🎬</span></div>';
-                                                        }}
-                                                    />
-                                                ) : item.imageUrl.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i) ? (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <span className="text-2xl">🎵</span>
-                                                    </div>
-                                                ) : (
+                                        {/* Thumbnail — assetType based */}
+                                        {item.assetType === 'video' ? (
+                                            <div className="w-14 h-14 rounded-lg shrink-0 border border-[var(--border)] bg-gradient-to-br from-purple-900/50 to-indigo-900/50 flex items-center justify-center">
+                                                <span className="text-2xl">🎬</span>
+                                            </div>
+                                        ) : item.assetType === 'audio' ? (
+                                            <div className="w-14 h-14 rounded-lg shrink-0 border border-[var(--border)] bg-gradient-to-br from-emerald-900/50 to-teal-900/50 flex items-center justify-center">
+                                                <span className="text-2xl">🎵</span>
+                                            </div>
+                                        ) : item.assetType === 'image' ? (
+                                            <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-[var(--border)] bg-gradient-to-br from-sky-900/50 to-blue-900/50 flex items-center justify-center">
+                                                {item.imageUrl ? (
                                                     <img
                                                         src={item.imageUrl}
                                                         alt={item.name}
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => {
                                                             (e.currentTarget as HTMLImageElement).style.display = 'none';
-                                                            (e.currentTarget as HTMLImageElement).parentElement!.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="font-size:24px">🖼️</span></div>';
                                                         }}
                                                     />
+                                                ) : (
+                                                    <span className="text-2xl">🖼️</span>
                                                 )}
                                             </div>
                                         ) : (

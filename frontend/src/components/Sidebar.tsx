@@ -529,6 +529,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     type: i.item_type as TrashItem["type"],
                     deletedAt: new Date(i.deleted_at),
                     imageUrl: i.original_data?.url || undefined,
+                    assetType: i.original_data?.type as TrashItem["assetType"] || undefined,
                     originalData: i.original_data || {}
                 }));
                 setTrashItems(trashList);
