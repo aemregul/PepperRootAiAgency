@@ -355,8 +355,10 @@ class LongVideoService:
             try:
                 segment.status = "generating"
                 
-                # Veo max 8s — daha uzun süreleri Kling'e yönlendir
+                # Sadece veo ve kling destekleniyor
                 model_to_use = segment.model or "veo"
+                if model_to_use not in ("veo", "kling"):
+                    model_to_use = "veo"  # Diğer modeller kaldırıldı
                 duration = int(segment.duration)
                 
                 if model_to_use == "veo" and duration > 8:

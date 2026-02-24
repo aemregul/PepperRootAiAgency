@@ -110,7 +110,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_video",
-        "description": "Video üretir (ARKA PLAN GÖREVİ). Bu araç hemen video dönmez, üretimi arka planda başlatır. Üretim bittiğinde asistan otomatik olarak yeni bir mesajla videoyu paylaşacaktır. Kullanıcıya 'başlatıldı' bilgisi ver, ama 'hazır' deme. Modeller: veo (sinematik), kling (insan/lip-sync), luma (hızlı/rüya), runway (sanatsal), minimax (aksiyon).",
+        "description": "Video üretir (ARKA PLAN GÖREVİ). Bu araç hemen video dönmez, üretimi arka planda başlatır. Üretim bittiğinde asistan otomatik olarak yeni bir mesajla videoyu paylaşacaktır. Kullanıcıya 'başlatıldı' bilgisi ver, ama 'hazır' deme. HER ZAMAN veo kullan, başarısız olursa kling'e otomatik geçer.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -120,8 +120,8 @@ AGENT_TOOLS_ANTHROPIC = [
                 "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
                 "model": {
                     "type": "string", 
-                    "enum": ["veo", "kling", "luma", "runway", "minimax"], 
-                    "description": "Kullanılacak video modeli. Konsepte göre en uygun olanı seç. Belirtilmezse veo kullanılır."
+                    "enum": ["veo"], 
+                    "description": "Video modeli. HER ZAMAN veo kullan."
                 }
             },
             "required": ["prompt"]
@@ -159,8 +159,8 @@ AGENT_TOOLS_ANTHROPIC = [
                             "reference_image_url": {"type": "string", "description": "Sahne için kullanılacak referans görselin URL'si (search_images'dan vb.)"},
                             "model": {
                                 "type": "string",
-                                "enum": ["veo", "kling", "luma", "runway", "minimax"],
-                                "description": "BU SAHNE için en uygun video modeli."
+                                "enum": ["veo"],
+                                "description": "HER ZAMAN veo kullan."
                             }
                         },
                         "required": ["prompt"]
