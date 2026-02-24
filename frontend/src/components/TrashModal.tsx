@@ -91,10 +91,19 @@ export function TrashModal({
 
     if (!isOpen) return null;
 
-    // Filtreleme
+    // Filtreleme — alias türleri de dahil et
+    const typeAliases: Record<string, string[]> = {
+        proje: ["proje", "session"],
+        karakter: ["karakter", "character"],
+        lokasyon: ["lokasyon", "location"],
+        marka: ["marka", "brand"],
+    };
     const filteredItems = activeFilter === "all"
         ? items
-        : items.filter(item => item.type === activeFilter);
+        : items.filter(item => {
+            const aliases = typeAliases[activeFilter] || [activeFilter];
+            return aliases.includes(item.type);
+        });
 
     // Kategori sayıları
     const categoryCounts = {
@@ -352,9 +361,16 @@ export function TrashModal({
                                         {item.imageUrl ? (
                                             <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-[var(--border)]">
                                                 {item.imageUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i) ? (
-                                                    <div className="w-full h-full flex items-center justify-center bg-[var(--card)]">
-                                                        <Video size={24} style={{ color: getTypeColor(item.type) }} />
-                                                    </div>
+                                                    <video
+                                                        src={item.imageUrl}
+                                                        muted
+                                                        preload="metadata"
+                                                        className="w-full h-full object-cover"
+                                                        onLoadedData={(e) => {
+                                                            const vid = e.currentTarget;
+                                                            vid.currentTime = 0.5;
+                                                        }}
+                                                    />
                                                 ) : (
                                                     <img
                                                         src={item.imageUrl}
