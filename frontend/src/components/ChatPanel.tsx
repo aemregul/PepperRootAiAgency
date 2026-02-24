@@ -277,6 +277,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         // Yeni projeye geç
         setSessionId(initialSessionId || null);
         setMessages([]);
+        hasInitialScrolled.current = false;
         setError(null);
         setIsLoading(false);
         setLoadingStatus("Düşünüyor...");
@@ -731,12 +732,31 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         }
     }, [styleDropdownOpen]);
 
-    const scrollToBottom = useCallback(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const hasInitialScrolled = useRef(false);
+
+    const scrollToBottom = useCallback((instant?: boolean) => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTo({
+                top: scrollContainerRef.current.scrollHeight,
+                behavior: instant ? 'instant' : 'smooth'
+            });
+        }
     }, []);
 
+    // Scroll on messages change
     useEffect(() => {
-        scrollToBottom();
+        if (messages.length === 0) return;
+        if (!hasInitialScrolled.current) {
+            // First load — instant scroll + delayed re-scroll for lazy media
+            hasInitialScrolled.current = true;
+            scrollToBottom(true);
+            setTimeout(() => scrollToBottom(true), 300);
+            setTimeout(() => scrollToBottom(true), 800);
+        } else {
+            // New messages — smooth scroll
+            scrollToBottom(false);
+        }
     }, [messages, scrollToBottom]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -1087,6 +1107,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
             {/* Messages */}
             <div
+                ref={scrollContainerRef}
                 className="flex-1 overflow-y-auto p-4 lg:p-6"
                 style={{ background: "var(--background)" }}
             >
