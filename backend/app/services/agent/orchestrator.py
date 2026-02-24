@@ -1809,9 +1809,14 @@ Konuşma:
                 "model": model
             }
             
-            # Üretim — Tüm modeller fal.ai üzerinden
+            # Üretim — Veo: Google SDK, diğerleri: fal.ai
             print(f"🚀 [BG] Video üretiliyor ({model}): {prompt[:50]}...")
-            result = await self.fal_plugin._generate_video(video_payload)
+            if model == "veo":
+                from app.services.google_video_service import GoogleVideoService
+                veo_svc = GoogleVideoService()
+                result = await veo_svc.generate_video(video_payload)
+            else:
+                result = await self.fal_plugin._generate_video(video_payload)
                 
             async with async_session_maker() as db:
                 if result.get("success"):
