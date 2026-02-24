@@ -140,15 +140,15 @@ AGENT_TOOLS_ANTHROPIC = [
             "required": ["video_url", "prompt"]
         }
     },
-    {
         "name": "generate_long_video",
-        "description": "Uzun video üretir (30 saniye - 3 dakika, ARKA PLAN GÖREVİ). Çok aşamalı bir işlemdir ve arka planda yürütülür. Bittiğinde asistan videoyu yeni bir mesajla paylaşacaktır. Kullanıcıya 'üretim başladı' de, bittiğini iddia etme.",
+        "description": "Uzun video üretir (30 saniye - 3 dakika, ARKA PLAN GÖREVİ). Çok aşamalı bir işlemdir ve arka planda yürütülür. ÖNEMLİ: Bu aracı çağırmadan ÖNCE kullanıcıya sahne planını göster ve ONAY al! Plan onayı OLMADAN çağırırsan HATA mesajı döner.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "prompt": {"type": "string", "description": "Video senaryosu / ana açıklama"},
                 "total_duration": {"type": "integer", "description": "Hedef süre (saniye). Min: 30, Max: 180. Varsayılan: 60"},
                 "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
+                "plan_confirmed": {"type": "boolean", "description": "ÖNCE kullanıcıya sahne planını gösterip onay aldıysan TRUE yap. Plan göstermeden çağırdıysan FALSE yap (HATA döner)."},
                 "scene_descriptions": {
                     "type": "array",
                     "items": {
@@ -159,15 +159,15 @@ AGENT_TOOLS_ANTHROPIC = [
                             "model": {
                                 "type": "string",
                                 "enum": ["veo", "kling", "luma", "runway", "minimax"],
-                                "description": "BU SAHNE için en uygun video modeli. Örn: Aksiyon için minimax, geçiş/rüya için luma, diyalog/insan yüzü için kling, sanatsal açılar için runway, en yüksek genel kalite için veo."
+                                "description": "BU SAHNE için en uygun video modeli."
                             }
                         },
                         "required": ["prompt"]
                     },
-                    "description": "Opsiyonel: Sahnelerin açıklamaları. Eğer bu sahne için internetten bulduğun harika bir görsel varsa, URL'sini ekle ki doğrudan Image-to-Video (i2v) yapılsın!"
+                    "description": "Onaylanan sahne planları"
                 }
             },
-            "required": ["prompt"]
+            "required": ["prompt", "plan_confirmed"]
         }
     },
     {

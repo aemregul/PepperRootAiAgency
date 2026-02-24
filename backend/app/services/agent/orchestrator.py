@@ -2068,6 +2068,14 @@ Konuşma:
 
     async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
         """Uzun video üret (30s - 3 dakika) - Arka plana atar."""
+        # ⛔ Plan onayı kontrolü — zorunlu
+        plan_confirmed = params.get("plan_confirmed", False)
+        if not plan_confirmed:
+            return {
+                "success": False, 
+                "error": "⛔ PLAN ONAYSIZ ÜRETİM ENGELLENDİ! Önce kullanıcıya sahne planını göster, onay al, sonra plan_confirmed=true ile tekrar çağır."
+            }
+        
         prompt = params.get("prompt", "")
         total_duration = max(30, min(180, params.get("total_duration", 60)))
         aspect_ratio = params.get("aspect_ratio", "16:9")
