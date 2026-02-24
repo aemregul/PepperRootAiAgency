@@ -2142,8 +2142,9 @@ Konuşma:
         
         return {
             "success": True,
-            "message": f"Yönetmen koltuğuna geçtim! {total_duration} saniyelik filmin sahnelerini web araştırmaları ile birleştirip arka planda render'a başladım. Çıktı hazır olduğunda sana ayrıca bir mesajla göndereceğim, beni beklemene gerek yok!",
-            "is_background_task": True
+            "message": f"🎬 Video üretimi arka planda başladı! {total_duration} saniyelik filmin {len(scene_descriptions)} sahnesi sırayla üretilecek. Hazır olduğunda otomatik bildirim gelecek.",
+            "is_background_task": True,
+            "ai_instruction": "⚠️ VİDEO HENÜZ HAZIR DEĞİL! Arka planda üretiliyor. Kullanıcıya 'videon tamam/hazır' DEME! 'Üretim başladı, hazır olduğunda bildireceğim' gibi bir mesaj yaz."
         }
     
     async def _save_style(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
