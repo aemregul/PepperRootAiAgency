@@ -691,7 +691,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                                 const p = e.currentTarget.play();
                                                                 if (p !== undefined) {
                                                                     p.catch(error => {
-                                                                        if (error.name !== 'AbortError') console.error("Video play error:", error);
+                                                                        if (error.name !== 'AbortError' && error.name !== 'NotSupportedError') console.error("Video play error:", error);
                                                                     });
                                                                 }
                                                             }}
