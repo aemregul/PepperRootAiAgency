@@ -361,9 +361,6 @@ class LongVideoService:
                     model_to_use = "veo"  # Diğer modeller kaldırıldı
                 duration = int(segment.duration)
                 
-                if model_to_use == "veo" and duration > 8:
-                    print(f"   ⚠️ Veo max 8s. Sahne {segment.order+1} ({duration}s) → Kling")
-                    model_to_use = "kling"
                 
                 payload = {
                     "prompt": segment.prompt,

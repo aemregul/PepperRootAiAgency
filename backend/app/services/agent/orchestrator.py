@@ -1923,10 +1923,6 @@ Konuşma:
             # Eğer image-to-video isteniyorsa ama görsel yoksa, BG'de beklemesi yerine burada generate_image yapamaz mı? 
             # Hayır, her şey BG'ye gidebilir. Ama user'a hemen bir şey döndürmemiz lazım.
             
-            # Veo max 8s destekliyor — >8s isteklerini Kling'e yönlendir
-            if model == "veo" and int(duration) > 8:
-                print(f"⚠️ Veo max 8s. {duration}s istenmiş — Kling’e yönlendiriliyor.")
-                model = "kling"
             
             import asyncio
             task = asyncio.create_task(
