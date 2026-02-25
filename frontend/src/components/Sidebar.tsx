@@ -17,8 +17,7 @@ import {
     ImageIcon,
     Search,
     Plus,
-    Sun,
-    Moon,
+
     Menu,
     X,
     Settings,
@@ -301,7 +300,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt, onSetInputText, onPluginsLoaded, onAssetRestore }: SidebarProps) {
-    const { theme, toggleTheme } = useTheme();
+    const { theme } = useTheme();
     const { user, logout } = useAuth();
     const toast = useToast();
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -1021,11 +1020,6 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     <button className="rail-btn" onClick={() => setAdminOpen(true)}>
                         <Shield size={24} />
                         <span className="rail-label">Admin</span>
-                    </button>
-
-                    <button className="rail-btn" onClick={toggleTheme}>
-                        {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
-                        <span className="rail-label">{theme === 'dark' ? 'Açık Tema' : 'Koyu Tema'}</span>
                     </button>
 
                     <div className="rail-divider" />
