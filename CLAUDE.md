@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (19 Şubat 2026 - 23:45)
+## 📊 Genel Durum (26 Şubat 2026 - 02:55)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -56,10 +56,11 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 | Hafta 10: UI Redesign + Localization | ✅ Tamamlandı | %100 |
 | Hafta 11: Gemini + Multi-Image + Edit Pipeline | ✅ Tamamlandı | %100 |
 | Hafta 12: Video Robustness + Face Intelligence | ✅ Tamamlandı | %100 |
-- **21 Şubat 2026:** Faz 12-19.5 Tamamlandı. (Video Polling, Intelligent Face Selection, Async Stability)
-  - **Intelligent Reference:** GPT-4o Vision ile çoklu referanslar arasından en uygununu seçme.
-  - **Video Robustness:** Google Veo 3.1 LRO polling ve asenkron stabilite iyileştirmeleri.
-  - **Fail-Safe Video:** Arka pilan görev hatalarının sohbete anlık yansıtılması.
+| Hafta 13: Multi-Model AI Engine + Agent-Driven Selection | ✅ Tamamlandı | %100 |
+- **26 Şubat 2026:** 47 AI modeli entegre edildi. Agent-driven model seçimi aktif.
+  - **47 Model:** 9 kategori (Image 9, Edit 6, Face 3, Video 15, Audio 1, Speech 4, Upscale 3, Utility 3)
+  - **Agent-Driven Selection:** GPT-4o içerik analizi yapıp en uygun modeli seçiyor
+  - **Yeni Modeller:** Sora 2, GPT Image 1, Flux.2, Seedance 1.5, Hailuo 02, ElevenLabs TTS, Mirelo SFX
 
 ---
 
@@ -289,22 +290,30 @@ git add . && git commit -m "mesaj" && git push
 - **Secondary LLM:** Claude Sonnet 4 (Vision için)
 - **Cache:** Redis (alpine container)
 - fal-client v0.12.0
-- Modeller: Nano Banana Pro, Nano Banana Pro Edit, GPT Image 1, FLUX Kontext Pro, Kling 2.5 Turbo Pro, Topaz, BiRefNet V2
+- **47 AI Modeli (9 Kategori):**
+  - Görsel: Nano Banana Pro, Flux.2, Flux 2 Max, GPT Image 1, Reve, Seedream 4.5, Flux Kontext, Recraft V3, Flux Schnell
+  - Edit: Nano Banana Edit, Flux Kontext, Qwen Image Edit/Max, Seedream 4.5 Edit, Fibo Edit
+  - Video: Kling 3.0, Sora 2, Veo 3.1, Seedance 1.5, Hailuo 02, Kling 2.5, Kling O1, LTX-2, PixVerse V5
+  - Ses: Mirelo SFX v1.5, ElevenLabs TTS, MiniMax Speech-02, Kokoro TTS, Whisper v3
+  - Utility: Topaz Upscale, Crystal Upscaler, BiRefNet, NSFW Filter
 
 ---
 
-## 🎯 SON DURUM (21 Şubat 2026 - 02:20)
+## 🎯 SON DURUM (26 Şubat 2026 - 02:55)
 
 **🚀 FAZLAR + YENİ ÖZELLİKLER:**
 
 - ✅ **Faz 1-10:** Tamamlandı (detaylar yukarıda)
 - ✅ **Faz 11:** Çoklu Görsel Yükleme (Max 10) & Gemini Image Edit
-- ✅ **Faz 12-13:** Implicit Core Memory (Kullanıcıyı dolaylı yoldan tanıma ve hafızaya kaydetme)
-- ✅ **Faz 14-15:** Web-Aware Vision (Eksik detayları web'ten arayıp görsele yedirme, analiz etme)
-- ✅ **Faz 16:** Autonomous Video Director (Uzun videoların arka planda *BackgroundTasks* ile üretilmesi ve işlem bitince *WebSocket* üzerinden push bildirim atması)
-- 🟡 **Faz 17:** Smart Multi-Model Video Engine (Kling, Luma, Runway, Minimax, Veo 3.1) — **SIRADA**
+- ✅ **Faz 12-13:** Implicit Core Memory
+- ✅ **Faz 14-15:** Web-Aware Vision
+- ✅ **Faz 16:** Autonomous Video Director (BackgroundTasks + WebSocket)
+- ✅ **Faz 17:** Smart Multi-Model Video Engine (Kling, Veo 3.1)
+- ✅ **Faz 18-19.5:** Documentation & Robustness
+- ✅ **Faz 20:** Multi-Model AI Engine (47 model, 9 kategori) ⭐ YENİ
+- ✅ **Faz 21:** Agent-Driven Model Selection (GPT-4o model seçimi) ⭐ YENİ
 
-**Toplam Kod:** 8000+ satır | **28 Agent Tool**
+**Toplam Kod:** 10000+ satır | **28+ Agent Tool** | **47 AI Modeli**
 
 ---
 
@@ -328,20 +337,36 @@ git add . && git commit -m "mesaj" && git push
 - **Safety Refusal Bypass:** Softened prompts to avoid GPT-4o "I can't identify people" refusals for fictional characters.
 
 ### Current Fokus & Roadmap
-- [ ] Phase 20: Full Autonomous Studio Orchestration (Planned)
-- [ ] Phase 21: Real-time Interactive Video Editing (Planned)
-- [ ] Phase 22: Audio-Visual Synchronization (Planned)
-- [ ] **Kısa Video Optimizasyonu:** `generate_video` aracının da senkrandan asenkrona (BackgroundTasks) taşınması
-- [ ] **Video Yükleme Desteği:**
-  - [ ] File picker'da video kabul (mp4, mov, webm)
-  - [ ] 10 saniye limit kontrolü
-  - [ ] ffmpeg frame extraction → GPT-4o Vision
-  - [ ] Video URL'yi tool'lara referans olarak geçirme
-- [ ] **Kalite Değerlendirmesi (Kullanıcı):**
-  - [ ] Görsel kalitesi (Gemini/ChatGPT seviyesi)
-  - [ ] Video kalitesi
-  - [ ] Yüz tutarlılığı (face consistency)
-  - [ ] Entity sadakati
+- ✅ Phase 20: Multi-Model AI Engine (47 model entegrasyonu) — **TAMAMLANDI**
+- ✅ Phase 21: Agent-Driven Model Selection (GPT-4o model seçimi) — **TAMAMLANDI**
+- [ ] Phase 22: Full Autonomous Studio Orchestration (Planned)
+- [ ] Phase 23: Real-time Interactive Video Editing (Planned)
+- [ ] Phase 24: Audio-Visual Synchronization (Planned)
+- [ ] **Deploy:** Railway (Backend) + Vercel (Frontend)
+
+### 🎬 47 Model AI Engine & Agent-Driven Selection (26 Şubat 2026) ⭐ YENİ
+
+1. **47 AI Modeli Entegrasyonu (`fal_models.py`):**
+   - Görsel Üretim (9): Nano Banana Pro, Flux.2, Flux 2 Max, GPT Image 1, Reve, Seedream 4.5, Flux Kontext, Recraft V3, Flux Schnell
+   - Görsel Edit (6): Nano Banana Edit, Flux Kontext, Qwen Image Edit, Qwen Image Max Edit, Seedream 4.5 Edit, Fibo Edit
+   - Video Üretim (15): Kling 3.0 (i2v/t2v), Sora 2 (i2v/t2v), Veo 3.1 (i2v/t2v), Seedance 1.5 (i2v/t2v), Hailuo 02 (i2v/t2v), Kling 2.5 Turbo (i2v/t2v), Kling O1, LTX-2, PixVerse V5
+   - Ses Efekti (1): Mirelo SFX v1.5 (video→audio)
+   - Konuşma (4): ElevenLabs TTS Turbo v2.5, MiniMax Speech-02, Kokoro TTS, Whisper v3 (STT)
+   - Yüz (3), Upscale (3), Utility (3)
+
+2. **Agent-Driven Model Selection (`fal_plugin_v2.py`):**
+   - GPT-4o prompt içeriğini analiz ederek en uygun modeli SEÇİYOR
+   - `IMAGE_MODEL_MAP`: nano_banana, flux2, flux2_max, gpt_image, reve, seedream, recraft
+   - `VIDEO_MODEL_MAP`: kling, sora2, veo, seedance, hailuo
+   - Keyword tabanı yerine AI analizi ile model seçimi ("auto" fallback korunuyor)
+   - Örnek: "Ghibli tarzı kız" → GPT Image 1 | "20s hikaye" → Sora 2 | "kısa clip" → Hailuo 02
+
+3. **Smart Router Güncellendi:**
+   - Video fallback zinciri: 5 model (Kling → Sora 2 → Veo 3.1 → Seedance → Hailuo)
+   - Edit fallback zinciri: 5 model (Flux Kontext → Flux Pro Kontext → Qwen Edit → OmniGen → Flux Inpaint)
+   - Image fallback zinciri: 3 model (Nano Banana → Flux.2 → Reve)
+
+4. **Yeni Plugin Actions:** `text_to_speech`, `video_to_audio` (FalPluginV2 → 13 aksiyon)
 
 ---
 
@@ -414,7 +439,7 @@ git add . && git commit -m "mesaj" && git push
 
 3. **Plugin CRUD Testi:** create → list → delete zinciri sorunsuz
 
-4. **FalPluginV2:** 11 aksiyon (generate_image, video, edit, upscale, face_swap, outpaint, style)
+4. **FalPluginV2:** 13 aksiyon (generate_image, video, edit_image, edit_video, upscale_image/video, face_swap, smart_generate, outpaint, style, text_to_speech, video_to_audio)
 
 ### 🧩 Plugin & Stil Entegrasyonu (19 Şubat) ⭐ YENİ
 
