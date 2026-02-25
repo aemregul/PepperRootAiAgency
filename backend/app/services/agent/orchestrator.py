@@ -614,19 +614,22 @@ Kurallar:
                 content="".join(text_tokens) if text_tokens else None
             )
             
-            # Detect image generation tools -> emit generation_start BEFORE execution
-            IMAGE_GEN_TOOLS = {"generate_image", "edit_image"}
-            image_gen_detected = []
+            # Detect generation tools -> emit generation_start BEFORE execution
+            GENERATION_TOOLS = {"generate_image", "edit_image", "generate_video", "generate_long_video"}
+            gen_detected = []
             for tc in tool_calls_acc.values():
-                if tc["name"] in IMAGE_GEN_TOOLS:
+                if tc["name"] in GENERATION_TOOLS:
                     try:
                         args = json.loads(tc["arguments"])
-                        image_gen_detected.append({"type": "image", "prompt": args.get("prompt", "")[:80]})
+                        if tc["name"] in ("generate_video", "generate_long_video"):
+                            gen_detected.append({"type": "video", "prompt": args.get("prompt", "")[:80], "duration": args.get("duration") or args.get("total_duration")})
+                        else:
+                            gen_detected.append({"type": "image", "prompt": args.get("prompt", "")[:80]})
                     except:
-                        image_gen_detected.append({"type": "image", "prompt": ""})
+                        gen_detected.append({"type": "video" if "video" in tc["name"] else "image", "prompt": ""})
             
-            if image_gen_detected:
-                yield f"event: generation_start\ndata: {json.dumps(image_gen_detected, ensure_ascii=False)}\n\n"
+            if gen_detected:
+                yield f"event: generation_start\ndata: {json.dumps(gen_detected, ensure_ascii=False)}\n\n"
             
             await self._process_tool_calls_for_stream(
                 fake_message, messages, result, session_id, db, full_system_prompt
@@ -640,13 +643,10 @@ Kurallar:
             if result["entities_created"]:
                 yield f"event: entities\ndata: {json.dumps(result['entities_created'], ensure_ascii=False, default=str)}\n\n"
             
-            # Image gen complete -> tell frontend to dismiss progress card
-            if image_gen_detected:
+            # Image gen complete -> dismiss image progress cards
+            image_gens = [g for g in gen_detected if g["type"] == "image"]
+            if image_gens:
                 yield f'event: generation_complete\ndata: {{"type": "image"}}\n\n'
-            
-            # Background generation started? Tell frontend to show progress card
-            if result.get("_bg_generations"):
-                yield f"event: generation_start\ndata: {json.dumps(result['_bg_generations'], ensure_ascii=False)}\n\n"
             
             # Tool call sonrası final yanıt — STREAM olarak
             final_stream = await self.async_client.chat.completions.create(
