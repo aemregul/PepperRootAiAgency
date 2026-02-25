@@ -524,7 +524,8 @@ Kurallar:
             "_resolved_entities": [],
             "_current_reference_image": reference_image,
             "_uploaded_image_url": uploaded_image_url,
-            "_last_generated_image_url": last_generated_image_url
+            "_last_generated_image_url": last_generated_image_url,
+            "_bg_generations": []
         }
         
         user_id = await get_user_id_from_session(db, session_id)
@@ -624,6 +625,10 @@ Kurallar:
                 yield f"event: videos\ndata: {json.dumps(result['videos'], ensure_ascii=False)}\n\n"
             if result["entities_created"]:
                 yield f"event: entities\ndata: {json.dumps(result['entities_created'], ensure_ascii=False, default=str)}\n\n"
+            
+            # Background generation started? Tell frontend to show progress card
+            if result.get("_bg_generations"):
+                yield f"event: generation_start\ndata: {json.dumps(result['_bg_generations'], ensure_ascii=False)}\n\n"
             
             # Tool call sonrası final yanıt — STREAM olarak
             final_stream = await self.async_client.chat.completions.create(
@@ -767,6 +772,10 @@ Kurallar:
             
             if tool_result.get("success") and tool_result.get("entity"):
                 result["entities_created"].append(tool_result["entity"])
+            
+            # Track background generation tasks for progress card
+            if tool_result.get("_bg_generation"):
+                result["_bg_generations"].append(tool_result["_bg_generation"])
             
             # SimpleNamespace veya Pydantic olabilir, her ikisi için de çalışır
             tool_call_dict = {
@@ -1813,12 +1822,15 @@ Konuşma:
             
             # Üretim — Veo: Google SDK, diğerleri: fal.ai
             print(f"🚀 [BG] Video üretiliyor ({model}): {prompt[:50]}...")
+            await progress_service.send_progress(session_id, "video", 0.10, "Üretim başlatıldı")
             if model == "veo":
                 from app.services.google_video_service import GoogleVideoService
                 veo_svc = GoogleVideoService()
                 result = await veo_svc.generate_video(video_payload)
             else:
                 result = await self.fal_plugin._generate_video(video_payload)
+            
+            await progress_service.send_progress(session_id, "video", 0.70, "Video hazırlanıyor")
                 
             async with async_session_maker() as db:
                 if result.get("success"):
@@ -1826,6 +1838,7 @@ Konuşma:
                     model_name = result.get("model", model)
                     
                     # Asset Kaydet (PROJE session'a)
+                    await progress_service.send_progress(session_id, "video", 0.90, "Kaydediliyor")
                     await asset_service.save_asset(
                         db=db,
                         session_id=uuid.UUID(asset_sid),
@@ -1956,7 +1969,8 @@ Konuşma:
             return {
                 "success": True,
                 "message": f"Harika bir fikir! {duration} saniyelik videonu {model.upper()} ile arka planda üretmeye başladım. ({decision}). Hazır olduğunda sana bildirim atacağım!",
-                "is_background_task": True
+                "is_background_task": True,
+                "_bg_generation": {"type": "video", "prompt": prompt[:80], "duration": duration}
             }
         
         except Exception as e:
@@ -2115,7 +2129,8 @@ Konuşma:
             "success": True,
             "message": f"🎬 Video üretimi arka planda başladı! {total_duration} saniyelik filmin {len(scene_descriptions)} sahnesi sırayla üretilecek. Hazır olduğunda otomatik bildirim gelecek.",
             "is_background_task": True,
-            "ai_instruction": "⚠️ VİDEO HENÜZ HAZIR DEĞİL! Arka planda üretiliyor. Kullanıcıya 'videon tamam/hazır' DEME! 'Üretim başladı, hazır olduğunda bildireceğim' gibi bir mesaj yaz."
+            "ai_instruction": "⚠️ VİDEO HENÜZ HAZIR DEĞİL! Arka planda üretiliyor. Kullanıcıya 'videon tamam/hazır' DEME! 'Üretim başladı, hazır olduğunda bildireceğim' gibi bir mesaj yaz.",
+            "_bg_generation": {"type": "long_video", "prompt": prompt[:80], "duration": total_duration}
         }
     
     async def _save_style(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:

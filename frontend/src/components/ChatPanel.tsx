@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn, Palette, Download } from "lucide-react";
 import { useToast } from "./ToastProvider";
 import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory } from "@/lib/api";
+import { GenerationProgressCard } from "./GenerationProgressCard";
 
 interface Message {
     id: string;
@@ -256,6 +257,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [activeGenerations, setActiveGenerations] = useState<Array<{ type: string; prompt?: string; duration?: string | number }>>([]);
     const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
     const [isConnected, setIsConnected] = useState<boolean | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -1020,6 +1022,9 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     onStatus: (status: string) => {
                         setLoadingStatus(status);
                     },
+                    onGenerationStart: (generations) => {
+                        setActiveGenerations(generations);
+                    },
                     onError: (error: string) => {
                         console.error('Stream error:', error);
                     },
@@ -1329,6 +1334,30 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         `}</style>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Generation Progress Cards */}
+                    {activeGenerations.length > 0 && (
+                        <div className="flex gap-3 mb-4">
+                            <div className="chat-avatar assistant-avatar shrink-0">
+                                <span>🤖</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                {activeGenerations.map((gen, i) => (
+                                    <GenerationProgressCard
+                                        key={`gen-${i}`}
+                                        type={gen.type as "video" | "long_video" | "image"}
+                                        prompt={gen.prompt}
+                                        duration={gen.duration}
+                                        sessionId={sessionId || ""}
+                                        onComplete={() => {
+                                            setActiveGenerations((prev) => prev.filter((_, idx) => idx !== i));
+                                            onNewAsset?.({ url: '', type: 'refresh' });
+                                        }}
+                                    />
+                                ))}
                             </div>
                         </div>
                     )}

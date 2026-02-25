@@ -213,6 +213,7 @@ export async function sendMessageStream(
         onVideos?: (videos: Array<{ url: string; prompt?: string; thumbnail_url?: string }>) => void;
         onEntities?: (entities: unknown[]) => void;
         onStatus?: (status: string) => void;
+        onGenerationStart?: (generations: Array<{ type: string; prompt?: string; duration?: string | number }>) => void;
         onDone?: () => void;
         onError?: (error: string) => void;
     },
@@ -283,6 +284,9 @@ export async function sendMessageStream(
                     break;
                 case 'done':
                     callbacks?.onDone?.();
+                    break;
+                case 'generation_start':
+                    try { callbacks?.onGenerationStart?.(JSON.parse(data)); } catch { /* ignore */ }
                     break;
                 case 'error':
                     try { callbacks?.onError?.(JSON.parse(data)); } catch { callbacks?.onError?.(data); }

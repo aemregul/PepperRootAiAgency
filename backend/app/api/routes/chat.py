@@ -4,7 +4,7 @@ Mesajlar ana chat session'a, asset'ler aktif projeye kaydedilir.
 """
 from uuid import UUID
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, WebSocket, WebSocketDisconnect
 from typing import List
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -520,3 +520,22 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
         }
     )
+
+
+# WebSocket — gerçek zamanlı üretim ilerleme takibi
+@router.websocket("/ws/progress/{session_id}")
+async def progress_websocket(websocket: WebSocket, session_id: str):
+    """Arka plan görevlerinin ilerleme bilgisini gerçek zamanlı gönderir."""
+    from app.services.progress_service import progress_service
+    
+    await websocket.accept()
+    progress_service.register(session_id, websocket)
+    print(f"🔌 Progress WS connected: {session_id[:8]}...")
+    
+    try:
+        while True:
+            # Client'tan gelen ping/pong mesajları
+            await websocket.receive_text()
+    except (WebSocketDisconnect, Exception):
+        progress_service.unregister(session_id, websocket)
+        print(f"🔌 Progress WS disconnected: {session_id[:8]}...")
