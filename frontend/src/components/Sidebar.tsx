@@ -1047,8 +1047,8 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                 style={{
                                     position: 'fixed', bottom: 16, left: 72,
                                     width: 220, borderRadius: 12, overflow: 'hidden',
-                                    background: 'rgba(12, 15, 24, 0.97)', border: '1px solid rgba(255,255,255,0.1)',
-                                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 99999,
+                                    background: 'var(--card)', border: '1px solid var(--border)',
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 99999,
                                     backdropFilter: 'blur(20px)'
                                 }}
                             >
