@@ -23,7 +23,7 @@ def convert_to_openai_tools(anthropic_tools: list) -> list:
 AGENT_TOOLS_ANTHROPIC = [
     {
         "name": "generate_image",
-        "description": "Kullanıcının isteğine göre AI görseli üretir. Smart Router otomatik olarak en iyi modeli seçer: metin/logo/tipografi içeren promptlar için FLUX 2 Flex, genel görseller için Nano Banana Pro. Bir model başarısız olursa otomatik fallback yapılır. Eğer @tag ile referans verilen bir entity varsa, onun özelliklerini prompt'a ekle.",
+        "description": "Kullanıcının isteğine göre AI görseli üretir. Model parametresiyle en uygun modeli SEÇ. Model belirtmezsen Smart Router otomatik seçer ama SEN seçersen daha iyi sonuç çıkar. Eğer @tag ile referans verilen bir entity varsa, onun özelliklerini prompt'a ekle.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -38,8 +38,8 @@ AGENT_TOOLS_ANTHROPIC = [
                 },
                 "model": {
                     "type": "string",
-                    "enum": ["fal-ai/nano-banana-pro", "fal-ai/flux-2-flex"],
-                    "description": "Opsiyonel: Belirli bir model seçimi. Belirtilmezse Smart Router otomatik seçer. FLUX 2 Flex metin render'da daha iyi, Nano Banana Pro fotogerçekçi."
+                    "enum": ["auto", "nano_banana", "flux2", "flux2_max", "gpt_image", "reve", "seedream", "recraft"],
+                    "description": "Görsel modeli seç. auto=Smart Router. nano_banana=Fotorealist/portre(varsayılan). flux2=Hızlı+metin/tipografi. flux2_max=Maksimum kalite/detay. gpt_image=Anime/Ghibli/cartoon/illüstrasyon. reve=Yaratıcı/sanatsal. seedream=Hızlı+ucuz. recraft=Logo/vektör/marka."
                 },
                 "resolution": {
                     "type": "string",
@@ -120,8 +120,8 @@ AGENT_TOOLS_ANTHROPIC = [
                 "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"], "description": "Video oranı"},
                 "model": {
                     "type": "string", 
-                    "enum": ["veo"], 
-                    "description": "Video modeli. HER ZAMAN veo kullan."
+                    "enum": ["auto", "kling", "sora2", "veo", "seedance", "hailuo"], 
+                    "description": "Video modeli seç. auto=Smart Router(varsayılan). kling=En güvenilir, çoklu sahne(varsayılan). sora2=En uzun süre(~20s), çoklu sahne+ses, hikaye anlatımı. veo=En iyi fizik simülasyonu, sinematik, belgesel. seedance=Hızlı+ucuz, iyi kalite. hailuo=En hızlı(~5s), kısa clip/sosyal medya."
                 }
             },
             "required": ["prompt"]
@@ -159,8 +159,8 @@ AGENT_TOOLS_ANTHROPIC = [
                             "reference_image_url": {"type": "string", "description": "Sahne için kullanılacak referans görselin URL'si (search_images'dan vb.)"},
                             "model": {
                                 "type": "string",
-                                "enum": ["veo"],
-                                "description": "HER ZAMAN veo kullan."
+                                "enum": ["auto", "kling", "sora2", "veo", "seedance", "hailuo"],
+                                "description": "Sahne video modeli. auto=varsayılan. Tercih: sora2 (uzun/hikaye), veo (sinematik), kling (genel)."
                             }
                         },
                         "required": ["prompt"]

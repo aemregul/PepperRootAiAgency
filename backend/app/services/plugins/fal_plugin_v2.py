@@ -174,7 +174,8 @@ class FalPluginV2(PluginBase):
     # Model fallback zincirleri — bir model başarısız olursa sıradaki denenir
     IMAGE_MODEL_CHAIN = [
         "fal-ai/nano-banana-pro",
-        "fal-ai/flux-2-flex",
+        "fal-ai/flux-2",
+        "fal-ai/reve/text-to-image",
     ]
     
     VIDEO_MODEL_CHAIN = [
@@ -193,15 +194,37 @@ class FalPluginV2(PluginBase):
         "fal-ai/flux-general/inpainting",
     ]
     
-    def _select_image_model(self, prompt: str) -> str:
+    # Agent shortcode → endpoint mapping
+    IMAGE_MODEL_MAP = {
+        "nano_banana": "fal-ai/nano-banana-pro",
+        "flux2": "fal-ai/flux-2",
+        "flux2_max": "fal-ai/flux-2-max",
+        "gpt_image": "fal-ai/gpt-image-1-mini",
+        "reve": "fal-ai/reve/text-to-image",
+        "seedream": "fal-ai/bytedance/seedream/v4.5/text-to-image",
+        "recraft": "fal-ai/recraft/v3/text-to-image",
+    }
+    
+    VIDEO_MODEL_MAP = {
+        "kling": {"i2v": "fal-ai/kling-video/v3/pro/image-to-video", "t2v": "fal-ai/kling-video/v3/pro/text-to-video"},
+        "sora2": {"i2v": "fal-ai/sora-2/image-to-video/pro", "t2v": "fal-ai/sora-2/text-to-video/pro"},
+        "veo": {"i2v": "fal-ai/veo3.1/image-to-video", "t2v": "fal-ai/veo3.1/text-to-video"},
+        "seedance": {"i2v": "fal-ai/bytedance/seedance/v1.5/pro/image-to-video", "t2v": "fal-ai/bytedance/seedance/v1.5/pro/fast/text-to-video"},
+        "hailuo": {"i2v": "fal-ai/minimax/hailuo-02/standard/image-to-video", "t2v": "fal-ai/minimax/hailuo-02/standard/text-to-video"},
+    }
+    
+    def _select_image_model(self, prompt: str, agent_model: str = "auto") -> str:
         """
-        Smart Model Router — prompt'a göre en iyi görsel modelini seç.
+        Smart Model Router — agent'ın model seçimini öncelikle kullan,
+        yoksa prompt'a göre en iyi görsel modelini seç.
+        """
+        # Agent belirli bir model seçtiyse → direkt kullan
+        if agent_model and agent_model != "auto" and agent_model in self.IMAGE_MODEL_MAP:
+            endpoint = self.IMAGE_MODEL_MAP[agent_model]
+            logger.info(f"🎯 Agent Model Seçimi: {agent_model} → {endpoint}")
+            return endpoint
         
-        - Ghibli/anime/cartoon → GPT Image 1 (bu stilde en iyi)
-        - Metin/logo/tipografi → Flux.2 (metin render'da en iyi)
-        - Premium/detaylı → Flux 2 Max
-        - Fotogerçekçi/genel → Nano Banana Pro (hız + kalite dengesi)
-        """
+        # Auto mod — prompt analizi ile seç
         prompt_lower = prompt.lower()
         
         # Anime/Ghibli/cartoon/illustration tarzı
@@ -242,18 +265,21 @@ class FalPluginV2(PluginBase):
         logger.info("🎯 Smart Router: Nano Banana Pro seçildi (varsayılan)")
         return "fal-ai/nano-banana-pro"
     
-    def _select_video_model(self, prompt: str, has_image: bool) -> str:
+    def _select_video_model(self, prompt: str, has_image: bool, agent_model: str = "auto") -> str:
         """
-        Smart Video Model Router.
-        
-        - Uzun/hikaye/narrative → Sora 2 (~20s, çoklu sahne)
-        - Sinematik/gerçekçi/fizik → Veo 3.1 (Google, fizik simülasyonu)
-        - Kısa/hızlı/sosyal medya → Hailuo 02 (~5s, en hızlı)
-        - Ucuz/hızlı → Seedance 1.5 (dengeli maliyet)
-        - Genel → Kling 3.0 Pro (varsayılan, en güvenilir)
+        Smart Video Model Router — agent'ın model seçimini öncelikle kullan,
+        yoksa prompt'a göre en iyi video modelini seç.
         """
-        prompt_lower = prompt.lower()
         mode = "i2v" if has_image else "t2v"
+        
+        # Agent belirli bir model seçtiyse → direkt kullan
+        if agent_model and agent_model != "auto" and agent_model in self.VIDEO_MODEL_MAP:
+            endpoint = self.VIDEO_MODEL_MAP[agent_model][mode]
+            logger.info(f"🎯 Agent Model Seçimi: {agent_model} → {endpoint}")
+            return endpoint
+        
+        # Auto mod — prompt analizi ile seç
+        prompt_lower = prompt.lower()
         
         # Uzun video / hikaye anlatımı → Sora 2
         long_keywords = [
@@ -263,7 +289,7 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in long_keywords):
-            endpoint = "fal-ai/sora-2/image-to-video/pro" if has_image else "fal-ai/sora-2/text-to-video/pro"
+            endpoint = self.VIDEO_MODEL_MAP["sora2"][mode]
             logger.info(f"🎯 Smart Router: Sora 2 seçildi (uzun/hikaye) — {endpoint}")
             return endpoint
         
@@ -275,7 +301,7 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in cinematic_keywords):
-            endpoint = "fal-ai/veo3.1/image-to-video" if has_image else "fal-ai/veo3.1/text-to-video"
+            endpoint = self.VIDEO_MODEL_MAP["veo"][mode]
             logger.info(f"🎯 Smart Router: Veo 3.1 seçildi (sinematik) — {endpoint}")
             return endpoint
         
@@ -287,7 +313,7 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in short_keywords):
-            endpoint = "fal-ai/minimax/hailuo-02/standard/image-to-video" if has_image else "fal-ai/minimax/hailuo-02/standard/text-to-video"
+            endpoint = self.VIDEO_MODEL_MAP["hailuo"][mode]
             logger.info(f"🎯 Smart Router: Hailuo 02 seçildi (kısa/hızlı) — {endpoint}")
             return endpoint
         
@@ -308,7 +334,7 @@ class FalPluginV2(PluginBase):
         prompt = params.get("prompt", "")
         aspect_ratio = params.get("aspect_ratio", "1:1")
         resolution = params.get("resolution", "1K")
-        preferred_model = params.get("model")  # Opsiyonel: Agent belirli model isteyebilir
+        preferred_model = params.get("model", "auto")  # Agent model shortcode (nano_banana, flux2, gpt_image, etc.)
         
         # Resolution mapping
         resolution_map = {
@@ -332,8 +358,8 @@ class FalPluginV2(PluginBase):
             w, h = res_config[aspect_type]
             image_size = {"width": w, "height": h}
         
-        # Smart Model Router: En iyi modeli seç
-        selected_model = preferred_model or self._select_image_model(prompt)
+        # Smart Model Router: Agent seçimi veya prompt analizi
+        selected_model = self._select_image_model(prompt, agent_model=preferred_model)
         
         # Auto-Retry Fallback zinciri oluştur
         models_to_try = [selected_model]
@@ -390,66 +416,40 @@ class FalPluginV2(PluginBase):
     
     async def _generate_video(self, params: dict) -> dict:
         """
-        Smart Multi-Model Video Generation (Kling, Luma, Runway, Minimax)
+        Smart Multi-Model Video Generation — Agent Model Seçimi + Smart Router.
         """
         prompt = params.get("prompt", "")
         image_url = params.get("image_url")  # Opsiyonel - image-to-video
         duration = params.get("duration", "5")  
-        preferred_model = params.get("model", "kling")  # Varsayılan kling
+        agent_model = params.get("model", "auto")  # Agent shortcode: kling, sora2, veo, seedance, hailuo, auto
         
         has_image = bool(image_url)
         mode = "i2v" if has_image else "t2v"
         
-        # Model Enum -> Fal.ai Endpoint Mapping
-        # Not: Fal.ai endpoint isimleri sürekli değişebilir, en stabil bilinenleri kullanıyoruz
-        model_endpoints = {
-            "kling": {
-                "i2v": "fal-ai/kling-video/v3/pro/image-to-video",
-                "t2v": "fal-ai/kling-video/v3/pro/text-to-video"
-            },
-            "luma": {
-                "i2v": "fal-ai/luma-dream-machine/ray-2/image-to-video",
-                "t2v": "fal-ai/luma-dream-machine/ray-2"
-            },
-            "runway": {
-                "i2v": "fal-ai/runway-gen3/turbo/image-to-video",
-                "t2v": "fal-ai/runway-gen3/turbo/text-to-video"
-            },
-            "minimax": {
-                "i2v": "fal-ai/minimax-video/image-to-video",
-                "t2v": "fal-ai/minimax-video"
-            },
-            "veo": {
-                "i2v": "fal-ai/veo3.1/image-to-video",
-                "t2v": "fal-ai/veo3.1/text-to-video"
-            }
-        }
+        # Smart Router: Agent seçimi veya prompt analizi ile model belirle
+        selected_endpoint = self._select_video_model(prompt, has_image, agent_model=agent_model)
         
-        # Güvenlik kontrolü
-        if preferred_model not in model_endpoints:
-            logger.warning(f"Bilinmeyen video modeli '{preferred_model}'. Kling'e fallback yapılıyor.")
-            preferred_model = "kling"
-            
-        selected_endpoint = model_endpoints[preferred_model][mode]
-        logger.info(f"🎥 Video model seçildi: {preferred_model.upper()} ({selected_endpoint})")
+        # Hangi model ailesine ait? (duration formatı için)
+        model_family = agent_model if agent_model != "auto" else "kling"
+        for family, endpoints in self.VIDEO_MODEL_MAP.items():
+            if selected_endpoint in endpoints.values():
+                model_family = family
+                break
+        
+        logger.info(f"🎥 Video model seçildi: {model_family.upper()} ({selected_endpoint})")
         
         try:
             # Model-specific duration formatting
             dur_int = int(duration)
             
-            if preferred_model == "luma":
-                # Luma Ray2 requires '5s' or '9s' format
-                formatted_duration = "9s" if dur_int > 5 else "5s"
-            elif preferred_model == "runway":
-                formatted_duration = 5 if dur_int <= 5 else 10
-            elif preferred_model == "veo":
+            if model_family == "veo":
                 # Veo uses durationSeconds (4-8 range)
                 formatted_duration = max(4, min(8, dur_int))
             else:
                 formatted_duration = duration
             
             # Model-specific arguments
-            if preferred_model == "veo":
+            if model_family == "veo":
                 arguments = {
                     "prompt": prompt,
                     "durationSeconds": formatted_duration,
@@ -532,14 +532,14 @@ class FalPluginV2(PluginBase):
                     "success": True,
                     "video_url": result["video"]["url"],
                     "thumbnail_url": result["video"].get("thumbnail_url"),
-                    "model": preferred_model,
+                    "model": model_family,
                     "model_id": selected_endpoint,
                 }
             else:
                 return {"success": False, "error": f"API yanıtı geçersiz. Sonuç: {result}"}
                 
         except Exception as e:
-            logger.error(f"⚠️ {preferred_model} ({selected_endpoint}) video üretimi başarısız: {e}")
+            logger.error(f"⚠️ {model_family} ({selected_endpoint}) video üretimi başarısız: {e}")
             return {"success": False, "error": f"Video generation failed: {str(e)}"}
     
     async def _edit_image(self, params: dict) -> dict:
