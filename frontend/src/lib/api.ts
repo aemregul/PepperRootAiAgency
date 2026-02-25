@@ -214,6 +214,7 @@ export async function sendMessageStream(
         onEntities?: (entities: unknown[]) => void;
         onStatus?: (status: string) => void;
         onGenerationStart?: (generations: Array<{ type: string; prompt?: string; duration?: string | number }>) => void;
+        onGenerationComplete?: (data: { type: string }) => void;
         onDone?: () => void;
         onError?: (error: string) => void;
     },
@@ -287,6 +288,9 @@ export async function sendMessageStream(
                     break;
                 case 'generation_start':
                     try { callbacks?.onGenerationStart?.(JSON.parse(data)); } catch { /* ignore */ }
+                    break;
+                case 'generation_complete':
+                    try { callbacks?.onGenerationComplete?.(JSON.parse(data)); } catch { /* ignore */ }
                     break;
                 case 'error':
                     try { callbacks?.onError?.(JSON.parse(data)); } catch { callbacks?.onError?.(data); }

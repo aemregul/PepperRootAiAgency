@@ -614,6 +614,20 @@ Kurallar:
                 content="".join(text_tokens) if text_tokens else None
             )
             
+            # Detect image generation tools -> emit generation_start BEFORE execution
+            IMAGE_GEN_TOOLS = {"generate_image", "edit_image"}
+            image_gen_detected = []
+            for tc in tool_calls_acc.values():
+                if tc["name"] in IMAGE_GEN_TOOLS:
+                    try:
+                        args = json.loads(tc["arguments"])
+                        image_gen_detected.append({"type": "image", "prompt": args.get("prompt", "")[:80]})
+                    except:
+                        image_gen_detected.append({"type": "image", "prompt": ""})
+            
+            if image_gen_detected:
+                yield f"event: generation_start\ndata: {json.dumps(image_gen_detected, ensure_ascii=False)}\n\n"
+            
             await self._process_tool_calls_for_stream(
                 fake_message, messages, result, session_id, db, full_system_prompt
             )
@@ -625,6 +639,10 @@ Kurallar:
                 yield f"event: videos\ndata: {json.dumps(result['videos'], ensure_ascii=False)}\n\n"
             if result["entities_created"]:
                 yield f"event: entities\ndata: {json.dumps(result['entities_created'], ensure_ascii=False, default=str)}\n\n"
+            
+            # Image gen complete -> tell frontend to dismiss progress card
+            if image_gen_detected:
+                yield f'event: generation_complete\ndata: {{"type": "image"}}\n\n'
             
             # Background generation started? Tell frontend to show progress card
             if result.get("_bg_generations"):

@@ -1025,6 +1025,10 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     onGenerationStart: (generations) => {
                         setActiveGenerations(generations);
                     },
+                    onGenerationComplete: () => {
+                        // Dismiss image progress cards (synchronous tools)
+                        setActiveGenerations((prev) => prev.filter((g) => g.type !== "image"));
+                    },
                     onError: (error: string) => {
                         console.error('Stream error:', error);
                     },
