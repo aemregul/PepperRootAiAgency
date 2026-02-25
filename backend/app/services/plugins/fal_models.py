@@ -17,6 +17,8 @@ class ModelCategory(str, Enum):
     FACE_CONSISTENCY = "face_consistency"
     VIDEO_GENERATION = "video_generation"
     VIDEO_EDITING = "video_editing"
+    AUDIO_GENERATION = "audio_generation"
+    SPEECH = "speech"
     UPSCALING = "upscaling"
     UTILITY = "utility"
 
@@ -58,6 +60,51 @@ IMAGE_GENERATION_MODELS = [
         estimated_cost=0.01
     ),
     FalModel(
+        name="Flux.2",
+        endpoint="fal-ai/flux-2",
+        category=ModelCategory.IMAGE_GENERATION,
+        priority=Priority.PRIMARY,
+        description="Flux serisinin en yenisi. 3x hızlı, gelişmiş metin render ve prompt takibi.",
+        best_for=["fast", "text_render", "general", "high_volume"],
+        estimated_cost=0.008
+    ),
+    FalModel(
+        name="Flux 2 Max",
+        endpoint="fal-ai/flux-2-max",
+        category=ModelCategory.IMAGE_GENERATION,
+        priority=Priority.SPECIALIZED,
+        description="Flux 2'nin maksimum kalite versiyonu. Edit desteği var.",
+        best_for=["maximum_quality", "detailed", "premium"],
+        estimated_cost=0.02
+    ),
+    FalModel(
+        name="GPT Image 1",
+        endpoint="fal-ai/gpt-image-1-mini",
+        category=ModelCategory.IMAGE_GENERATION,
+        priority=Priority.SPECIALIZED,
+        description="OpenAI'ın görsel modeli. Ghibli, anime, illüstrasyon stillerinde viral kalite.",
+        best_for=["ghibli", "anime", "illustration", "cartoon", "artistic", "stylized"],
+        estimated_cost=0.02
+    ),
+    FalModel(
+        name="Reve",
+        endpoint="fal-ai/reve/text-to-image",
+        category=ModelCategory.IMAGE_GENERATION,
+        priority=Priority.ALTERNATIVE,
+        description="Yeni nesil görsel üretim, fal.ai'da en popüler modellerden.",
+        best_for=["creative", "artistic", "concept_art"],
+        estimated_cost=0.01
+    ),
+    FalModel(
+        name="Seedream 4.5",
+        endpoint="fal-ai/bytedance/seedream/v4.5/text-to-image",
+        category=ModelCategory.IMAGE_GENERATION,
+        priority=Priority.ALTERNATIVE,
+        description="ByteDance'ın en yeni modeli. Hızlı, düşük maliyetli, yüksek kalite.",
+        best_for=["fast", "cost_effective", "general"],
+        estimated_cost=0.006
+    ),
+    FalModel(
         name="Flux Pro Kontext",
         endpoint="fal-ai/flux-pro/kontext",
         category=ModelCategory.IMAGE_GENERATION,
@@ -85,15 +132,6 @@ IMAGE_GENERATION_MODELS = [
         best_for=["fast", "prototype", "quick_preview"],
         estimated_cost=0.005
     ),
-    FalModel(
-        name="ImagineArt 1.5",
-        endpoint="imagineart/imagineart-1.5-preview/text-to-image",
-        category=ModelCategory.IMAGE_GENERATION,
-        priority=Priority.ALTERNATIVE,
-        description="Profesyonel kalite, doğru tipografi.",
-        best_for=["professional", "realism", "typography"],
-        estimated_cost=0.015
-    ),
 ]
 
 
@@ -113,23 +151,53 @@ IMAGE_EDITING_MODELS = [
         estimated_cost=0.015
     ),
     FalModel(
-        name="Fibo Edit",
-        endpoint="bria/fibo-edit/edit",
+        name="Flux Kontext",
+        endpoint="fal-ai/flux-kontext",
         category=ModelCategory.IMAGE_EDITING,
-        priority=Priority.ALTERNATIVE,
-        description="JSON + Mask ile hassas kontrol.",
-        best_for=["precise_editing", "mask_based", "controlled"],
+        priority=Priority.PRIMARY,
+        description="İlk dedicated edit modeli. Karakter tutarlılığı, stil transferi, lokal düzenleme.",
+        best_for=["character_consistency", "style_transfer", "local_edit", "fast_edit"],
         supports_reference=True,
         estimated_cost=0.02
     ),
     FalModel(
-        name="Seedream V4 Edit",
-        endpoint="fal-ai/bytedance/seedream/v4/edit",
+        name="Qwen Image Edit",
+        endpoint="fal-ai/qwen-image-edit",
+        category=ModelCategory.IMAGE_EDITING,
+        priority=Priority.ALTERNATIVE,
+        description="Açık kaynak edit modeli, LoRA desteği. Geliştirici dostu.",
+        best_for=["open_source", "lora", "fine_tunable"],
+        supports_reference=True,
+        estimated_cost=0.01
+    ),
+    FalModel(
+        name="Qwen Image Max Edit",
+        endpoint="fal-ai/qwen-image-max/edit",
+        category=ModelCategory.IMAGE_EDITING,
+        priority=Priority.ALTERNATIVE,
+        description="Qwen'in maksimum kalite edit modeli.",
+        best_for=["high_quality_edit", "detailed_edit"],
+        supports_reference=True,
+        estimated_cost=0.015
+    ),
+    FalModel(
+        name="Seedream 4.5 Edit",
+        endpoint="fal-ai/bytedance/seedream/v4.5/edit",
         category=ModelCategory.IMAGE_EDITING,
         priority=Priority.SPECIALIZED,
-        description="ByteDance'ın stil dönüşüm modeli.",
-        best_for=["style_transfer", "artistic"],
-        estimated_cost=0.015
+        description="ByteDance'ın en yeni stil dönüşüm ve edit modeli.",
+        best_for=["style_transfer", "artistic", "fast_edit"],
+        estimated_cost=0.012
+    ),
+    FalModel(
+        name="Fibo Edit",
+        endpoint="bria/fibo-edit/edit",
+        category=ModelCategory.IMAGE_EDITING,
+        priority=Priority.SPECIALIZED,
+        description="JSON + Mask ile hassas kontrol.",
+        best_for=["precise_editing", "mask_based", "controlled"],
+        supports_reference=True,
+        estimated_cost=0.02
     ),
 ]
 
@@ -182,8 +250,8 @@ VIDEO_GENERATION_MODELS = [
         endpoint="fal-ai/kling-video/v3/pro/image-to-video",
         category=ModelCategory.VIDEO_GENERATION,
         priority=Priority.PRIMARY,
-        description="En yeni ve en iyi video modeli. Sinematik kalite, doğal hareket.",
-        best_for=["image_to_video", "cinematic", "professional", "high_quality"],
+        description="En güvenilir video modeli. Sinematik kalite, çoklu sahne, ses desteği.",
+        best_for=["image_to_video", "cinematic", "professional", "high_quality", "multi_scene"],
         supports_reference=True,
         estimated_cost=0.15
     ),
@@ -192,9 +260,85 @@ VIDEO_GENERATION_MODELS = [
         endpoint="fal-ai/kling-video/v3/pro/text-to-video",
         category=ModelCategory.VIDEO_GENERATION,
         priority=Priority.PRIMARY,
-        description="Metinden video - dünya liderliği kalitesinde.",
-        best_for=["text_to_video", "animation", "creative"],
+        description="Metinden video — çoklu sahne ve ses desteği.",
+        best_for=["text_to_video", "animation", "creative", "multi_scene"],
         estimated_cost=0.15
+    ),
+    FalModel(
+        name="Sora 2 (Image-to-Video)",
+        endpoint="fal-ai/sora-2/image-to-video/pro",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.PRIMARY,
+        description="OpenAI Sora 2. ~20 saniyelik uzun video, çoklu sahne, sesli. En uzun süre.",
+        best_for=["long_video", "multi_scene", "audio", "storytelling", "narrative"],
+        supports_reference=True,
+        estimated_cost=0.20
+    ),
+    FalModel(
+        name="Sora 2 (Text-to-Video)",
+        endpoint="fal-ai/sora-2/text-to-video/pro",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.PRIMARY,
+        description="OpenAI Sora 2. Metinden ~20 saniyelik uzun video.",
+        best_for=["long_video", "text_to_video", "storytelling"],
+        estimated_cost=0.20
+    ),
+    FalModel(
+        name="Veo 3.1 (Image-to-Video)",
+        endpoint="fal-ai/veo3.1/image-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.SPECIALIZED,
+        description="Google DeepMind. En iyi fizik simülasyonu, 1080p, ses desteği.",
+        best_for=["physics", "realistic", "documentary", "cinematic", "high_fidelity"],
+        supports_reference=True,
+        estimated_cost=0.12
+    ),
+    FalModel(
+        name="Veo 3.1 (Text-to-Video)",
+        endpoint="fal-ai/veo3.1/text-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.SPECIALIZED,
+        description="Google DeepMind. Metinden gerçekçi video, fizik doğruluğu.",
+        best_for=["physics", "realistic", "text_to_video"],
+        estimated_cost=0.12
+    ),
+    FalModel(
+        name="Seedance 1.5 Pro (Image-to-Video)",
+        endpoint="fal-ai/bytedance/seedance/v1.5/pro/image-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.ALTERNATIVE,
+        description="ByteDance. Hızlı ve ucuz, iyi kalite.",
+        best_for=["fast_video", "cost_effective", "image_to_video"],
+        supports_reference=True,
+        estimated_cost=0.07
+    ),
+    FalModel(
+        name="Seedance 1.5 Pro (Text-to-Video)",
+        endpoint="fal-ai/bytedance/seedance/v1.5/pro/fast/text-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.ALTERNATIVE,
+        description="ByteDance. Hızlı ve ucuz metin-video.",
+        best_for=["fast_text_to_video", "cost_effective"],
+        estimated_cost=0.07
+    ),
+    FalModel(
+        name="Hailuo 02 (Image-to-Video)",
+        endpoint="fal-ai/minimax/hailuo-02/standard/image-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.ALTERNATIVE,
+        description="MiniMax. En hızlı video (~5s içerik), kısa ve etkileyici.",
+        best_for=["short_video", "quick_clip", "social_media", "fast"],
+        supports_reference=True,
+        estimated_cost=0.06
+    ),
+    FalModel(
+        name="Hailuo 02 (Text-to-Video)",
+        endpoint="fal-ai/minimax/hailuo-02/standard/text-to-video",
+        category=ModelCategory.VIDEO_GENERATION,
+        priority=Priority.ALTERNATIVE,
+        description="MiniMax. En hızlı metin-video.",
+        best_for=["short_video", "quick_clip", "fast", "text_to_video"],
+        estimated_cost=0.06
     ),
     FalModel(
         name="Kling 2.5 Turbo Pro (Image-to-Video)",
@@ -216,14 +360,14 @@ VIDEO_GENERATION_MODELS = [
         estimated_cost=0.10
     ),
     FalModel(
-        name="Veo 3.1 (Image-to-Video)",
-        endpoint="fal-ai/veo3.1/image-to-video",
+        name="Kling O1 (Reference-to-Video)",
+        endpoint="fal-ai/kling-video/o1/reference-to-video",
         category=ModelCategory.VIDEO_GENERATION,
         priority=Priority.SPECIALIZED,
-        description="Google DeepMind'ın video modeli.",
-        best_for=["image_to_video", "high_fidelity"],
+        description="Karmaşık çok adımlı video düzenleme talimatları. Referans ile.",
+        best_for=["video_editing", "multi_step", "complex_instructions"],
         supports_reference=True,
-        estimated_cost=0.12
+        estimated_cost=0.15
     ),
     FalModel(
         name="LTX-2 19B",
@@ -240,8 +384,8 @@ VIDEO_GENERATION_MODELS = [
         endpoint="fal-ai/pixverse/v5/image-to-video",
         category=ModelCategory.VIDEO_GENERATION,
         priority=Priority.SPECIALIZED,
-        description="Stilize video dönüşümü.",
-        best_for=["stylized", "effects"],
+        description="Stilize video dönüşümü, efektler.",
+        best_for=["stylized", "effects", "artistic_video"],
         supports_reference=True,
         estimated_cost=0.08
     ),
@@ -358,6 +502,62 @@ UTILITY_MODELS = [
 
 
 # ===============================
+# SES & KONUŞMA MODELLERİ (YENİ)
+# ===============================
+
+AUDIO_MODELS = [
+    FalModel(
+        name="Mirelo SFX v1.5",
+        endpoint="mirelo-ai/sfx-v1.5/video-to-audio",
+        category=ModelCategory.AUDIO_GENERATION,
+        priority=Priority.PRIMARY,
+        description="Videodan otomatik ses efekti ve müzik üretimi. Senkronize.",
+        best_for=["video_sfx", "sound_effects", "video_to_audio", "foley"],
+        estimated_cost=0.03
+    ),
+]
+
+SPEECH_MODELS = [
+    FalModel(
+        name="ElevenLabs TTS Turbo v2.5",
+        endpoint="fal-ai/elevenlabs/tts/turbo-v2.5",
+        category=ModelCategory.SPEECH,
+        priority=Priority.PRIMARY,
+        description="En hızlı TTS (~250ms). Profesyonel seslendirme kalitesi.",
+        best_for=["text_to_speech", "narration", "voiceover", "fast_tts"],
+        estimated_cost=0.01
+    ),
+    FalModel(
+        name="MiniMax Speech-02",
+        endpoint="fal-ai/minimax/speech-02-turbo",
+        category=ModelCategory.SPEECH,
+        priority=Priority.ALTERNATIVE,
+        description="32 dil desteği, %99 insan sesi doğallığı.",
+        best_for=["multilingual", "natural_voice", "turkish", "diverse_languages"],
+        estimated_cost=0.01
+    ),
+    FalModel(
+        name="Kokoro TTS",
+        endpoint="fal-ai/kokoro/american-english",
+        category=ModelCategory.SPEECH,
+        priority=Priority.SPECIALIZED,
+        description="Açık kaynak, 82M parametre, üretim kalitesi TTS.",
+        best_for=["open_source", "english_tts", "cost_effective"],
+        estimated_cost=0.002
+    ),
+    FalModel(
+        name="Whisper v3 (STT)",
+        endpoint="fal-ai/wizper",
+        category=ModelCategory.SPEECH,
+        priority=Priority.PRIMARY,
+        description="Konuşmadan metne dönüşüm. Çoklu dil desteği.",
+        best_for=["speech_to_text", "transcription", "subtitle"],
+        estimated_cost=0.005
+    ),
+]
+
+
+# ===============================
 # TÜM MODELLERİ BİRLEŞTİR
 # ===============================
 
@@ -367,6 +567,8 @@ ALL_MODELS = {
     ModelCategory.FACE_CONSISTENCY: FACE_CONSISTENCY_MODELS,
     ModelCategory.VIDEO_GENERATION: VIDEO_GENERATION_MODELS,
     ModelCategory.VIDEO_EDITING: VIDEO_EDITING_MODELS,
+    ModelCategory.AUDIO_GENERATION: AUDIO_MODELS,
+    ModelCategory.SPEECH: SPEECH_MODELS,
     ModelCategory.UPSCALING: UPSCALING_MODELS,
     ModelCategory.UTILITY: UTILITY_MODELS,
 }

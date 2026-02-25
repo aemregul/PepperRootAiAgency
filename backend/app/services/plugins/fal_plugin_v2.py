@@ -86,6 +86,8 @@ class FalPluginV2(PluginBase):
             "smart_generate_with_face",
             "outpaint_image",
             "apply_style",
+            "text_to_speech",
+            "video_to_audio",
         ]
     
     async def execute(self, action: str, params: dict) -> PluginResult:
@@ -129,6 +131,10 @@ class FalPluginV2(PluginBase):
                 result = await self._outpaint_image(params)
             elif action == "apply_style":
                 result = await self._apply_style(params)
+            elif action == "text_to_speech":
+                result = await self._text_to_speech(params)
+            elif action == "video_to_audio":
+                result = await self._video_to_audio(params)
             else:
                 return PluginResult(
                     success=False,
@@ -173,11 +179,16 @@ class FalPluginV2(PluginBase):
     
     VIDEO_MODEL_CHAIN = [
         {"i2v": "fal-ai/kling-video/v3/pro/image-to-video", "t2v": "fal-ai/kling-video/v3/pro/text-to-video"},
+        {"i2v": "fal-ai/sora-2/image-to-video/pro", "t2v": "fal-ai/sora-2/text-to-video/pro"},
         {"i2v": "fal-ai/veo3.1/image-to-video", "t2v": "fal-ai/veo3.1/text-to-video"},
+        {"i2v": "fal-ai/bytedance/seedance/v1.5/pro/image-to-video", "t2v": "fal-ai/bytedance/seedance/v1.5/pro/fast/text-to-video"},
+        {"i2v": "fal-ai/minimax/hailuo-02/standard/image-to-video", "t2v": "fal-ai/minimax/hailuo-02/standard/text-to-video"},
     ]
     
     EDIT_MODEL_CHAIN = [
+        "fal-ai/flux-kontext",
         "fal-ai/flux-pro/kontext",
+        "fal-ai/qwen-image-edit",
         "fal-ai/omnigen-v1",
         "fal-ai/flux-general/inpainting",
     ]
@@ -186,10 +197,23 @@ class FalPluginV2(PluginBase):
         """
         Smart Model Router — prompt'a göre en iyi görsel modelini seç.
         
-        - Metin/logo/tipografi → FLUX 2 Flex (metin render'da en iyi)
+        - Ghibli/anime/cartoon → GPT Image 1 (bu stilde en iyi)
+        - Metin/logo/tipografi → Flux.2 (metin render'da en iyi)
+        - Premium/detaylı → Flux 2 Max
         - Fotogerçekçi/genel → Nano Banana Pro (hız + kalite dengesi)
         """
         prompt_lower = prompt.lower()
+        
+        # Anime/Ghibli/cartoon/illustration tarzı
+        artistic_keywords = [
+            "ghibli", "anime", "manga", "cartoon", "çizgi film",
+            "illustration", "illüstrasyon", "watercolor", "sulu boya",
+            "disney", "pixar", "comic", "chibi", "kawaii",
+        ]
+        
+        if any(kw in prompt_lower for kw in artistic_keywords):
+            logger.info("🎯 Smart Router: GPT Image 1 seçildi (artistic/anime)")
+            return "fal-ai/gpt-image-1-mini"
         
         # Metin/tipografi/logo gerektiren promptlar
         text_keywords = [
@@ -200,8 +224,19 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in text_keywords):
-            logger.info("🎯 Smart Router: FLUX 2 Flex seçildi (tipografi)")
-            return "fal-ai/flux-2-flex"
+            logger.info("🎯 Smart Router: Flux.2 seçildi (tipografi)")
+            return "fal-ai/flux-2"
+        
+        # Premium/detaylı istekler
+        premium_keywords = [
+            "ultra detailed", "hyper realistic", "4k", "8k",
+            "premium", "maximum quality", "en yüksek kalite",
+            "masterpiece", "profesyonel fotoğraf",
+        ]
+        
+        if any(kw in prompt_lower for kw in premium_keywords):
+            logger.info("🎯 Smart Router: Flux 2 Max seçildi (premium)")
+            return "fal-ai/flux-2-max"
         
         # Varsayılan: Nano Banana Pro
         logger.info("🎯 Smart Router: Nano Banana Pro seçildi (varsayılan)")
@@ -211,22 +246,50 @@ class FalPluginV2(PluginBase):
         """
         Smart Video Model Router.
         
+        - Uzun/hikaye/narrative → Sora 2 (~20s, çoklu sahne)
+        - Sinematik/gerçekçi/fizik → Veo 3.1 (Google, fizik simülasyonu)
+        - Kısa/hızlı/sosyal medya → Hailuo 02 (~5s, en hızlı)
+        - Ucuz/hızlı → Seedance 1.5 (dengeli maliyet)
         - Genel → Kling 3.0 Pro (varsayılan, en güvenilir)
-        - Sinematik/gerçekçi → Veo 3.1 (Google'ın en iyisi)
         """
         prompt_lower = prompt.lower()
         mode = "i2v" if has_image else "t2v"
         
-        # Sinematik/gerçekçi istekler
+        # Uzun video / hikaye anlatımı → Sora 2
+        long_keywords = [
+            "uzun video", "long video", "hikaye", "story", "narrative",
+            "sahne", "scene", "20 saniye", "20s", "15 saniye", "15s",
+            "çoklu sahne", "multi scene", "multi-shot",
+        ]
+        
+        if any(kw in prompt_lower for kw in long_keywords):
+            endpoint = "fal-ai/sora-2/image-to-video/pro" if has_image else "fal-ai/sora-2/text-to-video/pro"
+            logger.info(f"🎯 Smart Router: Sora 2 seçildi (uzun/hikaye) — {endpoint}")
+            return endpoint
+        
+        # Sinematik/gerçekçi/fizik istekler → Veo 3.1
         cinematic_keywords = [
             "cinematic", "sinematik", "realistic", "gerçekçi",
             "film", "movie", "documentary", "belgesel",
-            "slow motion", "yavaş çekim", "epic",
+            "slow motion", "yavaş çekim", "epic", "physics", "fizik",
         ]
         
-        if has_image and any(kw in prompt_lower for kw in cinematic_keywords):
-            logger.info("🎯 Smart Router: Veo 3.1 seçildi (sinematik)")
-            return "fal-ai/veo3.1/image-to-video"
+        if any(kw in prompt_lower for kw in cinematic_keywords):
+            endpoint = "fal-ai/veo3.1/image-to-video" if has_image else "fal-ai/veo3.1/text-to-video"
+            logger.info(f"🎯 Smart Router: Veo 3.1 seçildi (sinematik) — {endpoint}")
+            return endpoint
+        
+        # Kısa/hızlı/sosyal medya → Hailuo 02
+        short_keywords = [
+            "kısa", "short", "hızlı", "quick", "fast", "clip",
+            "sosyal medya", "social media", "reels", "tiktok",
+            "instagram", "story", "stories",
+        ]
+        
+        if any(kw in prompt_lower for kw in short_keywords):
+            endpoint = "fal-ai/minimax/hailuo-02/standard/image-to-video" if has_image else "fal-ai/minimax/hailuo-02/standard/text-to-video"
+            logger.info(f"🎯 Smart Router: Hailuo 02 seçildi (kısa/hızlı) — {endpoint}")
+            return endpoint
         
         # Varsayılan: Kling 3.0 Pro
         return self.VIDEO_MODEL_CHAIN[0][mode]
@@ -1232,6 +1295,101 @@ class FalPluginV2(PluginBase):
 
         except Exception as e:
             return {"success": False, "error": f"Video edit kritik hata: {str(e)}"}
+
+    # ===============================
+    # TEXT-TO-SPEECH (TTS)
+    # ===============================
+    
+    async def _text_to_speech(self, params: dict) -> dict:
+        """
+        Metin-Sesendirme — ElevenLabs TTS → MiniMax Speech fallback.
+        """
+        text = params.get("text", "")
+        voice = params.get("voice", "default")
+        
+        if not text:
+            return {"success": False, "error": "Metin gerekli."}
+        
+        # Model zinciri: ElevenLabs Turbo → MiniMax Speech
+        tts_chain = [
+            ("ElevenLabs TTS Turbo v2.5", "fal-ai/elevenlabs/tts/turbo-v2.5"),
+            ("MiniMax Speech-02", "fal-ai/minimax/speech-02-turbo"),
+        ]
+        
+        for model_name, endpoint in tts_chain:
+            try:
+                logger.info(f"🎙️ TTS: {model_name} ile seslendirme...")
+                
+                input_data = {"text": text}
+                if voice and voice != "default":
+                    input_data["voice"] = voice
+                
+                result = await fal_client.run_async(endpoint, arguments=input_data)
+                
+                audio_url = None
+                for key in ["audio", "audio_url", "output"]:
+                    val = result.get(key)
+                    if val:
+                        audio_url = val.get("url") if isinstance(val, dict) else val
+                        if audio_url:
+                            break
+                
+                if audio_url:
+                    logger.info(f"✅ TTS başarılı: {model_name}")
+                    return {
+                        "success": True,
+                        "audio_url": audio_url,
+                        "model": model_name,
+                    }
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ {model_name} hatası: {e}")
+                continue
+        
+        return {"success": False, "error": "TTS modelleri başarısız oldu."}
+    
+    # ===============================
+    # VIDEO-TO-AUDIO (SFX)
+    # ===============================
+    
+    async def _video_to_audio(self, params: dict) -> dict:
+        """
+        Videodan ses efekti üretimi — Mirelo SFX v1.5.
+        Videonun içeriğine uygun ses efektleri ve müzik üretir.
+        """
+        video_url = params.get("video_url", "")
+        
+        if not video_url:
+            return {"success": False, "error": "Video URL gerekli."}
+        
+        try:
+            logger.info(f"🔊 SFX: Mirelo ile video ses efekti üretiliyor...")
+            
+            result = await fal_client.run_async(
+                "mirelo-ai/sfx-v1.5/video-to-audio",
+                arguments={"video_url": video_url}
+            )
+            
+            audio_url = None
+            for key in ["audio", "audio_url", "output"]:
+                val = result.get(key)
+                if val:
+                    audio_url = val.get("url") if isinstance(val, dict) else val
+                    if audio_url:
+                        break
+            
+            if audio_url:
+                logger.info("✅ SFX başarılı")
+                return {
+                    "success": True,
+                    "audio_url": audio_url,
+                    "model": "Mirelo SFX v1.5",
+                }
+            else:
+                return {"success": False, "error": "SFX audio URL alınamadı.", "raw": result}
+                
+        except Exception as e:
+            return {"success": False, "error": f"SFX hatası: {str(e)}"}
 
     # ===============================
     # PUBLIC COMPATIBILITY WRAPPERS
