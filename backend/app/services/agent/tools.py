@@ -699,6 +699,49 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["goal"]
         }
+    },
+    {
+        "name": "advanced_edit_video",
+        "description": "FFmpeg ile gelişmiş video düzenleme. Trim (kırpma), slow motion, fade, yazı ekleme, birleştirme, ters çevirme, boyut değiştirme, filtre uygulama gibi işlemler. ÖNEMLİ: Bu araç GÖRSEL düzenleme (nesne silme, stil değiştirme) yapmaz — onun için edit_video kullan. Bu araç TEKNİK video post-production için.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "video_url": {"type": "string", "description": "Düzenlenecek videonun URL'si"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["trim", "speed", "fade", "text_overlay", "reverse", "resize", "concat", "loop", "filter", "extract_frame"],
+                    "description": "Yapılacak işlem. trim=kırp, speed=hız değiştir, fade=geçiş efekti, text_overlay=yazı ekle, reverse=ters çevir, resize=boyut değiştir, concat=birleştir, loop=tekrarla, filter=filtre uygula, extract_frame=kare çıkar"
+                },
+                "start_time": {"type": "number", "description": "Trim/text: başlangıç zamanı (saniye)"},
+                "end_time": {"type": "number", "description": "Trim: bitiş zamanı (saniye)"},
+                "speed": {"type": "number", "description": "Speed: hız çarpanı. 0.25=quarter, 0.5=slow-mo, 2.0=fast, 4.0=timelapse"},
+                "fade_in": {"type": "number", "description": "Fade: fade-in süresi (saniye)"},
+                "fade_out": {"type": "number", "description": "Fade: fade-out süresi (saniye)"},
+                "text": {"type": "string", "description": "Text overlay: gösterilecek metin"},
+                "text_position": {
+                    "type": "string",
+                    "enum": ["top", "center", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"],
+                    "description": "Text overlay: metin pozisyonu"
+                },
+                "font_size": {"type": "integer", "description": "Text overlay: font boyutu (varsayılan: 48)"},
+                "font_color": {"type": "string", "description": "Text overlay: renk (white, yellow, red vb.)"},
+                "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1", "4:3"], "description": "Resize: hedef aspect ratio"},
+                "video_urls": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Concat: birleştirilecek video URL'leri listesi"
+                },
+                "loop_count": {"type": "integer", "description": "Loop: kaç kez tekrar (2-10)"},
+                "filter_name": {
+                    "type": "string",
+                    "enum": ["grayscale", "sepia", "blur", "sharpen", "brightness", "contrast", "vintage", "negative", "vignette"],
+                    "description": "Filter: uygulanacak filtre"
+                },
+                "filter_intensity": {"type": "number", "description": "Filter: filtre yoğunluğu (0.1 - 3.0)"},
+                "timestamp": {"type": "number", "description": "Extract frame: kare çıkarılacak zaman (saniye)"}
+            },
+            "required": ["operation"]
+        }
     }
 ]
 

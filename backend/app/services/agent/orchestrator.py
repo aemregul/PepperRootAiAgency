@@ -108,6 +108,7 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 4. `generate_video` ve `generate_long_video`'yu AYNI İSTEK İÇİN BİRLİKTE çağırma.
 **Mevcut görseli düzenle:** edit_image (arka plan değişikliği, sahne değişikliği, içerik ekleme/çıkarma), outpaint_image (format/boyut değişikliği), upscale_image (kalite artırma), remove_background (arka plan kaldırma)
 **Mevcut videoyu düzenle:** edit_video (SADECE görsel düzenleme: nesne silme, stil değiştirme. SES/MÜZİK EKLEME İÇİN KULLANMA!)
+**🎬 Video Post-Production (Phase 23):** advanced_edit_video — Trim, slow motion, fade, yazı ekleme, ters çevirme, boyut değiştirme, birleştirme, filtre, kare çıkarma. Kullanıcı teknik video düzenleme istediğinde (kırp, hızlandır, yazı ekle, birleştir) BU ARACI KULLAN.
 **Video + Ses/Müzik birleştirme:** add_audio_to_video (FFmpeg ile birleştirir — video_url + audio_url gerektirir. 'birleştir', 'müzik ekle', 'ses ekle' isteklerinde MUTLAKA bunu kullan!)
 **Entity yönetimi:** create_character, create_location, create_brand, get_entity, list_entities, delete_entity, semantic_search
 **Araştırma:** search_web, search_images, browse_url, research_brand, get_library_docs
@@ -1363,6 +1364,9 @@ Kurallar:
         elif tool_name == "plan_and_execute":
             return await self._plan_and_execute(db, session_id, tool_input, resolved_entities or [])
         
+        elif tool_name == "advanced_edit_video":
+            return await self._advanced_edit_video(db, session_id, tool_input)
+        
         # (add_audio_to_video zaten yukarıda handle ediliyor)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
@@ -2424,6 +2428,126 @@ Konuşma:
             
         except Exception as e:
             print(f"❌ Phase 22 plan_and_execute hatası: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def _advanced_edit_video(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict
+    ) -> dict:
+        """
+        Phase 23: FFmpeg tabanlı gelişmiş video düzenleme.
+        VideoEditorService'i dispatch eder.
+        """
+        try:
+            from app.services.video_editor_service import video_editor
+            from app.services.asset_service import asset_service
+            
+            operation = params.get("operation", "")
+            video_url = params.get("video_url", "")
+            
+            if not operation:
+                return {"success": False, "error": "İşlem (operation) belirtilmedi."}
+            
+            # Concat video_urls'den alır
+            if operation == "concat" and not video_url:
+                video_urls = params.get("video_urls", [])
+                if len(video_urls) < 2:
+                    return {"success": False, "error": "Birleştirme için en az 2 video URL gerekli (video_urls)."}
+            elif not video_url and operation != "concat":
+                return {"success": False, "error": "Video URL gerekli."}
+            
+            print(f"\n✂️ [Phase 23] Video Edit: {operation}")
+            print(f"   video_url: {video_url[:60] if video_url else 'N/A'}...")
+            
+            result = None
+            
+            if operation == "trim":
+                result = await video_editor.trim(
+                    video_url=video_url,
+                    start_time=params.get("start_time", 0),
+                    end_time=params.get("end_time"),
+                    duration=params.get("duration"),
+                )
+            elif operation == "speed":
+                result = await video_editor.change_speed(
+                    video_url=video_url,
+                    speed=params.get("speed", 1.0),
+                )
+            elif operation == "fade":
+                result = await video_editor.add_fade(
+                    video_url=video_url,
+                    fade_in=params.get("fade_in", 0),
+                    fade_out=params.get("fade_out", 0),
+                )
+            elif operation == "text_overlay":
+                result = await video_editor.add_text_overlay(
+                    video_url=video_url,
+                    text=params.get("text", ""),
+                    position=params.get("text_position", "bottom"),
+                    font_size=params.get("font_size", 48),
+                    font_color=params.get("font_color", "white"),
+                    start_time=params.get("start_time", 0),
+                    duration=params.get("duration"),
+                )
+            elif operation == "reverse":
+                result = await video_editor.reverse(video_url=video_url)
+            elif operation == "resize":
+                result = await video_editor.resize(
+                    video_url=video_url,
+                    aspect_ratio=params.get("aspect_ratio"),
+                    width=params.get("width"),
+                    height=params.get("height"),
+                )
+            elif operation == "concat":
+                video_urls = params.get("video_urls", [])
+                if video_url and video_url not in video_urls:
+                    video_urls.insert(0, video_url)
+                result = await video_editor.concat(video_urls=video_urls)
+            elif operation == "loop":
+                result = await video_editor.loop(
+                    video_url=video_url,
+                    count=params.get("loop_count", 2),
+                )
+            elif operation == "filter":
+                result = await video_editor.apply_filter(
+                    video_url=video_url,
+                    filter_name=params.get("filter_name", "grayscale"),
+                    intensity=params.get("filter_intensity", 1.0),
+                )
+            elif operation == "extract_frame":
+                result = await video_editor.extract_frame(
+                    video_url=video_url,
+                    timestamp=params.get("timestamp", 0),
+                )
+            else:
+                return {"success": False, "error": f"Bilinmeyen video düzenleme işlemi: {operation}"}
+            
+            # Başarılı sonuçları asset olarak kaydet
+            if result and result.get("success"):
+                output_url = result.get("video_url") or result.get("image_url")
+                output_type = "image" if operation == "extract_frame" else "video"
+                if output_url:
+                    try:
+                        await asset_service.save_asset(
+                            db=db, session_id=session_id,
+                            url=output_url, asset_type=output_type,
+                            prompt=f"Video edit: {operation}",
+                            model_name="ffmpeg-editor",
+                            model_params={"operation": operation, "source": video_url[:100]},
+                        )
+                    except Exception as save_err:
+                        print(f"⚠️ Video edit asset kaydetme hatası: {save_err}")
+                
+                print(f"   ✅ {operation} başarılı: {output_url[:60]}...")
+            else:
+                print(f"   ❌ {operation} başarısız: {result.get('error', 'unknown')}")
+            
+            return result or {"success": False, "error": "İşlem sonuçsuz."}
+            
+        except Exception as e:
+            print(f"❌ Phase 23 advanced_edit_video hatası: {e}")
             return {"success": False, "error": str(e)}
     
     async def _transcribe_voice(self, params: dict) -> dict:
