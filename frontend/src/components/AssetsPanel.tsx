@@ -347,15 +347,14 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                     <button
                                         key={tab.key}
                                         onClick={() => setActiveFilter(tab.key)}
-                                        className={`relative flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all duration-200 ${isActive ? "shadow-md" : "hover:bg-[var(--card)]"}`}
+                                        className={`relative p-2 rounded-lg transition-all duration-200 ${isActive ? "shadow-md" : "hover:bg-[var(--card)]"}`}
                                         style={isActive ? {
                                             background: "var(--accent)",
                                             color: "white",
                                         } : { color: "var(--foreground-muted)" }}
                                         title={`${tab.label} (${tab.count})`}
                                     >
-                                        <Icon size={14} />
-                                        {isActive && <span className="text-[10px] font-semibold leading-none whitespace-nowrap">{tab.label}</span>}
+                                        <Icon size={16} />
                                     </button>
                                 );
                             })}
