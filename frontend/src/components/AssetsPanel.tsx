@@ -335,8 +335,8 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                 style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}
             >
                 {/* Filter Tabs Header */}
-                <header className="px-2 pt-2 pb-1 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center justify-evenly">
+                <header className="h-14 px-3 border-b shrink-0 flex items-center" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center justify-evenly w-full">
                         {filterTabs.map(tab => {
                             const Icon = tab.icon;
                             const isActive = activeFilter === tab.key;
