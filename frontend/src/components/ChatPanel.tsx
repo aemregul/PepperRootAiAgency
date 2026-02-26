@@ -1323,16 +1323,26 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                     {(msg.video_url || msg.audio_url) && (
                                         <div className="flex gap-2 mb-2 flex-wrap">
                                             {msg.video_url && (
-                                                <div>
+                                                <div
+                                                    className="relative group/vid cursor-pointer rounded-lg overflow-hidden border border-[var(--border)] bg-black"
+                                                    style={{ width: '160px', height: '200px' }}
+                                                    onClick={() => setLightboxVideo(msg.video_url!)}
+                                                >
                                                     <video
                                                         src={`${msg.video_url}#t=0.1`}
-                                                        controls
                                                         playsInline
+                                                        muted
+                                                        loop
                                                         preload="metadata"
-                                                        className="w-36 h-24 object-cover rounded-lg border border-[var(--border)] bg-black/10"
+                                                        className="w-full h-full object-contain"
+                                                        onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
+                                                        onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
-                                                    <div className="text-[10px] mt-0.5 text-[var(--foreground-muted)] flex items-center gap-1">
-                                                        <span>📹 Video</span>
+                                                    <div className="absolute bottom-1.5 left-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
+                                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
+                                                    </div>
+                                                    <div className="text-[10px] absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white/70">
+                                                        📹 Video
                                                     </div>
                                                 </div>
                                             )}
@@ -1382,8 +1392,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {/* Video player for generated videos */}
                                             {msg.video_url && (
                                                 <div
-                                                    className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block"
-                                                    style={{ maxWidth: '320px', maxHeight: '280px' }}
+                                                    className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block bg-black"
+                                                    style={{ width: '240px', height: '300px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1392,7 +1402,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         muted
                                                         loop
                                                         preload="metadata"
-                                                        className="w-full h-full object-cover"
+                                                        className="w-full h-full object-contain"
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
