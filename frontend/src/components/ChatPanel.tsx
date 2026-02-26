@@ -1293,16 +1293,16 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     {messages.map((msg) => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.role === "user" ? (
-                                <div className="message-bubble message-user max-w-[75%]">
-                                    {/* Multiple image thumbnails */}
+                                <div className="flex flex-col items-end gap-2 max-w-[75%]">
+                                    {/* Media — outside bubble */}
                                     {msg.image_urls && msg.image_urls.length > 1 ? (
-                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                        <div className="flex flex-wrap gap-1.5 justify-end">
                                             {msg.image_urls.map((url, i) => (
                                                 <img
                                                     key={i}
                                                     src={url}
                                                     alt={`Referans görsel ${i + 1}`}
-                                                    className="object-cover rounded-lg cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                                    className="object-cover rounded-xl cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
                                                     style={{ width: '100px', height: '100px' }}
                                                     onClick={() => setLightboxImage(url)}
                                                     loading="lazy"
@@ -1314,7 +1314,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         <img
                                             src={msg.image_url}
                                             alt="Referans görsel"
-                                            className="object-cover rounded-lg mb-2 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                            className="object-cover rounded-xl cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
                                             style={{ width: '200px', height: '300px' }}
                                             onLoad={e => {
                                                 const img = e.currentTarget;
@@ -1328,123 +1328,115 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             decoding="async"
                                         />
                                     )}
-                                    {/* Video & Audio References — Side by Side */}
-                                    {(msg.video_url || msg.audio_url) && (
-                                        <div className="flex gap-2 mb-2 flex-wrap">
-                                            {msg.video_url && (
-                                                <div
-                                                    className="relative group/vid cursor-pointer rounded-lg overflow-hidden border border-[var(--border)]"
-                                                    onClick={() => setLightboxVideo(msg.video_url!)}
-                                                >
-                                                    <video
-                                                        src={`${msg.video_url}#t=0.1`}
-                                                        playsInline
-                                                        muted
-                                                        loop
-                                                        preload="metadata"
-                                                        className="object-cover"
-                                                        style={{ width: '200px', height: '300px' }}
-                                                        onLoadedMetadata={e => {
-                                                            const v = e.currentTarget;
-                                                            if (v.videoWidth > v.videoHeight) {
-                                                                v.style.width = '300px';
-                                                                v.style.height = '200px';
-                                                                (v.parentElement as HTMLElement).style.width = '300px';
-                                                            }
-                                                        }}
-                                                        onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
-                                                        onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
-                                                    />
-                                                    <div className="absolute bottom-1.5 left-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
-                                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
-                                                    </div>
-                                                    <div className="text-[10px] absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white/70">
-                                                        📹 Video
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {msg.audio_url && (
-                                                <div>
-                                                    <div className="w-36 h-24 rounded-lg flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 overflow-hidden px-1" style={{ border: '1px solid var(--border)' }}>
-                                                        <span className="text-lg mb-0.5">🎵</span>
-                                                        {msg.audio_label && (
-                                                            <span className="text-[9px] text-white/80 text-center leading-tight line-clamp-2 mb-0.5">{msg.audio_label}</span>
-                                                        )}
-                                                        <audio src={msg.audio_url} controls className="w-[120px] h-6" style={{ transform: 'scale(0.85)' }}
-                                                            onError={(e) => { (e.currentTarget as HTMLAudioElement).style.display = 'none'; }}
-                                                        />
-                                                    </div>
-                                                    <div className="text-[10px] mt-0.5 text-[var(--foreground-muted)] flex items-center gap-1">
-                                                        <span>🎵 Ses</span>
-                                                    </div>
-                                                </div>
-                                            )}
+                                    {msg.video_url && (
+                                        <div
+                                            className="relative group/vid cursor-pointer rounded-xl overflow-hidden"
+                                            onClick={() => setLightboxVideo(msg.video_url!)}
+                                        >
+                                            <video
+                                                src={`${msg.video_url}#t=0.1`}
+                                                playsInline
+                                                muted
+                                                loop
+                                                preload="metadata"
+                                                className="object-cover rounded-xl"
+                                                style={{ width: '200px', height: '300px' }}
+                                                onLoadedMetadata={e => {
+                                                    const v = e.currentTarget;
+                                                    if (v.videoWidth > v.videoHeight) {
+                                                        v.style.width = '300px';
+                                                        v.style.height = '200px';
+                                                    }
+                                                }}
+                                                onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
+                                                onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                                            />
+                                            <div className="absolute bottom-2 left-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
+                                            </div>
                                         </div>
                                     )}
-                                    <div className="text-sm lg:text-[15px] leading-relaxed">
-                                        {renderContent(msg.content, setLightboxImage)}
-                                    </div>
+                                    {msg.audio_url && (
+                                        <div className="w-36 h-24 rounded-xl flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 overflow-hidden px-1" style={{ border: '1px solid var(--border)' }}>
+                                            <span className="text-lg mb-0.5">🎵</span>
+                                            {msg.audio_label && (
+                                                <span className="text-[9px] text-white/80 text-center leading-tight line-clamp-2 mb-0.5">{msg.audio_label}</span>
+                                            )}
+                                            <audio src={msg.audio_url} controls className="w-[120px] h-6" style={{ transform: 'scale(0.85)' }}
+                                                onError={(e) => { (e.currentTarget as HTMLAudioElement).style.display = 'none'; }}
+                                            />
+                                        </div>
+                                    )}
+                                    {/* Text bubble */}
+                                    {msg.content && (
+                                        <div className="message-bubble message-user">
+                                            <div className="text-sm lg:text-[15px] leading-relaxed">
+                                                {renderContent(msg.content, setLightboxImage)}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="flex gap-3 max-w-[85%]">
                                     <span className="text-xl shrink-0 mt-1">🫑</span>
-                                    <div className="flex-1">
-                                        <div className="message-bubble message-ai">
-                                            <div className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
-                                                {renderContent(msg.content, setLightboxImage)}
+                                    <div className="flex-1 flex flex-col gap-2">
+                                        {/* Text bubble */}
+                                        {msg.content && (
+                                            <div className="message-bubble message-ai">
+                                                <div className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
+                                                    {renderContent(msg.content, setLightboxImage)}
+                                                </div>
                                             </div>
+                                        )}
 
-                                            {/* Only show image_url if it's NOT already rendered in content */}
-                                            {msg.image_url && !msg.content?.includes(msg.image_url) && (
-                                                <img
-                                                    src={msg.image_url}
-                                                    alt="Üretilen görsel"
-                                                    className="mt-3 rounded-xl object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
+                                        {/* Media — outside bubble */}
+                                        {msg.image_url && !msg.content?.includes(msg.image_url) && (
+                                            <img
+                                                src={msg.image_url}
+                                                alt="Üretilen görsel"
+                                                className="rounded-xl object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all"
+                                                style={{ width: '280px', height: '420px' }}
+                                                onLoad={e => {
+                                                    const img = e.currentTarget;
+                                                    if (img.naturalWidth > img.naturalHeight) {
+                                                        img.style.width = '420px';
+                                                        img.style.height = '280px';
+                                                    }
+                                                }}
+                                                onClick={() => setLightboxImage(msg.image_url!)}
+                                                loading="lazy"
+                                                decoding="async"
+                                            />
+                                        )}
+
+                                        {msg.video_url && (
+                                            <div
+                                                className="relative group/vid cursor-pointer rounded-xl overflow-hidden inline-block"
+                                                onClick={() => setLightboxVideo(msg.video_url!)}
+                                            >
+                                                <video
+                                                    src={`${msg.video_url}#t=0.1`}
+                                                    playsInline
+                                                    muted
+                                                    loop
+                                                    preload="metadata"
+                                                    className="object-cover rounded-xl"
                                                     style={{ width: '280px', height: '420px' }}
-                                                    onLoad={e => {
-                                                        const img = e.currentTarget;
-                                                        if (img.naturalWidth > img.naturalHeight) {
-                                                            img.style.width = '420px';
-                                                            img.style.height = '280px';
+                                                    onLoadedMetadata={e => {
+                                                        const v = e.currentTarget;
+                                                        if (v.videoWidth > v.videoHeight) {
+                                                            v.style.width = '420px';
+                                                            v.style.height = '280px';
                                                         }
                                                     }}
-                                                    onClick={() => setLightboxImage(msg.image_url!)}
-                                                    loading="lazy"
-                                                    decoding="async"
+                                                    onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
+                                                    onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                 />
-                                            )}
-
-                                            {/* Video player for generated videos */}
-                                            {msg.video_url && (
-                                                <div
-                                                    className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block"
-                                                    onClick={() => setLightboxVideo(msg.video_url!)}
-                                                >
-                                                    <video
-                                                        src={`${msg.video_url}#t=0.1`}
-                                                        playsInline
-                                                        muted
-                                                        loop
-                                                        preload="metadata"
-                                                        className="object-cover"
-                                                        style={{ width: '280px', height: '420px' }}
-                                                        onLoadedMetadata={e => {
-                                                            const v = e.currentTarget;
-                                                            if (v.videoWidth > v.videoHeight) {
-                                                                v.style.width = '420px';
-                                                                v.style.height = '280px';
-                                                            }
-                                                        }}
-                                                        onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
-                                                        onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
-                                                    />
-                                                    {/* Play overlay */}
-                                                    <div className="absolute bottom-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
-                                                    </div>
+                                                <div className="absolute bottom-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
                                                 </div>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
