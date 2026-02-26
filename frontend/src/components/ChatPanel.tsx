@@ -1324,8 +1324,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         <div className="flex gap-2 mb-2 flex-wrap">
                                             {msg.video_url && (
                                                 <div
-                                                    className="relative group/vid cursor-pointer rounded-lg overflow-hidden border border-[var(--border)] bg-black"
-                                                    style={{ width: '160px', height: '200px' }}
+                                                    className="relative group/vid cursor-pointer rounded-lg overflow-hidden border border-[var(--border)]"
+                                                    style={{ maxWidth: '200px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1334,7 +1334,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         muted
                                                         loop
                                                         preload="metadata"
-                                                        className="w-full h-full object-contain"
+                                                        className="w-full block"
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
@@ -1392,8 +1392,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {/* Video player for generated videos */}
                                             {msg.video_url && (
                                                 <div
-                                                    className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block bg-black"
-                                                    style={{ width: '240px', height: '300px' }}
+                                                    className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block"
+                                                    style={{ maxWidth: '280px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1402,7 +1402,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         muted
                                                         loop
                                                         preload="metadata"
-                                                        className="w-full h-full object-contain"
+                                                        className="w-full block"
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
