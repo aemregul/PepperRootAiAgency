@@ -273,6 +273,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const MAX_FILES = 10;
     const [isDragOver, setIsDragOver] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+    const [lightboxVideo, setLightboxVideo] = useState<string | null>(null);
     const [loadingStatus, setLoadingStatus] = useState<string>("Düşünüyor...");
     const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -1380,13 +1381,32 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
                                             {/* Video player for generated videos */}
                                             {msg.video_url && (
-                                                <video
-                                                    src={`${msg.video_url}#t=0.1`}
-                                                    controls
-                                                    playsInline
-                                                    preload="metadata"
-                                                    className="mt-3 rounded-xl max-w-[320px] max-h-[280px] object-cover border border-white/10"
-                                                />
+                                                <div
+                                                    className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block"
+                                                    style={{ maxWidth: '320px', maxHeight: '280px' }}
+                                                    onClick={() => setLightboxVideo(msg.video_url!)}
+                                                >
+                                                    <video
+                                                        src={`${msg.video_url}#t=0.1`}
+                                                        playsInline
+                                                        muted
+                                                        loop
+                                                        preload="metadata"
+                                                        className="w-full h-full object-cover"
+                                                        onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
+                                                        onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                                                    />
+                                                    {/* Play overlay */}
+                                                    <div className="absolute bottom-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
+                                                    </div>
+                                                    {/* Expand hint */}
+                                                    <div className="absolute top-2 right-2 opacity-0 group-hover/vid:opacity-100 transition-opacity">
+                                                        <div className="w-7 h-7 rounded-full bg-black/60 flex items-center justify-center">
+                                                            <ZoomIn size={14} className="text-white" />
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -1751,6 +1771,35 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         src={lightboxImage!}
                         alt="Büyütülmüş görsel"
                         className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ animation: "fadeIn 0.2s ease-out" }}
+                    />
+                </div>
+            )}
+
+            {/* Video Lightbox */}
+            {lightboxVideo && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ background: "rgba(0, 0, 0, 0.90)", backdropFilter: "blur(8px)" }}
+                    onClick={() => setLightboxVideo(null)}
+                    onKeyDown={(e) => e.key === 'Escape' && setLightboxVideo(null)}
+                    tabIndex={0}
+                    ref={(el) => el?.focus()}
+                >
+                    <button
+                        onClick={() => setLightboxVideo(null)}
+                        className="absolute top-4 right-4 p-2 rounded-full transition-colors hover:bg-white/20 z-10"
+                        style={{ background: "rgba(255,255,255,0.1)" }}
+                    >
+                        <X size={24} className="text-white" />
+                    </button>
+                    <video
+                        src={lightboxVideo}
+                        controls
+                        autoPlay
+                        playsInline
+                        className="max-w-[90vw] max-h-[90vh] rounded-xl shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                         style={{ animation: "fadeIn 0.2s ease-out" }}
                     />
