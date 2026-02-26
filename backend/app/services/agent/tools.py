@@ -742,6 +742,31 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["operation"]
         }
+    },
+    {
+        "name": "audio_visual_sync",
+        "description": "Ses ve görüntü senkronizasyonu. Beat detection, ses analizi, beat'e göre kesim listesi, video'dan ses efekti üretimi, akıllı müzik mix ve TTS seslendirme. Kullanıcı 'müziğe göre sahne geçişleri', 'videodan ses efekti çıkar', 'seslendirme ekle' istediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["analyze_audio", "detect_beats", "beat_cut_list", "generate_sfx", "smart_mix", "tts_narration"],
+                    "description": "İşlem. analyze_audio=ses analizi. detect_beats=beat tespit. beat_cut_list=beat'e göre kesim noktaları. generate_sfx=videodan ses efekti. smart_mix=akıllı müzik birleştirme. tts_narration=TTS seslendirme."
+                },
+                "video_url": {"type": "string", "description": "Video URL (generate_sfx, smart_mix, tts_narration için)"},
+                "audio_url": {"type": "string", "description": "Ses/müzik URL (analyze_audio, detect_beats, beat_cut_list, smart_mix için)"},
+                "text": {"type": "string", "description": "TTS seslendirme metni"},
+                "voice": {"type": "string", "enum": ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], "description": "TTS ses tonu (varsayılan: nova)"},
+                "start_time": {"type": "number", "description": "TTS başlangıç zamanı (saniye)"},
+                "music_volume": {"type": "number", "description": "Müzik ses seviyesi 0.0–1.0 (smart_mix: varsayılan 0.3)"},
+                "fade_in": {"type": "number", "description": "Müzik fade-in süresi (saniye)"},
+                "fade_out": {"type": "number", "description": "Müzik fade-out süresi (saniye)"},
+                "video_duration": {"type": "number", "description": "Beat cut list: video süresi (saniye)"},
+                "num_cuts": {"type": "integer", "description": "Beat cut list: kaç kesim noktası"}
+            },
+            "required": ["operation"]
+        }
     }
 ]
 

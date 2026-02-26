@@ -114,6 +114,7 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 **Araştırma:** search_web, search_images, browse_url, research_brand, get_library_docs
 **Diğer:** generate_grid, apply_style, manage_plugin, analyze_image, analyze_video
 **Müzik/Ses:** generate_music (AI müzik üretimi), add_audio_to_video (videoya müzik/ses ekleme — FFmpeg)
+**🎵 Ses-Görüntü Senkronizasyonu (Phase 24):** audio_visual_sync — Beat detection, ses analizi, beat'e göre kesim listesi, videodan ses efekti üretimi (Mirelo SFX), akıllı müzik mix (ducking+fade), TTS seslendirme. Kullanıcı 'müziğe göre geçişler', 'ses efekti çıkar', 'seslendirme ekle' dediğinde kullan.
 **Otonom:** plan_and_execute (çoklu çıktılı kampanya/proje)
 
 ## ÖNEMLİ: VİDEO + SES BİRLEŞTİRME KURALI
@@ -1367,6 +1368,9 @@ Kurallar:
         elif tool_name == "advanced_edit_video":
             return await self._advanced_edit_video(db, session_id, tool_input)
         
+        elif tool_name == "audio_visual_sync":
+            return await self._audio_visual_sync(db, session_id, tool_input)
+        
         # (add_audio_to_video zaten yukarıda handle ediliyor)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
@@ -2548,6 +2552,124 @@ Konuşma:
             
         except Exception as e:
             print(f"❌ Phase 23 advanced_edit_video hatası: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def _audio_visual_sync(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict
+    ) -> dict:
+        """
+        Phase 24: Ses-Görüntü Senkronizasyonu.
+        AudioSyncService'i dispatch eder.
+        """
+        try:
+            from app.services.audio_sync_service import audio_sync
+            from app.services.asset_service import asset_service
+            
+            operation = params.get("operation", "")
+            video_url = params.get("video_url", "")
+            audio_url = params.get("audio_url", "")
+            
+            if not operation:
+                return {"success": False, "error": "İşlem (operation) belirtilmedi."}
+            
+            print(f"\n🎵 [Phase 24] Audio-Visual Sync: {operation}")
+            
+            result = None
+            
+            if operation == "analyze_audio":
+                if not audio_url:
+                    return {"success": False, "error": "audio_url gerekli."}
+                result = await audio_sync.analyze_audio(audio_url)
+            
+            elif operation == "detect_beats":
+                if not audio_url:
+                    return {"success": False, "error": "audio_url gerekli."}
+                result = await audio_sync.detect_beats(audio_url)
+            
+            elif operation == "beat_cut_list":
+                if not audio_url:
+                    return {"success": False, "error": "audio_url gerekli."}
+                result = await audio_sync.generate_beat_cut_list(
+                    audio_url=audio_url,
+                    video_duration=params.get("video_duration", 10.0),
+                    num_cuts=params.get("num_cuts", 5),
+                )
+            
+            elif operation == "generate_sfx":
+                if not video_url:
+                    return {"success": False, "error": "video_url gerekli."}
+                result = await audio_sync.generate_sfx_from_video(video_url)
+                # SFX'i asset olarak kaydet
+                if result and result.get("success") and result.get("audio_url"):
+                    try:
+                        await asset_service.save_asset(
+                            db=db, session_id=session_id,
+                            url=result["audio_url"], asset_type="audio",
+                            prompt="Auto-generated SFX",
+                            model_name="mirelo-sfx-v1.5",
+                        )
+                    except Exception:
+                        pass
+            
+            elif operation == "smart_mix":
+                if not video_url or not audio_url:
+                    return {"success": False, "error": "video_url ve audio_url gerekli."}
+                result = await audio_sync.smart_mix(
+                    video_url=video_url,
+                    audio_url=audio_url,
+                    music_volume=params.get("music_volume", 0.3),
+                    fade_in=params.get("fade_in", 0.5),
+                    fade_out=params.get("fade_out", 1.0),
+                )
+                if result and result.get("success") and result.get("video_url"):
+                    try:
+                        await asset_service.save_asset(
+                            db=db, session_id=session_id,
+                            url=result["video_url"], asset_type="video",
+                            prompt="Smart audio mix",
+                            model_name="ffmpeg-smart-mix",
+                        )
+                    except Exception:
+                        pass
+            
+            elif operation == "tts_narration":
+                if not video_url:
+                    return {"success": False, "error": "video_url gerekli."}
+                text = params.get("text", "")
+                if not text:
+                    return {"success": False, "error": "Seslendirme metni (text) gerekli."}
+                result = await audio_sync.add_tts_narration(
+                    video_url=video_url,
+                    text=text,
+                    voice=params.get("voice", "nova"),
+                    start_time=params.get("start_time", 0),
+                )
+                if result and result.get("success") and result.get("video_url"):
+                    try:
+                        await asset_service.save_asset(
+                            db=db, session_id=session_id,
+                            url=result["video_url"], asset_type="video",
+                            prompt=f"TTS narration: {text[:50]}",
+                            model_name="tts-narration",
+                        )
+                    except Exception:
+                        pass
+            
+            else:
+                return {"success": False, "error": f"Bilinmeyen ses senkronizasyon işlemi: {operation}"}
+            
+            if result and result.get("success"):
+                print(f"   ✅ {operation} başarılı")
+            else:
+                print(f"   ❌ {operation}: {result.get('error', 'unknown') if result else 'no result'}")
+            
+            return result or {"success": False, "error": "İşlem sonuçsuz."}
+            
+        except Exception as e:
+            print(f"❌ Phase 24 audio_visual_sync hatası: {e}")
             return {"success": False, "error": str(e)}
     
     async def _transcribe_voice(self, params: dict) -> dict:
