@@ -191,11 +191,11 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
 
     const filterTabs: { key: FilterTab; icon: React.ElementType; label: string; count: number }[] = [
         { key: "all", icon: LayoutGrid, label: "Tümü", count: assets.length },
-        { key: "images", icon: ImageIcon, label: "Görseller", count: assets.filter(a => a.type === "image").length },
-        { key: "videos", icon: Video, label: "Videolar", count: assets.filter(a => a.type === "video").length },
-        { key: "audio", icon: Music, label: "Sesler", count: assets.filter(a => a.type === "audio").length },
-        { key: "favorites", icon: Star, label: "Favoriler", count: assets.filter(a => a.isFavorite).length },
-        { key: "uploads", icon: Upload, label: "Yüklemeler", count: assets.filter(a => a.type === "uploaded").length },
+        { key: "images", icon: ImageIcon, label: "Görsel", count: assets.filter(a => a.type === "image").length },
+        { key: "videos", icon: Video, label: "Video", count: assets.filter(a => a.type === "video").length },
+        { key: "audio", icon: Music, label: "Ses", count: assets.filter(a => a.type === "audio").length },
+        { key: "favorites", icon: Star, label: "Favori", count: assets.filter(a => a.isFavorite).length },
+        { key: "uploads", icon: Upload, label: "Yüklenen", count: assets.filter(a => a.type === "uploaded").length },
     ];
 
     if (collapsed) {
