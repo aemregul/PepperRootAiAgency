@@ -1325,7 +1325,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {msg.video_url && (
                                                 <div
                                                     className="relative group/vid cursor-pointer rounded-lg overflow-hidden border border-[var(--border)]"
-                                                    style={{ width: '280px', height: '350px' }}
+                                                    style={{ width: '280px', height: '420px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1383,7 +1383,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                     src={msg.image_url}
                                                     alt="Üretilen görsel"
                                                     className="mt-3 rounded-xl object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
-                                                    style={{ width: '280px', height: '350px' }}
+                                                    style={{ width: '280px', height: '420px' }}
                                                     onClick={() => setLightboxImage(msg.image_url!)}
                                                     loading="lazy"
                                                     decoding="async"
@@ -1394,7 +1394,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {msg.video_url && (
                                                 <div
                                                     className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block"
-                                                    style={{ width: '280px', height: '350px' }}
+                                                    style={{ width: '280px', height: '420px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
