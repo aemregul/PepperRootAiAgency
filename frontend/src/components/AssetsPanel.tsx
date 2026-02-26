@@ -336,50 +336,60 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             >
                 {/* Filter Tabs Header */}
                 <header className="h-14 px-3 border-b shrink-0 flex items-center" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center justify-evenly w-full">
-                        {filterTabs.map(tab => {
-                            const Icon = tab.icon;
-                            const isActive = activeFilter === tab.key;
-                            const hasItems = tab.count > 0;
-                            return (
-                                <button
-                                    key={tab.key}
-                                    onClick={() => setActiveFilter(tab.key)}
-                                    className={`relative p-2 rounded-lg transition-all duration-200 ${isActive ? "shadow-md" : "hover:bg-[var(--card)]"}`}
-                                    style={isActive ? {
-                                        background: "var(--accent)",
-                                        color: "white",
-                                    } : { color: "var(--foreground-muted)" }}
-                                    title={`${tab.label} (${tab.count})`}
-                                >
-                                    <Icon size={16} />
-                                </button>
-                            );
-                        })}
-                        {/* Search toggle */}
-                        <button
-                            onClick={() => setShowSearch(!showSearch)}
-                            className={`shrink-0 p-1.5 rounded-lg transition-colors ${showSearch ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"}`}
-                        >
-                            <Search size={14} style={{ color: showSearch ? "var(--accent)" : "var(--foreground-muted)" }} />
-                        </button>
+                    <div className="flex items-center w-full gap-1">
+                        {/* Filter tabs group */}
+                        <div className="flex items-center gap-0.5 flex-1 justify-evenly">
+                            {filterTabs.map(tab => {
+                                const Icon = tab.icon;
+                                const isActive = activeFilter === tab.key;
+                                const hasItems = tab.count > 0;
+                                return (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => setActiveFilter(tab.key)}
+                                        className={`relative p-2 rounded-lg transition-all duration-200 ${isActive ? "shadow-md" : "hover:bg-[var(--card)]"}`}
+                                        style={isActive ? {
+                                            background: "var(--accent)",
+                                            color: "white",
+                                        } : { color: "var(--foreground-muted)" }}
+                                        title={`${tab.label} (${tab.count})`}
+                                    >
+                                        <Icon size={16} />
+                                    </button>
+                                );
+                            })}
+                        </div>
 
-                        {/* Refresh */}
-                        <button
-                            onClick={fetchAssets}
-                            className="shrink-0 p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                            title="Yenile"
-                        >
-                            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
+                        {/* Divider */}
+                        <div className="w-px h-6 shrink-0" style={{ background: "var(--border)" }} />
 
-                        {/* Collapse */}
-                        <button
-                            onClick={onToggle}
-                            className="shrink-0 p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        >
-                            <ChevronRight size={14} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
+                        {/* Action buttons group */}
+                        <div className="flex items-center gap-0.5">
+                            {/* Search toggle */}
+                            <button
+                                onClick={() => setShowSearch(!showSearch)}
+                                className={`p-2 rounded-lg transition-colors ${showSearch ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"}`}
+                            >
+                                <Search size={16} style={{ color: showSearch ? "var(--accent)" : "var(--foreground-muted)" }} />
+                            </button>
+
+                            {/* Refresh */}
+                            <button
+                                onClick={fetchAssets}
+                                className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                                title="Yenile"
+                            >
+                                <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} style={{ color: "var(--foreground-muted)" }} />
+                            </button>
+
+                            {/* Collapse */}
+                            <button
+                                onClick={onToggle}
+                                className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            >
+                                <ChevronRight size={16} style={{ color: "var(--foreground-muted)" }} />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Search bar (conditional) */}
