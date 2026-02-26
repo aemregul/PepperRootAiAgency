@@ -663,6 +663,42 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["video_url", "audio_url"]
         }
+    },
+    {
+        "name": "plan_and_execute",
+        "description": "Büyük/çok adımlı yaratıcı projeleri OTONOM olarak planla ve uygula. Kampanya, multi-format içerik paketi, marka kit, sosyal medya seti vb. Kullanıcı karmaşık bir istek yaptığında (birden fazla çıktı türü/formatı) BU ARACI KULLAN. İç planlamayı GPT-4o ile yapar, sonra görevleri paralel yürütür. Tek seferde 9'a kadar görsel + 4'e kadar video üretebilir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "type": "string",
+                    "description": "Üst düzey proje hedefi (örn: 'Nike yaz kampanyası — 5 Instagram post, 2 story video, 1 kapak görseli')"
+                },
+                "brand_tag": {
+                    "type": "string",
+                    "description": "Varsa marka entity tag'i (örn: @nike). Markanın renkleri, tonu otomatik entegre edilir."
+                },
+                "output_types": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["image", "video", "audio"]},
+                    "description": "Üretilecek çıktı türleri (varsayılan: ['image'])"
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "Toplam çıktı sayısı (varsayılan: hedeften otomatik çıkar, max 13)"
+                },
+                "formats": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["post", "story", "reel", "cover", "banner", "thumbnail"]},
+                    "description": "Hedef formatlar. post=1:1, story/reel=9:16, cover/banner/thumbnail=16:9"
+                },
+                "style_notes": {
+                    "type": "string",
+                    "description": "Ek stil notları (örn: 'Minimalist, pastel renkler, yazısız')"
+                }
+            },
+            "required": ["goal"]
+        }
     }
 ]
 

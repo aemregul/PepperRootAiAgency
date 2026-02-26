@@ -28,7 +28,7 @@ interface ChatPanelProps {
     pendingInputText?: string | null;
     onInputTextConsumed?: () => void;
     installedPlugins?: Array<{ id: string; name: string; promptText: string; emoji?: string }>;
-    pendingAssetUrl?: { url: string; type: "image" | "video" | "audio" } | null;
+    pendingAssetUrl?: { url: string; type: "image" | "video" | "audio" | "uploaded" } | null;
     onAssetUrlConsumed?: () => void;
 }
 
@@ -107,11 +107,16 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
                 elements.push(
                     <div key={key++} className="mt-2 mb-2">
                         <video
-                            src={url}
+                            src={`${url}#t=0.1`}
                             controls
                             playsInline
+                            muted
                             preload="metadata"
                             className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10"
+                            onLoadedData={e => {
+                                const v = e.currentTarget;
+                                v.currentTime = 0.1;
+                            }}
                         />
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-[var(--foreground-muted)]">📹 {text}</span>
@@ -226,11 +231,16 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
             elements.push(
                 <div key={key++} className="mt-2 mb-2">
                     <video
-                        src={url}
+                        src={`${url}#t=0.1`}
                         controls
                         playsInline
+                        muted
                         preload="metadata"
                         className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10"
+                        onLoadedData={e => {
+                            const v = e.currentTarget;
+                            v.currentTime = 0.1;
+                        }}
                     />
                     <div className="flex items-center gap-2 mt-1">
                         <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">

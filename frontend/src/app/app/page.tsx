@@ -23,7 +23,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [pendingInputText, setPendingInputText] = useState<string | null>(null);
-  const [pendingAssetUrl, setPendingAssetUrl] = useState<{ url: string; type: "image" | "video" | "audio" } | null>(null);
+  const [pendingAssetUrl, setPendingAssetUrl] = useState<{ url: string; type: "image" | "video" | "audio" | "uploaded" } | null>(null);
   const [installedPlugins, setInstalledPlugins] = useState<Array<{ id: string; name: string; promptText: string }>>([]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);

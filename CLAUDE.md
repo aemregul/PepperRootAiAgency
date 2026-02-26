@@ -363,19 +363,18 @@ git add . && git commit -m "mesaj" && git push
    - **Kullanıcı medyası:** Dikey 200×300px, Yatay 300×200px (biraz daha küçük)
    - `object-cover` ile doğal oran korunuyor
 
-### 🐛 DEVAM EDEN SORUNLAR (Çözülmedi — Bir Sonraki Oturumda Düzeltilecek)
+### 🐛 DEVAM EDEN SORUNLAR (27 Şubat 2026 — Düzeltildi ✅)
 
-1. **Chat Video Siyah Ekran Sorunu:**
-   - `#t=0.1` eklenmesine rağmen bazı videolarda hâlâ siyah ekran gösteriyor
-   - Muhtemel sebep: `renderContent` fonksiyonundaki eski video rendering kodu (lightbox dışı)
-   - Kontrol edilecek: `renderContent` içinde video URL'lerinin nasıl render edildiği
+1. **✅ Chat Video Siyah Ekran Sorunu — DÜZELTİLDİ:**
+   - `renderContent` fonksiyonundaki video tag'lerine `#t=0.1` src fragment'ı eklendi
+   - `onLoadedData` callback ile `currentTime = 0.1` set edilerek çift güvence sağlandı
+   - Hem markdown-link videoları hem standalone URL videoları düzeltildi
+   - `muted` attribute eklendi (autoplay policy uyumluluğu)
 
-2. **"Yatay formatta çevir" Komutu Yanlış Sonuç Üretiyor:**
-   - Kullanıcı referans görseli gönderip "yatay formatta bir videoya çevir" dediğinde
-   - AI tamamen alakasız bir video üretti (referans görselle hiç ilgisi yok)
-   - Backend logları kontrol edilemedi (terminal çıktısı boştu)
-   - Muhtemel sebep: AI prompt'u "yatay format" ifadesini farklı yorumladı veya referans görseli kullanmadı
-   - Kontrol edilecek: orchestrator.py ve video generation tool'daki prompt/image_url iletimi
+2. **✅ "Yatay formatta çevir" Referans Görseli Sorunu — DÜZELTİLDİ:**
+   - `_handle_tool_call`'da `generate_video` ve `generate_long_video` için session-cached referans görseli auto-injection eklendi
+   - `uploaded_reference_url` yoksa bile `_session_reference_images` cache'inden referans alınıyor
+   - Kullanıcı önceki mesajda görsel yükleyip sonraki mesajda "videoya çevir" dediğinde referans kaybedilmiyor
 
 ---
 
@@ -401,10 +400,20 @@ git add . && git commit -m "mesaj" && git push
 ### Current Fokus & Roadmap
 - ✅ Phase 20: Multi-Model AI Engine (47 model entegrasyonu) — **TAMAMLANDI**
 - ✅ Phase 21: Agent-Driven Model Selection (GPT-4o model seçimi) — **TAMAMLANDI**
-- [ ] Phase 22: Full Autonomous Studio Orchestration (Planned)
+- ✅ Phase 22: Full Autonomous Studio Orchestration — **TAMAMLANDI (27 Şubat 2026)**
 - [ ] Phase 23: Real-time Interactive Video Editing (Planned)
 - [ ] Phase 24: Audio-Visual Synchronization (Planned)
 - [ ] **Deploy:** Railway (Backend) + Vercel (Frontend)
+
+### Phase 22: Full Autonomous Studio Orchestration [COMPLETED 2026-02-27] ⭐ YENİ
+- **CampaignPlannerService** (`campaign_planner_service.py`): GPT-4o ile tek cümleden detaylı üretim planı çıkarır
+- **Paralel Execution Engine**: Bağımsız görevleri `asyncio.gather` ile paralel, bağımlı görevleri sıralı çalıştırır
+- **Akıllı Plan Format**: Her task için type, prompt, format, aspect_ratio, model ve dependency tanımı
+- **Marka Entegrasyonu**: `brand_tag` ile entity'den renkler, slogan, ton otomatik çekilir
+- **Yeni Tool**: `plan_and_execute` — 34. araç olarak tools.py'ye eklendi
+- **Orchestrator Handler**: `_plan_and_execute` metodu + system prompt güncellemesi
+- **Backward Compat**: Mevcut `generate_campaign` korundu, tüm 33 eski araç değişmedi
+- **Örnek Kullanım**: "Nike yaz kampanyası — 5 post, 2 video, 1 kapak" → GPT-4o planlar, paralel üretir, sonuçları toplar
 
 ### 🎬 47 Model AI Engine & Agent-Driven Selection (26 Şubat 2026) ⭐ YENİ
 

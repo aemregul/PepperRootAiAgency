@@ -90,6 +90,7 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 
 ## TOOL SEÇİMİ
 **Yeni içerik üret:** generate_image, generate_video (≤10s), generate_long_video (15s-180s)
+**🚀 OTONOM KAMPANYA (Phase 22):** plan_and_execute — Kullanıcı birden fazla çıktı isteyen karmaşık bir hedef tanımladığında (örn: "5 post + 2 video hazırla", "sosyal medya paketi oluştur", "marka kampanyası yap") BU ARACI KULLAN. İç planlamayı GPT-4o yapar, görevleri paralel yürütür. Tek seferde çoklu görsel+video üretir.
 
 ## 🎬 VİDEO ARAÇ SEÇİM TABLOSU (KRİTİK — MUTLAKA UYGULA!)
 | Kullanıcının istediği süre | Kullanılacak araç | duration/total_duration parametresi |
@@ -112,6 +113,7 @@ Otonom düşünen, problem çözen bir agent'sın. Başarısız olursan alternat
 **Araştırma:** search_web, search_images, browse_url, research_brand, get_library_docs
 **Diğer:** generate_grid, apply_style, manage_plugin, analyze_image, analyze_video
 **Müzik/Ses:** generate_music (AI müzik üretimi), add_audio_to_video (videoya müzik/ses ekleme — FFmpeg)
+**Otonom:** plan_and_execute (çoklu çıktılı kampanya/proje)
 
 ## ÖNEMLİ: VİDEO + SES BİRLEŞTİRME KURALI
 Kullanıcı 'videoyu müzikle birleştir', 'videoya ses ekle', 'bu müziği videoya koy' gibi bir şey dediğinde:
@@ -1127,11 +1129,15 @@ Kurallar:
         
         # YENİ ARAÇLAR
         elif tool_name == "generate_video":
-            # Video üretimi sonrası thumbnail kaydı için özel işlem
-            result = await self._generate_video(db, session_id, tool_input, resolved_entities or [])
+            # Referans görseli ek kaynaklardan da enjekte et (session cache)
+            if not tool_input.get("image_url"):
+                # Session cache'den referans görseli al
+                cached = self._session_reference_images.get(str(session_id)) if hasattr(self, '_session_reference_images') else None
+                if cached and cached.get("url"):
+                    tool_input["image_url"] = cached["url"]
+                    print(f"   📎 AUTO-INJECTED session-cached reference image into generate_video")
             
-            # Eğer başarılıysa ve thumbnail varsa DB'ye güncelle (veya save sırasında hallet)
-            # Not: _generate_video içinde zaten save_asset çağrılıyor, orayı güncellemeliyiz.
+            result = await self._generate_video(db, session_id, tool_input, resolved_entities or [])
             return result
         
         elif tool_name == "edit_video":
@@ -1165,6 +1171,12 @@ Kurallar:
             return {"success": False, "error": plugin_result.error or "Video düzenleme başarısız"}
         
         elif tool_name == "generate_long_video":
+            # Referans görseli ek kaynaklardan da enjekte et (session cache)
+            if not tool_input.get("image_url"):
+                cached = self._session_reference_images.get(str(session_id)) if hasattr(self, '_session_reference_images') else None
+                if cached and cached.get("url"):
+                    tool_input["image_url"] = cached["url"]
+                    print(f"   📎 AUTO-INJECTED session-cached reference image into generate_long_video")
             return await self._generate_long_video(db, session_id, tool_input)
         
         elif tool_name == "edit_image":
@@ -1347,6 +1359,9 @@ Kurallar:
         
         elif tool_name == "transcribe_voice":
             return await self._transcribe_voice(tool_input)
+        
+        elif tool_name == "plan_and_execute":
+            return await self._plan_and_execute(db, session_id, tool_input, resolved_entities or [])
         
         # (add_audio_to_video zaten yukarıda handle ediliyor)
         
@@ -2274,6 +2289,141 @@ Konuşma:
                 "message": f"{len(results)} varyasyon üretildi ({', '.join(formats)} formatlarında)."
             }
         except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _plan_and_execute(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        params: dict,
+        resolved_entities: list = None
+    ) -> dict:
+        """
+        Phase 22: Full Autonomous Studio Orchestration.
+        
+        GPT-4o ile üretim planı oluşturup paralel yürütür.
+        Tek cümlelik hedeften tam kampanya çıkarır.
+        """
+        try:
+            from app.services.campaign_planner_service import campaign_planner
+            
+            goal = params.get("goal", "")
+            brand_tag = params.get("brand_tag")
+            output_types = params.get("output_types")
+            count = params.get("count")
+            formats = params.get("formats")
+            style_notes = params.get("style_notes", "")
+            
+            if not goal:
+                return {"success": False, "error": "Hedef (goal) belirtilmedi."}
+            
+            # Brand context oluştur
+            brand_context = ""
+            if brand_tag:
+                try:
+                    user_id = await get_user_id_from_session(db, session_id)
+                    entity = await entity_service.get_by_tag(db, user_id, brand_tag)
+                    if entity:
+                        attrs = entity.attributes or {}
+                        colors = attrs.get("colors", {})
+                        brand_context = (
+                            f"Marka: {entity.name}. "
+                            f"Açıklama: {entity.description or ''}. "
+                            f"Renkler: primary={colors.get('primary', '')}, "
+                            f"secondary={colors.get('secondary', '')}, "
+                            f"accent={colors.get('accent', '')}. "
+                            f"Slogan: {attrs.get('tagline', '')}. "
+                            f"Ton: {attrs.get('tone', '')}. "
+                            f"Sektör: {attrs.get('industry', '')}."
+                        )
+                except Exception as e:
+                    print(f"⚠️ Brand context alınamadı: {e}")
+            
+            # Entity context oluştur
+            entity_context = ""
+            if resolved_entities:
+                for ent in resolved_entities:
+                    entity_context += f"@{getattr(ent, 'tag', '')}: {getattr(ent, 'name', '')} — {getattr(ent, 'description', '')[:80]}. "
+            
+            print(f"\n🚀 [Phase 22] OTONOM KAMPANYA BAŞLADI")
+            print(f"   Hedef: {goal}")
+            print(f"   Marka: {brand_context[:80] if brand_context else 'Yok'}")
+            
+            # 1. Plan oluştur (GPT-4o)
+            plan = await campaign_planner.plan_campaign(
+                goal=goal,
+                brand_context=brand_context,
+                entity_context=entity_context,
+                output_types=output_types,
+                count=count,
+                formats=formats,
+                style_notes=style_notes
+            )
+            
+            if not plan.get("success"):
+                return {
+                    "success": False,
+                    "error": plan.get("error", "Plan oluşturulamadı")
+                }
+            
+            tasks = plan.get("tasks", [])
+            plan_title = plan.get("plan_title", "Kampanya")
+            plan_summary = plan.get("plan_summary", "")
+            
+            print(f"   📋 Plan: {plan_title} ({len(tasks)} görev)")
+            for t in tasks:
+                print(f"      - [{t.get('type', '?')}] {t.get('label', t.get('id', '?'))}")
+            
+            # 2. Planı yürüt (paralel + sıralı)
+            execution_result = await campaign_planner.execute_plan(
+                plan=plan,
+                orchestrator=self,
+                db=db,
+                session_id=session_id,
+                resolved_entities=resolved_entities
+            )
+            
+            completed = execution_result.get("completed", 0)
+            total = execution_result.get("total_tasks", 0)
+            failed = execution_result.get("failed", 0)
+            results = execution_result.get("results", [])
+            
+            # Başarılı sonuçları özetle
+            image_urls = [r["url"] for r in results if r["type"] == "image" and r.get("url")]
+            video_urls = [r["url"] for r in results if r["type"] == "video" and r.get("url")]
+            audio_urls = [r["url"] for r in results if r["type"] == "audio" and r.get("url")]
+            
+            # Sonuç mesajı
+            parts = []
+            if image_urls:
+                parts.append(f"{len(image_urls)} görsel")
+            if video_urls:
+                parts.append(f"{len(video_urls)} video")
+            if audio_urls:
+                parts.append(f"{len(audio_urls)} ses")
+            
+            summary_msg = f"✅ {plan_title}: {' + '.join(parts)} üretildi ({completed}/{total} başarılı)."
+            if failed > 0:
+                summary_msg += f" ⚠️ {failed} görev başarısız oldu."
+            
+            print(f"   ✅ Kampanya tamamlandı: {completed}/{total}")
+            
+            return {
+                "success": True,
+                "plan_title": plan_title,
+                "plan_summary": plan_summary,
+                "total_tasks": total,
+                "completed": completed,
+                "failed": failed,
+                "image_urls": image_urls,
+                "video_urls": video_urls,
+                "audio_urls": audio_urls,
+                "results": results,
+                "message": summary_msg
+            }
+            
+        except Exception as e:
+            print(f"❌ Phase 22 plan_and_execute hatası: {e}")
             return {"success": False, "error": str(e)}
     
     async def _transcribe_voice(self, params: dict) -> dict:
