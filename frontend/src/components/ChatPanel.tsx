@@ -1392,6 +1392,13 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                     alt="Üretilen görsel"
                                                     className="mt-3 rounded-xl object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
                                                     style={{ width: '280px', height: '420px' }}
+                                                    onLoad={e => {
+                                                        const img = e.currentTarget;
+                                                        if (img.naturalWidth > img.naturalHeight) {
+                                                            img.style.width = '420px';
+                                                            img.style.height = '280px';
+                                                        }
+                                                    }}
                                                     onClick={() => setLightboxImage(msg.image_url!)}
                                                     loading="lazy"
                                                     decoding="async"
