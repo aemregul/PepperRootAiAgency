@@ -1,97 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-
 interface GenerationProgressCardProps {
     type: "video" | "long_video" | "image";
-    prompt?: string;
     duration?: string | number;
-    sessionId: string;
-    onComplete?: (result: { video_url?: string; message?: string }) => void;
+    progress: number; // 0-100 real progress from parent
+    status: "generating" | "complete" | "error";
 }
 
 export function GenerationProgressCard({
     type,
-    prompt,
     duration,
-    sessionId,
-    onComplete,
+    progress,
+    status,
 }: GenerationProgressCardProps) {
-    const [progress, setProgress] = useState(0);
-    const [status, setStatus] = useState<"generating" | "complete" | "error">("generating");
-    const [resultUrl, setResultUrl] = useState<string | null>(null);
-    const wsRef = useRef<WebSocket | null>(null);
-    const simulateRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const targetProgressRef = useRef(0);
-
-    useEffect(() => {
-        // WebSocket bağlantısı
-        const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8000/api/v1/chat/ws/progress/${sessionId}`;
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-            console.log("🔌 Progress WS connected");
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === "progress") {
-                    targetProgressRef.current = Math.round(data.progress * 100);
-                } else if (data.type === "complete") {
-                    targetProgressRef.current = 100;
-                    setProgress(100);
-                    setStatus("complete");
-                    setResultUrl(data.result?.video_url || null);
-                    onComplete?.(data.result || {});
-                } else if (data.type === "error") {
-                    setStatus("error");
-                }
-            } catch { /* ignore */ }
-        };
-
-        ws.onerror = () => {
-            console.warn("Progress WS error — using simulated progress");
-        };
-
-        ws.onclose = () => {
-            console.log("🔌 Progress WS closed");
-        };
-
-        // Simulated smooth progress animation
-        // Moves toward targetProgressRef at a natural pace
-        let simulated = 0;
-        simulateRef.current = setInterval(() => {
-            if (status === "complete" || status === "error") return;
-
-            const target = targetProgressRef.current;
-            if (target > simulated) {
-                // Jump closer to real target
-                simulated = Math.min(target, simulated + 2);
-            } else if (simulated < 95) {
-                // Slow auto-advance when no WS updates (for non-WS fallback)
-                simulated += 0.15;
-            }
-            setProgress(Math.round(simulated));
-        }, 500);
-
-        // Keep-alive ping
-        const pingInterval = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send("ping");
-            }
-        }, 15000);
-
-        return () => {
-            ws.close();
-            wsRef.current = null;
-            if (simulateRef.current) clearInterval(simulateRef.current);
-            clearInterval(pingInterval);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sessionId]);
-
     const icon = type === "image" ? "🖼️" : "🎬";
     const label = type === "image" ? "Görsel" : "Video";
     const durationText = duration ? `${duration}s` : "";
@@ -161,8 +82,6 @@ export function GenerationProgressCard({
                         <span className="text-sm text-red-400">⚠️ Üretim başarısız</span>
                     </div>
                 )}
-
-
             </div>
         </div>
     );

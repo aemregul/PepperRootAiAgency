@@ -260,6 +260,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [activeGenerations, setActiveGenerations] = useState<Array<{ type: string; prompt?: string; duration?: string | number }>>([]);
+    const [videoProgress, setVideoProgress] = useState(0);
+    const [videoGenStatus, setVideoGenStatus] = useState<"generating" | "complete" | "error">("generating");
     const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
     const [isConnected, setIsConnected] = useState<boolean | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -650,6 +652,11 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
                     if (data.type === 'progress') {
                         setLoadingStatus(data.message);
+                        // Real progress from backend (0.0-1.0 → 0-100)
+                        if (typeof data.progress === 'number') {
+                            setVideoProgress(Math.round(data.progress * 100));
+                        }
+                        setVideoGenStatus("generating");
                         // Ensure video progress card is visible
                         setActiveGenerations(prev => {
                             if (prev.length === 0) {
@@ -666,6 +673,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         }]);
                         setLoadingStatus("");
                         setActiveGenerations([]);
+                        setVideoProgress(0);
+                        setVideoGenStatus("generating");
                     } else if (data.type === 'complete') {
                         if (data.result?.message) {
                             const msgId = data.result.message_id || Date.now().toString();
@@ -692,6 +701,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         }
                         setLoadingStatus("");
                         setActiveGenerations([]);
+                        setVideoProgress(0);
+                        setVideoGenStatus("generating");
                     }
                 } catch (err) {
                     console.error("[WS] Parse error", err);
@@ -1433,13 +1444,9 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                     <GenerationProgressCard
                                         key={`gen-${i}`}
                                         type={gen.type as "video" | "long_video" | "image"}
-                                        prompt={gen.prompt}
                                         duration={gen.duration}
-                                        sessionId={sessionId || ""}
-                                        onComplete={() => {
-                                            setActiveGenerations((prev) => prev.filter((_, idx) => idx !== i));
-                                            onNewAsset?.({ url: '', type: 'refresh' });
-                                        }}
+                                        progress={videoProgress}
+                                        status={videoGenStatus}
                                     />
                                 ))}
                             </div>
