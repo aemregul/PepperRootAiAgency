@@ -336,9 +336,9 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             >
                 {/* Filter Tabs Header */}
                 <header className="px-2 pt-2 pb-1 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                         {/* Icon filter tabs */}
-                        <div className="flex items-center gap-0.5 flex-1">
+                        <div className="flex items-center gap-0.5 min-w-0 flex-1 overflow-hidden">
                             {filterTabs.map(tab => {
                                 const Icon = tab.icon;
                                 const isActive = activeFilter === tab.key;
@@ -364,26 +364,26 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                         {/* Search toggle */}
                         <button
                             onClick={() => setShowSearch(!showSearch)}
-                            className={`p-2 rounded-lg transition-colors ${showSearch ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"}`}
+                            className={`shrink-0 p-1.5 rounded-lg transition-colors ${showSearch ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"}`}
                         >
-                            <Search size={16} style={{ color: showSearch ? "var(--accent)" : "var(--foreground-muted)" }} />
+                            <Search size={14} style={{ color: showSearch ? "var(--accent)" : "var(--foreground-muted)" }} />
                         </button>
 
                         {/* Refresh */}
                         <button
                             onClick={fetchAssets}
-                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            className="shrink-0 p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
                             title="Yenile"
                         >
-                            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} style={{ color: "var(--foreground-muted)" }} />
+                            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} style={{ color: "var(--foreground-muted)" }} />
                         </button>
 
                         {/* Collapse */}
                         <button
                             onClick={onToggle}
-                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            className="shrink-0 p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
                         >
-                            <ChevronRight size={16} style={{ color: "var(--foreground-muted)" }} />
+                            <ChevronRight size={14} style={{ color: "var(--foreground-muted)" }} />
                         </button>
                     </div>
 
