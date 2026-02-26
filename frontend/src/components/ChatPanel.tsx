@@ -570,7 +570,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     let imageUrl = msg.metadata_?.images?.[0]?.url;
                     let imageUrls: string[] | undefined;
                     if (!imageUrl && msg.content) {
-                        const match = msg.content.match(/\[ÜRETİLEN GÖRSELLER: ([^\]]+)\]/);
+                        // Match both old format [ÜRETİLEN GÖRSELLER: url] and new format [Bu mesajda üretilen görseller: url]
+                        const match = msg.content.match(/\[(?:ÜRETİLEN GÖRSELLER|Bu mesajda üretilen görseller):\s*([^\]]+)\]/i);
                         if (match) {
                             imageUrl = match[1].split(',')[0].trim();
                         }
@@ -586,7 +587,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     return {
                         id: msg.id,
                         role: msg.role as 'user' | 'assistant',
-                        content: msg.content?.replace(/\n\n\[ÜRETİLEN (GÖRSELLER|VİDEOLAR): [^\]]+\]/g, '') || msg.content,
+                        content: msg.content?.replace(/\n\n\[(?:ÜRETİLEN (?:GÖRSELLER|VİDEOLAR)|Bu mesajda üretilen (?:görseller|videolar)):\s*[^\]]+\]/gi, '') || msg.content,
                         timestamp: new Date(msg.created_at),
                         image_url: imageUrl,
                         image_urls: imageUrls,
@@ -1072,7 +1073,19 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     checkQueue();
                 });
 
-                // Stream bitti — assets panelini yenile (audio gibi SSE ile gönderilmeyen asset'ler için)
+                // Stream bitti — inline asset tag'lerini temizle (thumbnail olarak render edilecek)
+                setMessages((prev) =>
+                    prev.map((msg) =>
+                        msg.id === messageId
+                            ? {
+                                ...msg,
+                                content: msg.content.replace(/\n\n\[(?:ÜRETİLEN (?:GÖRSELLER|VİDEOLAR)|Bu mesajda üretilen (?:görseller|videolar)):\s*[^\]]+\]/gi, '').trim(),
+                            }
+                            : msg
+                    )
+                );
+
+                // Assets panelini yenile (audio gibi SSE ile gönderilmeyen asset'ler için)
                 onNewAsset?.({ url: '', type: 'refresh' });
             }
         } catch (err) {
