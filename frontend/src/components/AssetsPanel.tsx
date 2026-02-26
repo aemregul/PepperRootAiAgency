@@ -336,30 +336,26 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             >
                 {/* Filter Tabs Header */}
                 <header className="px-2 pt-2 pb-1 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center gap-0.5">
-                        {/* Icon filter tabs */}
-                        <div className="flex items-center gap-0.5 min-w-0 flex-1 overflow-hidden">
-                            {filterTabs.map(tab => {
-                                const Icon = tab.icon;
-                                const isActive = activeFilter === tab.key;
-                                const hasItems = tab.count > 0;
-                                return (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => setActiveFilter(tab.key)}
-                                        className={`relative p-2 rounded-lg transition-all duration-200 ${isActive ? "shadow-md" : "hover:bg-[var(--card)]"}`}
-                                        style={isActive ? {
-                                            background: "var(--accent)",
-                                            color: "white",
-                                        } : { color: "var(--foreground-muted)" }}
-                                        title={`${tab.label} (${tab.count})`}
-                                    >
-                                        <Icon size={16} />
-                                    </button>
-                                );
-                            })}
-                        </div>
-
+                    <div className="flex items-center justify-evenly">
+                        {filterTabs.map(tab => {
+                            const Icon = tab.icon;
+                            const isActive = activeFilter === tab.key;
+                            const hasItems = tab.count > 0;
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveFilter(tab.key)}
+                                    className={`relative p-2 rounded-lg transition-all duration-200 ${isActive ? "shadow-md" : "hover:bg-[var(--card)]"}`}
+                                    style={isActive ? {
+                                        background: "var(--accent)",
+                                        color: "white",
+                                    } : { color: "var(--foreground-muted)" }}
+                                    title={`${tab.label} (${tab.count})`}
+                                >
+                                    <Icon size={16} />
+                                </button>
+                            );
+                        })}
                         {/* Search toggle */}
                         <button
                             onClick={() => setShowSearch(!showSearch)}
@@ -533,7 +529,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                         {filteredAssets.length} medya
                     </span>
                 </div>
-            </aside>
+            </aside >
         </>
     );
 }
