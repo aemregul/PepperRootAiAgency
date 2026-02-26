@@ -82,7 +82,8 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
             const q = searchQuery.toLowerCase();
             result = result.filter(a => a.label?.toLowerCase().includes(q));
         }
-        return result;
+        // En yeni medya en üstte
+        return [...result].reverse();
     }, [assets, activeFilter, searchQuery]);
 
     // Actions
