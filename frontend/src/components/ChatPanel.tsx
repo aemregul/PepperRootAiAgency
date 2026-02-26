@@ -1325,7 +1325,6 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {msg.video_url && (
                                                 <div
                                                     className="relative group/vid cursor-pointer rounded-lg overflow-hidden border border-[var(--border)]"
-                                                    style={{ width: '280px', height: '420px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1334,7 +1333,16 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         muted
                                                         loop
                                                         preload="metadata"
-                                                        className="w-full h-full object-cover"
+                                                        className="object-cover"
+                                                        style={{ width: '280px', height: '420px' }}
+                                                        onLoadedMetadata={e => {
+                                                            const v = e.currentTarget;
+                                                            if (v.videoWidth > v.videoHeight) {
+                                                                v.style.width = '420px';
+                                                                v.style.height = '280px';
+                                                                (v.parentElement as HTMLElement).style.width = '420px';
+                                                            }
+                                                        }}
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
@@ -1394,7 +1402,6 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {msg.video_url && (
                                                 <div
                                                     className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block"
-                                                    style={{ width: '280px', height: '420px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1403,7 +1410,15 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         muted
                                                         loop
                                                         preload="metadata"
-                                                        className="w-full h-full object-cover"
+                                                        className="object-cover"
+                                                        style={{ width: '280px', height: '420px' }}
+                                                        onLoadedMetadata={e => {
+                                                            const v = e.currentTarget;
+                                                            if (v.videoWidth > v.videoHeight) {
+                                                                v.style.width = '420px';
+                                                                v.style.height = '280px';
+                                                            }
+                                                        }}
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
