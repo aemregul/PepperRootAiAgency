@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (26 Şubat 2026 - 04:20)
+## 📊 Genel Durum (26 Şubat 2026 - 04:33)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -299,7 +299,7 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (26 Şubat 2026 - 04:20)
+## 🎯 SON DURUM (26 Şubat 2026 - 04:33)
 
 **🚀 FAZLAR + YENİ ÖZELLİKLER:**
 
@@ -316,7 +316,7 @@ git add . && git commit -m "mesaj" && git push
 
 **Toplam Kod:** 10000+ satır | **28+ Agent Tool** | **47 AI Modeli**
 
-### 🖼️ Assets Panel UX & Chat Media Rendering (26 Şubat 2026 - 04:20) ⭐ YENİ
+### 🖼️ Assets Panel UX & Chat Media Rendering (26 Şubat 2026 - 04:33) ⭐ YENİ
 
 1. **Assets Panel Header Düzeltmeleri (`AssetsPanel.tsx`):**
    - Sağ panel header yüksekliği sol panelle eşitlendi (`h-14` = 56px) → flush alignment
@@ -338,6 +338,13 @@ git add . && git commit -m "mesaj" && git push
    - Non-streaming (dosyalı) yanıtlarda da inline URL tag'leri temizleniyor
    - **Asistan mesajlarında video player:** `video_url` artık embedded player olarak render ediliyor
    - Chat history'den `metadata_.videos[0].url` çıkarılıp `video_url` set ediliyor
+
+5. **Video Progress Card Yeniden Yazıldı (`GenerationProgressCard.tsx`):**
+   - Kendi bozuk WebSocket bağlantısı kaldırıldı (yanlış URL'ye bağlanıyordu)
+   - Sade display bileşenine dönüştürüldü — `progress` ve `status` prop olarak alıyor
+   - ChatPanel'in çalışan WebSocket'inden gelen **gerçek ilerleme** yüzdesi karta aktarılıyor
+   - Alt kısımdaki İngilizce prompt yazısı kaldırıldı
+   - Duplicate "Videonuz hazır!" mesajı önlendi (`message_id` dedup)
 
 ---
 
