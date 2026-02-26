@@ -10,6 +10,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_user_required
@@ -353,9 +356,40 @@ async def chat_with_files(
         raise HTTPException(status_code=400, detail="Maksimum 10 dosya yüklenebilir")
     
     images_base64 = []
+    uploaded_urls = []
+    
     for f in reference_files:
         content = await f.read()
         images_base64.append(base64.b64encode(content).decode('utf-8'))
+        
+        # Dosyayı fal.ai storage'a yükle ve asset olarak kaydet
+        try:
+            import fal_client
+            content_type = f.content_type or "image/png"
+            url = fal_client.upload(content, content_type)
+            uploaded_urls.append((url, f.filename or "uploaded_file"))
+        except Exception as e:
+            logger.warning(f"Dosya fal.ai'ye yüklenemedi: {e}")
+    
+    # Yüklenen dosyaları asset olarak kaydet
+    if uploaded_urls:
+        try:
+            from uuid import UUID as UUIDType
+            from app.services.asset_service import AssetService
+            asset_service = AssetService()
+            target_session_id = UUIDType(active_project_id) if active_project_id else UUIDType(session_id)
+            
+            for url, filename in uploaded_urls:
+                await asset_service.save_asset(
+                    db=db,
+                    session_id=target_session_id,
+                    url=url,
+                    asset_type="uploaded",
+                    prompt=f"Kullanıcı yüklemesi: {filename}",
+                    model_name="user_upload",
+                )
+        except Exception as e:
+            logger.warning(f"Uploaded asset kaydedilemedi: {e}")
     
     return await _process_chat(
         actual_session_id=session_id,

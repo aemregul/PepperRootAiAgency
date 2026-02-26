@@ -8,7 +8,7 @@ import { useToast } from "./ToastProvider";
 interface Asset {
     id: string;
     url: string;
-    type: "image" | "video" | "audio";
+    type: "image" | "video" | "audio" | "uploaded";
     label?: string;
     duration?: string;
     isFavorite?: boolean;
@@ -25,7 +25,7 @@ interface AssetsPanelProps {
     refreshKey?: number;
     onSaveToImages?: () => void;
     onAssetDeleted?: () => void;
-    onAttachAssetUrl?: (url: string, type: "image" | "video" | "audio") => void;
+    onAttachAssetUrl?: (url: string, type: "image" | "video" | "audio" | "uploaded") => void;
 }
 
 export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey, onSaveToImages, onAssetDeleted, onAttachAssetUrl }: AssetsPanelProps) {
@@ -75,7 +75,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         let result = assets;
         if (activeFilter === "images") result = result.filter(a => a.type === "image");
         else if (activeFilter === "videos") result = result.filter(a => a.type === "video");
-        else if (activeFilter === "uploads") result = result.filter(a => a.isFavorite);
+        else if (activeFilter === "uploads") result = result.filter(a => a.type === "uploaded");
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             result = result.filter(a => a.label?.toLowerCase().includes(q));
@@ -191,7 +191,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         { key: "all", icon: LayoutGrid, label: "Tümü", count: assets.length },
         { key: "images", icon: ImageIcon, label: "Görseller", count: assets.filter(a => a.type === "image").length },
         { key: "videos", icon: Video, label: "Videolar", count: assets.filter(a => a.type === "video").length },
-        { key: "uploads", icon: Star, label: "Favoriler", count: assets.filter(a => a.isFavorite).length },
+        { key: "uploads", icon: Upload, label: "Yüklemeler", count: assets.filter(a => a.type === "uploaded").length },
     ];
 
     if (collapsed) {
