@@ -28,6 +28,8 @@ interface ChatPanelProps {
     pendingInputText?: string | null;
     onInputTextConsumed?: () => void;
     installedPlugins?: Array<{ id: string; name: string; promptText: string; emoji?: string }>;
+    pendingAssetUrl?: { url: string; type: "image" | "video" | "audio" } | null;
+    onAssetUrlConsumed?: () => void;
 }
 
 // Hızlı Stil Şablonları
@@ -253,7 +255,7 @@ function renderContent(content: string | undefined | null, onImageClick?: (url: 
     return elements.length > 0 ? elements : content;
 }
 
-export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed, pendingInputText, onInputTextConsumed, installedPlugins = [] }: ChatPanelProps) {
+export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityChange, pendingPrompt, onPromptConsumed, pendingInputText, onInputTextConsumed, installedPlugins = [], pendingAssetUrl, onAssetUrlConsumed }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -735,6 +737,30 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             }, 50);
         }
     }, [pendingInputText, sessionId, onInputTextConsumed]);
+
+    // Asset URL ekleme (Medya Panelinden gelen)
+    useEffect(() => {
+        if (pendingAssetUrl && sessionId) {
+            const { url, type } = pendingAssetUrl;
+            if (type === "video") {
+                setAttachedVideoUrl(url);
+            } else if (type === "audio") {
+                setAttachedAudioUrl(url);
+                setAttachedAudioLabel("Medya Paneli");
+            } else {
+                // Image — URL'den File oluştur ve preview ekle
+                setFilePreviews(prev => [...prev, url]);
+                // URL-based file placeholder
+                const urlFile = new File([], `asset_${Date.now()}.png`, { type: "image/png" });
+                // Asset URL'yi metadata olarak sakla
+                (urlFile as File & { assetUrl?: string }).assetUrl = url;
+                setAttachedFiles(prev => [...prev, urlFile]);
+            }
+            onAssetUrlConsumed?.();
+            // Focus input
+            setTimeout(() => inputRef.current?.focus(), 50);
+        }
+    }, [pendingAssetUrl, sessionId, onAssetUrlConsumed]);
 
     // Stil dropdown dışına tıklayınca kapat
     useEffect(() => {

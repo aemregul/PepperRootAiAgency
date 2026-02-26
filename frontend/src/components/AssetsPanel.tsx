@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Download, Copy, Globe, RefreshCw, ChevronLeft, ChevronRight, Star, Loader2, Trash2, X, ZoomIn, CheckSquare, Square, Bookmark, Pencil } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Download, Copy, Globe, RefreshCw, ChevronLeft, Star, Loader2, Trash2, X, Bookmark, Pencil, LayoutGrid, ImageIcon, Video, Upload, Search, MoreHorizontal, MessageSquarePlus, Send, ChevronRight } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe, renameAsset } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
@@ -16,307 +16,184 @@ interface Asset {
     thumbnailUrl?: string;
 }
 
-// Mock data with more realistic images
-const mockAssets: Asset[] = [
-    {
-        id: "1",
-        url: "https://fal.media/files/penguin/ttzc_uRNnT2DW-b0c-WRD.png",
-        type: "video",
-        label: "Location_kitchen at night",
-        duration: "3:00",
-        isFavorite: true,
-    },
-    {
-        id: "2",
-        url: "https://fal.media/files/tiger/DL-2D_z3wVHxM1OPJVYHS.png",
-        type: "image",
-        isFavorite: false,
-    },
-    {
-        id: "3",
-        url: "https://fal.media/files/lion/VoLY3j7gPj_rEV9lqTaVB.png",
-        type: "image",
-        isFavorite: true,
-    },
-    {
-        id: "4",
-        url: "https://fal.media/files/elephant/6Xbc7RaBCW8dFx-xgG8d5.png",
-        type: "image",
-        isFavorite: false,
-    },
-    {
-        id: "5",
-        url: "https://fal.media/files/penguin/ttzc_uRNnT2DW-b0c-WRD.png",
-        type: "image",
-        isFavorite: false,
-    },
-    {
-        id: "6",
-        url: "https://fal.media/files/tiger/DL-2D_z3wVHxM1OPJVYHS.png",
-        type: "image",
-        isFavorite: false,
-    },
-];
+type FilterTab = "all" | "images" | "videos" | "uploads";
 
 interface AssetsPanelProps {
     collapsed?: boolean;
     onToggle?: () => void;
     sessionId?: string | null;
     refreshKey?: number;
-    onSaveToImages?: () => void;  // Sidebar'ı refresh etmek için
-    onAssetDeleted?: () => void;  // Asset silindiğinde çöp kutusunu güncellemek için
+    onSaveToImages?: () => void;
+    onAssetDeleted?: () => void;
+    onAttachAssetUrl?: (url: string, type: "image" | "video" | "audio") => void;
 }
 
-export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey, onSaveToImages, onAssetDeleted }: AssetsPanelProps) {
+export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey, onSaveToImages, onAssetDeleted, onAttachAssetUrl }: AssetsPanelProps) {
     const [assets, setAssets] = useState<Asset[]>([]);
-    const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [showSearch, setShowSearch] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ asset: Asset; x: number; y: number } | null>(null);
+    const [renamingId, setRenamingId] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState("");
     const toast = useToast();
 
-    // API'den asset'leri çek
-    useEffect(() => {
-        const fetchAssets = async () => {
-            if (!sessionId) {
-                setAssets([]);
-                return;
-            }
-
-            setIsLoading(true);
-            try {
-                const apiAssets = await getAssets(sessionId);
-                const mappedAssets: Asset[] = apiAssets.map((a: GeneratedAsset) => ({
-                    id: a.id,
-                    url: a.url,
-                    type: a.asset_type as "image" | "video" | "audio",
-                    label: a.prompt?.substring(0, 30),
-                    isFavorite: false,
-                    thumbnailUrl: a.thumbnail_url
-                }));
-                setAssets(mappedAssets);
-            } catch (error) {
-                console.error('Asset yükleme hatası:', error);
-                setAssets([]);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchAssets();
-    }, [sessionId, refreshKey]);
-
-    const toggleFavorite = (assetId: string) => {
-        setAssets(prev => prev.map(asset =>
-            asset.id === assetId ? { ...asset, isFavorite: !asset.isFavorite } : asset
-        ));
-    };
-
-    // Delete asset
-    const handleDelete = async (assetId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-
-        const success = await deleteAsset(assetId);
-        if (success) {
-            setAssets(prev => prev.filter(a => a.id !== assetId));
-            toast.success('Asset silindi');
-            onAssetDeleted?.();  // Çöp kutusunu güncelle
-        } else {
-            toast.error('Silme başarısız');
-        }
-    };
-
-    // Toggle selection for bulk operations
-    const toggleSelection = (assetId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setSelectedIds(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(assetId)) {
-                newSet.delete(assetId);
-            } else {
-                newSet.add(assetId);
-            }
-            return newSet;
-        });
-    };
-
-    // Select/deselect all
-    const toggleSelectAll = () => {
-        if (selectedIds.size === displayAssets.length) {
-            setSelectedIds(new Set());
-        } else {
-            setSelectedIds(new Set(displayAssets.map(a => a.id)));
-        }
-    };
-
-    // Bulk delete
-    const handleBulkDelete = async () => {
-        if (selectedIds.size === 0) return;
-
-        let successCount = 0;
-        for (const assetId of selectedIds) {
-            const success = await deleteAsset(assetId);
-            if (success) successCount++;
-        }
-
-        setAssets(prev => prev.filter(a => !selectedIds.has(a.id)));
-        setSelectedIds(new Set());
-        setIsSelectMode(false);
-        toast.success(`${successCount} asset silindi`);
-        if (successCount > 0) onAssetDeleted?.();  // Çöp kutusunu güncelle
-    };
-
-    // Drag start for chat drop
-    const handleDragStart = (e: React.DragEvent, asset: Asset) => {
-        e.dataTransfer.setData('text/plain', asset.url);
-        e.dataTransfer.setData('application/x-asset-url', asset.url);
-        e.dataTransfer.setData('application/x-asset-type', asset.type); // 'video' | 'image' | 'audio'
-        e.dataTransfer.setData('application/x-asset-id', asset.id);
-        e.dataTransfer.setData('application/x-asset-label', asset.label || '');
-        e.dataTransfer.effectAllowed = 'copy';
-    };
-
-    // Rename asset
-    const handleRename = async (asset: Asset, e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        const currentName = asset.label || '';
-        const newName = window.prompt('Yeni isim girin:', currentName);
-        if (newName === null || newName.trim() === '' || newName === currentName) return;
-        const success = await renameAsset(asset.id, newName.trim());
-        if (success) {
-            setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, label: newName.trim() } : a));
-            if (selectedAsset?.id === asset.id) {
-                setSelectedAsset(prev => prev ? { ...prev, label: newName.trim() } : null);
-            }
-            toast.success('İsim değiştirildi');
-        } else {
-            toast.error('İsim değiştirilemedi');
-        }
-    };
-
-    // Save to Saved Images (uses wardrobe entity type internally)
-    const handleSaveToImages = async (asset: Asset, e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-
-        if (!sessionId) return;
-
-        try {
-            const imageName = asset.label || `Görsel_${asset.id.slice(0, 6)}`;
-            await saveAssetToWardrobe(sessionId, asset.url, imageName);
-            // Visual feedback - mark as saved
-            setAssets(prev => prev.map(a =>
-                a.id === asset.id ? { ...a, savedToImages: true } : a
-            ));
-            // Refresh Saved Images modal data
-            if (onSaveToImages) onSaveToImages();
-            toast.success('Görsel kaydedildi!');
-        } catch (error) {
-            console.error('Görsel kaydetme hatası:', error);
-            toast.error('Kaydetme başarısız');
-        }
-    };
-
-
-    // Download all assets
-    const handleDownloadAll = async () => {
-        if (displayAssets.length === 0) {
-            toast.warning('İndirilecek asset yok');
+    // Fetch assets
+    const fetchAssets = async () => {
+        if (!sessionId) {
+            setAssets([]);
             return;
         }
+        setIsLoading(true);
+        try {
+            const data = await getAssets(sessionId);
+            if (data && Array.isArray(data)) {
+                const mapped: Asset[] = data.map((a: GeneratedAsset) => ({
+                    id: a.id,
+                    url: a.url,
+                    type: (a.asset_type as "image" | "video" | "audio") || "image",
+                    label: a.prompt?.substring(0, 50),
+                    isFavorite: false,
+                    savedToImages: false,
+                    thumbnailUrl: a.thumbnail_url,
+                }));
+                setAssets(mapped.reverse());
+            }
+        } catch (error) {
+            console.error("Assets fetch error:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        toast.info(`${displayAssets.length} asset indiriliyor...`);
-        for (const asset of displayAssets) {
+    useEffect(() => { fetchAssets(); }, [sessionId, refreshKey]);
+
+    // Filtered assets
+    const filteredAssets = useMemo(() => {
+        let result = assets;
+        if (activeFilter === "images") result = result.filter(a => a.type === "image");
+        else if (activeFilter === "videos") result = result.filter(a => a.type === "video");
+        else if (activeFilter === "uploads") result = result.filter(a => a.type === "audio");
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            result = result.filter(a => a.label?.toLowerCase().includes(q));
+        }
+        return result;
+    }, [assets, activeFilter, searchQuery]);
+
+    // Actions
+    const toggleFavorite = (assetId: string) => {
+        setAssets(prev => prev.map(a => a.id === assetId ? { ...a, isFavorite: !a.isFavorite } : a));
+    };
+
+    const handleDelete = async (assetId: string, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        try {
+            await deleteAsset(assetId);
+            setAssets(prev => prev.filter(a => a.id !== assetId));
+            setContextMenu(null);
+            onAssetDeleted?.();
+            toast.success("Medya silindi");
+        } catch { toast.error("Silme hatası"); }
+    };
+
+    const handleSaveToImages = async (asset: Asset, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if (!sessionId) return;
+        try {
+            await saveAssetToWardrobe(sessionId, asset.url, asset.label);
+            setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, savedToImages: true } : a));
+            setContextMenu(null);
+            onSaveToImages?.();
+            toast.success("Kaydedildi");
+        } catch { toast.error("Kaydetme hatası"); }
+    };
+
+    const handleRename = async (asset: Asset) => {
+        setRenamingId(asset.id);
+        setRenameValue(asset.label || "");
+        setContextMenu(null);
+    };
+
+    const submitRename = async (assetId: string) => {
+        if (!renameValue.trim()) { setRenamingId(null); return; }
+        try {
+            await renameAsset(assetId, renameValue.trim());
+            setAssets(prev => prev.map(a => a.id === assetId ? { ...a, label: renameValue.trim() } : a));
+            toast.success("Ad güncellendi");
+        } catch { toast.error("Güncelleme hatası"); }
+        setRenamingId(null);
+    };
+
+    const handleAttachToChat = (asset: Asset, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        onAttachAssetUrl?.(asset.url, asset.type);
+        toast.success(`${asset.type === "video" ? "Video" : asset.type === "audio" ? "Ses" : "Görsel"} chat'e eklendi`);
+    };
+
+    const handleDownloadAll = async () => {
+        for (const asset of filteredAssets) {
             try {
                 const response = await fetch(asset.url);
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
+                const a = document.createElement("a");
                 a.href = url;
-                a.download = `asset_${asset.id}.${asset.type === 'video' ? 'mp4' : asset.type === 'audio' ? 'wav' : 'png'}`;
+                a.download = `pepper_${asset.id}.${asset.type === "video" ? "mp4" : asset.type === "audio" ? "wav" : "png"}`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-            } catch (error) {
-                console.error('Download failed:', error);
-            }
-        }
-        toast.success('İndirme tamamlandı');
-    };
-
-    // Copy first asset URL to clipboard
-    const handleCopyLink = async () => {
-        if (displayAssets.length === 0) {
-            toast.warning('Kopyalanacak asset yok');
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(displayAssets[0].url);
-            toast.success('Link kopyalandı!');
-        } catch (error) {
-            console.error('Copy failed:', error);
-            toast.error('Kopyalama başarısız');
+            } catch { }
         }
     };
 
-    // Share via Web Share API
-    const handleShare = async () => {
-        if (displayAssets.length === 0) {
-            toast.warning('Paylaşılacak asset yok');
-            return;
-        }
-
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: 'Pepper Root AI Agency - Generated Assets',
-                    text: 'AI ile oluşturulmuş görseller',
-                    url: displayAssets[0].url
-                });
-                toast.success('Paylaşıldı!');
-            } catch (error) {
-                // User cancelled
-                console.log('Share cancelled');
-            }
-        } else {
-            // Fallback: copy to clipboard
-            handleCopyLink();
+    const handleCopyLink = () => {
+        if (filteredAssets.length > 0) {
+            navigator.clipboard.writeText(filteredAssets[0].url);
+            toast.success("Link kopyalandı");
         }
     };
 
-    const displayAssets = showFavoritesOnly ? assets.filter(a => a.isFavorite) : assets;
-    const favoritesCount = assets.filter(a => a.isFavorite).length;
-
-    // Navigate between assets in lightbox
-    const navigateLightbox = (direction: 'prev' | 'next') => {
-        if (!selectedAsset) return;
-        const currentIndex = displayAssets.findIndex(a => a.id === selectedAsset.id);
-        const newIndex = direction === 'next'
-            ? (currentIndex + 1) % displayAssets.length
-            : (currentIndex - 1 + displayAssets.length) % displayAssets.length;
-        setSelectedAsset(displayAssets[newIndex]);
-    };
-
-    // Download single asset
     const downloadAsset = async (asset: Asset) => {
         try {
             const response = await fetch(asset.url);
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
+            const a = document.createElement("a");
             a.href = url;
-            a.download = `pepper_asset_${asset.id}.${asset.type === 'video' ? 'mp4' : asset.type === 'audio' ? 'wav' : 'png'}`;
+            a.download = `pepper_${asset.id}.${asset.type === "video" ? "mp4" : "png"}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Download failed:', error);
-        }
+        } catch { }
     };
+
+    // Lightbox navigation
+    const navigateLightbox = (direction: "prev" | "next") => {
+        if (!selectedAsset) return;
+        const idx = filteredAssets.findIndex(a => a.id === selectedAsset.id);
+        const newIdx = direction === "next" ? (idx + 1) % filteredAssets.length : (idx - 1 + filteredAssets.length) % filteredAssets.length;
+        setSelectedAsset(filteredAssets[newIdx]);
+    };
+
+    // Close context menu on click outside
+    useEffect(() => {
+        const handler = () => setContextMenu(null);
+        window.addEventListener("click", handler);
+        return () => window.removeEventListener("click", handler);
+    }, []);
+
+    // Filter tab config
+    const filterTabs: { key: FilterTab; icon: React.ElementType; label: string; count: number }[] = [
+        { key: "all", icon: LayoutGrid, label: "Tümü", count: assets.length },
+        { key: "images", icon: ImageIcon, label: "Görseller", count: assets.filter(a => a.type === "image").length },
+        { key: "videos", icon: Video, label: "Videolar", count: assets.filter(a => a.type === "video").length },
+        { key: "uploads", icon: Upload, label: "Sesler", count: assets.filter(a => a.type === "audio").length },
+    ];
 
     if (collapsed) {
         return (
@@ -332,6 +209,59 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
 
     return (
         <>
+            {/* Context Menu */}
+            {contextMenu && (
+                <div
+                    className="fixed z-[60] py-1 rounded-lg shadow-xl min-w-[160px]"
+                    style={{
+                        left: Math.min(contextMenu.x, window.innerWidth - 180),
+                        top: Math.min(contextMenu.y, window.innerHeight - 200),
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                    }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <button
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-[var(--background-secondary)] transition-colors"
+                        onClick={() => { handleAttachToChat(contextMenu.asset); setContextMenu(null); }}
+                    >
+                        <MessageSquarePlus size={14} style={{ color: "var(--accent)" }} /> Chat'e Ekle
+                    </button>
+                    <button
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-[var(--background-secondary)] transition-colors"
+                        onClick={() => { downloadAsset(contextMenu.asset); setContextMenu(null); }}
+                    >
+                        <Download size={14} /> İndir
+                    </button>
+                    <button
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-[var(--background-secondary)] transition-colors"
+                        onClick={() => { toggleFavorite(contextMenu.asset.id); setContextMenu(null); }}
+                    >
+                        <Star size={14} fill={contextMenu.asset.isFavorite ? "#eab308" : "none"} className={contextMenu.asset.isFavorite ? "text-yellow-500" : ""} />
+                        {contextMenu.asset.isFavorite ? "Favoriden Çıkar" : "Favorilere Ekle"}
+                    </button>
+                    <button
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-[var(--background-secondary)] transition-colors"
+                        onClick={() => handleSaveToImages(contextMenu.asset)}
+                    >
+                        <Bookmark size={14} /> Kaydet
+                    </button>
+                    <button
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-[var(--background-secondary)] transition-colors"
+                        onClick={() => handleRename(contextMenu.asset)}
+                    >
+                        <Pencil size={14} /> Yeniden Adlandır
+                    </button>
+                    <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
+                    <button
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-red-500/10 text-red-400 transition-colors"
+                        onClick={() => handleDelete(contextMenu.asset.id)}
+                    >
+                        <Trash2 size={14} /> Sil
+                    </button>
+                </div>
+            )}
+
             {/* Lightbox Modal */}
             {selectedAsset && (
                 <div
@@ -339,284 +269,249 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                     onClick={() => setSelectedAsset(null)}
                 >
                     {/* Close button */}
-                    <button
-                        onClick={() => setSelectedAsset(null)}
-                        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
-                    >
+                    <button className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors z-10" onClick={() => setSelectedAsset(null)}>
                         <X size={24} className="text-white" />
                     </button>
 
-                    {/* Previous button */}
-                    {displayAssets.length > 1 && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); navigateLightbox('prev'); }}
-                            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
-                        >
-                            <ChevronLeft size={28} className="text-white" />
-                        </button>
-                    )}
-
-                    {/* Next button */}
-                    {displayAssets.length > 1 && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); navigateLightbox('next'); }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
-                        >
-                            <ChevronRight size={28} className="text-white" />
-                        </button>
+                    {/* Navigation arrows */}
+                    {filteredAssets.length > 1 && (
+                        <>
+                            <button className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full hover:bg-white/10 transition-colors" onClick={e => { e.stopPropagation(); navigateLightbox("prev"); }}>
+                                <ChevronLeft size={28} className="text-white" />
+                            </button>
+                            <button className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full hover:bg-white/10 transition-colors" onClick={e => { e.stopPropagation(); navigateLightbox("next"); }}>
+                                <ChevronRight size={28} className="text-white" />
+                            </button>
+                        </>
                     )}
 
                     {/* Media content */}
-                    <div
-                        className="flex flex-col items-center gap-4 max-w-[90vw]"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {selectedAsset.type === 'video' ? (
-                            <div className="relative bg-black rounded-xl overflow-hidden flex items-center justify-center" style={{ maxHeight: '75vh' }}>
-                                <video
-                                    src={selectedAsset.url}
-                                    controls
-                                    autoPlay
-                                    className="max-w-full object-contain rounded-xl"
-                                    style={{ maxHeight: '75vh' }}
-                                />
-                            </div>
-                        ) : selectedAsset.type === 'audio' ? (
-                            <div className="rounded-2xl overflow-hidden shadow-2xl" style={{ minWidth: '420px', maxWidth: '500px' }}>
-                                <div className="bg-gradient-to-br from-emerald-900/80 via-purple-900/70 to-indigo-900/80 p-8 flex flex-col items-center">
-                                    <span className="text-6xl mb-4">🎵</span>
-                                    <h3 className="text-lg font-semibold text-white text-center mb-1 px-4 line-clamp-2">
-                                        {selectedAsset.label || 'Müzik'}
-                                    </h3>
-                                    <span className="text-sm text-white/50 mb-6">{selectedAsset.model || 'AI Generated'}</span>
-                                    <audio src={selectedAsset.url} controls autoPlay className="w-full rounded-lg" />
-                                </div>
+                    <div className="max-w-[85vw] max-h-[75vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                        {selectedAsset.type === "video" ? (
+                            <video src={selectedAsset.url} controls autoPlay className="max-w-full max-h-[75vh] rounded-lg" />
+                        ) : selectedAsset.type === "audio" ? (
+                            <div className="flex flex-col items-center gap-4 p-8">
+                                <span className="text-6xl">🎵</span>
+                                <audio src={selectedAsset.url} controls autoPlay />
                             </div>
                         ) : (
-                            <img
-                                src={selectedAsset.url}
-                                alt="Tam boyut görsel"
-                                className="max-w-full object-contain rounded-xl shadow-2xl"
-                                style={{ maxHeight: '75vh' }}
-                            />
+                            <img src={selectedAsset.url} alt="" className="max-w-full max-h-[75vh] object-contain rounded-lg" />
                         )}
+                    </div>
 
-                        {/* Bottom controls — BELOW the media, not overlapping */}
-                        <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10">
-                            <button
-                                onClick={() => downloadAsset(selectedAsset)}
-                                className="p-2 rounded-full hover:bg-white/15 transition-colors"
-                                title="İndir"
-                            >
-                                <Download size={18} className="text-white" />
-                            </button>
-                            <button
-                                onClick={() => toggleFavorite(selectedAsset.id)}
-                                className="p-2 rounded-full hover:bg-white/15 transition-colors"
-                                title="Favori"
-                            >
-                                <Star
-                                    size={18}
-                                    fill={selectedAsset.isFavorite ? "#eab308" : "none"}
-                                    className={selectedAsset.isFavorite ? "text-yellow-500" : "text-white"}
-                                />
-                            </button>
-                            <button
-                                onClick={() => handleRename(selectedAsset)}
-                                className="p-2 rounded-full hover:bg-white/15 transition-colors"
-                                title="Yeniden Adlandır"
-                            >
-                                <Pencil size={18} className="text-white" />
-                            </button>
-                            <div className="w-px h-5 bg-white/20 mx-1" />
-                            <span className="text-white/60 text-sm px-1">
-                                {displayAssets.findIndex(a => a.id === selectedAsset.id) + 1} / {displayAssets.length}
-                            </span>
-                        </div>
+                    {/* Lightbox toolbar */}
+                    <div className="mt-4 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                        {/* Chat'e Gönder — Ana buton */}
+                        <button
+                            onClick={() => { handleAttachToChat(selectedAsset); setSelectedAsset(null); }}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all hover:scale-105"
+                            style={{ background: "var(--accent)", color: "white" }}
+                        >
+                            <Send size={16} /> Chat'e Gönder
+                        </button>
+                        <button onClick={() => downloadAsset(selectedAsset)} className="p-2 rounded-full hover:bg-white/15 transition-colors" title="İndir">
+                            <Download size={18} className="text-white" />
+                        </button>
+                        <button onClick={() => { toggleFavorite(selectedAsset.id); setSelectedAsset({ ...selectedAsset, isFavorite: !selectedAsset.isFavorite }); }} className="p-2 rounded-full hover:bg-white/15 transition-colors" title="Favori">
+                            <Star size={18} fill={selectedAsset.isFavorite ? "#eab308" : "none"} className={selectedAsset.isFavorite ? "text-yellow-500" : "text-white"} />
+                        </button>
+                        <button onClick={() => handleDelete(selectedAsset.id)} className="p-2 rounded-full hover:bg-red-500/40 transition-colors" title="Sil">
+                            <Trash2 size={18} className="text-white" />
+                        </button>
+                        <div className="w-px h-5 bg-white/20 mx-1" />
+                        <span className="text-white/60 text-sm">
+                            {filteredAssets.findIndex(a => a.id === selectedAsset.id) + 1} / {filteredAssets.length}
+                        </span>
                     </div>
                 </div>
             )}
 
+            {/* Main Panel */}
             <aside
-                className="
-            hidden lg:flex flex-col
-            w-[300px] xl:w-[340px]
-            h-screen
-            border-l
-          "
-                style={{
-                    background: "var(--background-secondary)",
-                    borderColor: "var(--border)"
-                }}
+                className="hidden lg:flex flex-col w-[300px] xl:w-[340px] h-screen border-l"
+                style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}
             >
-                {/* Header */}
-                <header
-                    className="h-14 px-4 flex items-center justify-between border-b shrink-0"
-                    style={{ borderColor: "var(--border)" }}
-                >
-                    {isSelectMode ? (
-                        <>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">{selectedIds.size} seçili</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={toggleSelectAll}
-                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors text-xs"
-                                    title={selectedIds.size === displayAssets.length ? "Seçimi Kaldır" : "Tümünü Seç"}
-                                >
-                                    {selectedIds.size === displayAssets.length ? <CheckSquare size={16} /> : <Square size={16} />}
-                                </button>
-                                <button
-                                    onClick={handleBulkDelete}
-                                    disabled={selectedIds.size === 0}
-                                    className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 transition-colors disabled:opacity-50"
-                                    title="Seçilenleri Sil"
-                                >
-                                    <Trash2 size={16} className="text-red-500" />
-                                </button>
-                                <button
-                                    onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
-                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                    title="İptal"
-                                >
-                                    <X size={16} />
-                                </button>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <h2 className="font-medium">Medya Varlıkları</h2>
-                            <div className="flex items-center gap-1">
-                                {/* Select Mode Toggle */}
-                                {displayAssets.length > 0 && (
+                {/* Filter Tabs Header */}
+                <header className="px-2 pt-2 pb-1 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-1">
+                        {/* Icon filter tabs */}
+                        <div className="flex items-center gap-0.5 flex-1">
+                            {filterTabs.map(tab => {
+                                const Icon = tab.icon;
+                                const isActive = activeFilter === tab.key;
+                                const hasItems = tab.count > 0;
+                                return (
                                     <button
-                                        onClick={() => setIsSelectMode(true)}
-                                        className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                        title="Çoklu Seçim"
+                                        key={tab.key}
+                                        onClick={() => setActiveFilter(tab.key)}
+                                        className={`relative p-2.5 rounded-xl transition-all duration-200 group ${isActive ? "shadow-lg" : "hover:bg-[var(--card)]"}`}
+                                        style={isActive ? {
+                                            background: "var(--accent)",
+                                            color: "white",
+                                        } : { color: "var(--foreground-muted)" }}
+                                        title={`${tab.label} (${tab.count})`}
                                     >
-                                        <CheckSquare size={16} style={{ color: "var(--foreground-muted)" }} />
+                                        <Icon size={18} />
+                                        {hasItems && !isActive && (
+                                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)]" />
+                                        )}
                                     </button>
-                                )}
-                                {/* Favorites Filter */}
-                                <button
-                                    onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                                    className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${showFavoritesOnly ? 'bg-yellow-500/20' : 'hover:bg-[var(--card)]'}`}
-                                    title={showFavoritesOnly ? "Tümünü Göster" : "Sadece Favoriler"}
-                                >
-                                    <Star size={16} fill={showFavoritesOnly ? "#eab308" : "none"} style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }} />
-                                    {favoritesCount > 0 && (
-                                        <span className="text-xs" style={{ color: showFavoritesOnly ? "#eab308" : "var(--foreground-muted)" }}>{favoritesCount}</span>
-                                    )}
-                                </button>
-                                <button
-                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                    title="Yenile"
-                                >
-                                    <RefreshCw size={16} style={{ color: "var(--foreground-muted)" }} />
-                                </button>
-                                <button
-                                    onClick={onToggle}
-                                    className="p-1.5 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-                            </div>
-                        </>
+                                );
+                            })}
+                        </div>
+
+                        {/* Search toggle */}
+                        <button
+                            onClick={() => setShowSearch(!showSearch)}
+                            className={`p-2 rounded-lg transition-colors ${showSearch ? "bg-[var(--card)]" : "hover:bg-[var(--card)]"}`}
+                        >
+                            <Search size={16} style={{ color: showSearch ? "var(--accent)" : "var(--foreground-muted)" }} />
+                        </button>
+
+                        {/* Refresh */}
+                        <button
+                            onClick={fetchAssets}
+                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                            title="Yenile"
+                        >
+                            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+
+                        {/* Collapse */}
+                        <button
+                            onClick={onToggle}
+                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
+                        >
+                            <ChevronRight size={16} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                    </div>
+
+                    {/* Search bar (conditional) */}
+                    {showSearch && (
+                        <div className="mt-2 mb-1 relative">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--foreground-muted)" }} />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Ara..."
+                                autoFocus
+                                className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm outline-none"
+                                style={{
+                                    background: "var(--card)",
+                                    color: "var(--foreground)",
+                                    border: "1px solid var(--border)",
+                                }}
+                            />
+                        </div>
                     )}
                 </header>
 
                 {/* Assets Grid */}
-                <div className="flex-1 overflow-y-auto p-3">
-                    {displayAssets.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center">
-                            <p style={{ color: "var(--foreground-muted)" }}>
-                                No assets yet
+                <div className="flex-1 overflow-y-auto p-2">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-40">
+                            <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
+                        </div>
+                    ) : filteredAssets.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3" style={{ background: "var(--card)" }}>
+                                {activeFilter === "images" ? <ImageIcon size={28} style={{ color: "var(--foreground-muted)" }} /> :
+                                    activeFilter === "videos" ? <Video size={28} style={{ color: "var(--foreground-muted)" }} /> :
+                                        activeFilter === "uploads" ? <Upload size={28} style={{ color: "var(--foreground-muted)" }} /> :
+                                            <LayoutGrid size={28} style={{ color: "var(--foreground-muted)" }} />}
+                            </div>
+                            <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                                {searchQuery ? "Sonuç bulunamadı" : "Henüz medya yok"}
                             </p>
-                            <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                                Start chatting to generate content!
+                            <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                {searchQuery ? "Farklı bir arama deneyin" : "Chat'te içerik üretmeye başlayın!"}
                             </p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {displayAssets.map((asset) => (
+                        <div className="grid grid-cols-2 gap-2">
+                            {filteredAssets.map((asset) => (
                                 <div
                                     key={asset.id}
-                                    className={`asset-card group cursor-pointer ${isSelectMode && selectedIds.has(asset.id) ? 'ring-2 ring-emerald-500' : ''}`}
-                                    draggable={!isSelectMode}
-                                    onDragStart={(e) => !isSelectMode && handleDragStart(e, asset)}
-                                    onClick={(e) => isSelectMode ? toggleSelection(asset.id, e) : setSelectedAsset(asset)}
+                                    className="group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-[var(--accent)]/40"
+                                    style={{ background: "var(--card)" }}
+                                    onClick={() => setSelectedAsset(asset)}
+                                    onContextMenu={e => { e.preventDefault(); setContextMenu({ asset, x: e.clientX, y: e.clientY }); }}
                                 >
-                                    <div className="aspect-video relative bg-black/10">
-                                        {asset.type === 'video' ? (
-                                            <div className="w-full h-full flex items-center justify-center">
+                                    {/* Media content */}
+                                    <div className="aspect-square relative">
+                                        {asset.type === "video" ? (
+                                            <div className="w-full h-full">
                                                 {asset.thumbnailUrl ? (
-                                                    <img src={asset.thumbnailUrl} alt="Video önizleme" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                                                    <img src={asset.thumbnailUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
                                                 ) : (
                                                     <video
                                                         src={asset.url}
                                                         className="w-full h-full object-cover"
-                                                        muted
-                                                        loop
-                                                        playsInline
-                                                        preload="none"
-                                                        onMouseOver={e => {
-                                                            const p = e.currentTarget.play();
-                                                            if (p !== undefined) p.catch(() => { });
-                                                        }}
-                                                        onMouseOut={e => {
-                                                            e.currentTarget.pause();
-                                                            e.currentTarget.currentTime = 0;
-                                                        }}
+                                                        muted loop playsInline preload="none"
+                                                        onMouseOver={e => { const p = e.currentTarget.play(); if (p) p.catch(() => { }); }}
+                                                        onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
                                                 )}
                                             </div>
-                                        ) : asset.type === 'audio' ? (
-                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40 p-4">
-                                                <span className="text-4xl mb-2">🎵</span>
-                                                <span className="text-xs text-white/70">{asset.label || 'Müzik'}</span>
+                                        ) : asset.type === "audio" ? (
+                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-900/40 to-purple-900/40">
+                                                <span className="text-3xl mb-1">🎵</span>
+                                                <span className="text-[10px] text-white/60 px-2 text-center truncate w-full">{asset.label || "Ses"}</span>
                                             </div>
                                         ) : (
-                                            <img src={asset.url} alt="Üretilen görsel" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                                            <img src={asset.url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                         )}
-                                        {isSelectMode && (
-                                            <div className="absolute top-2 left-2 z-10">
-                                                <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(asset.id) ? 'bg-emerald-500 border-emerald-500' : 'bg-black/40 border-white/60 hover:border-white'}`}>
-                                                    {selectedIds.has(asset.id) && <CheckSquare size={14} className="text-white" />}
-                                                </div>
+
+                                        {/* Rename overlay */}
+                                        {renamingId === asset.id && (
+                                            <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-2 z-20" onClick={e => e.stopPropagation()}>
+                                                <input
+                                                    autoFocus
+                                                    value={renameValue}
+                                                    onChange={e => setRenameValue(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === "Enter") submitRename(asset.id); if (e.key === "Escape") setRenamingId(null); }}
+                                                    onBlur={() => submitRename(asset.id)}
+                                                    className="w-full px-2 py-1 rounded text-xs bg-white/10 text-white outline-none border border-white/20"
+                                                />
                                             </div>
                                         )}
-                                        {!isSelectMode && (
-                                            <div className="absolute top-2 right-2 flex gap-1 z-10">
-                                                <button onClick={(e) => { e.stopPropagation(); toggleFavorite(asset.id); }} className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors">
-                                                    <Star size={16} fill={asset.isFavorite ? "#eab308" : "none"} className={asset.isFavorite ? "text-yellow-500" : "text-white/70"} />
-                                                </button>
-                                                <button onClick={(e) => handleSaveToImages(asset, e)} className={`p-1.5 rounded-full transition-colors ${asset.savedToImages ? 'bg-emerald-500/80' : 'bg-black/40 hover:bg-emerald-500/60'}`} title="Görseli Kaydet">
-                                                    <Bookmark size={16} className={asset.savedToImages ? "text-white" : "text-white/70"} />
-                                                </button>
-                                                <button onClick={(e) => handleDelete(asset.id, e)} className="p-1.5 rounded-full bg-black/40 hover:bg-red-500/80 transition-colors" title="Sil">
-                                                    <Trash2 size={16} className="text-white/70" />
-                                                </button>
-                                                <button onClick={(e) => handleRename(asset, e)} className="p-1.5 rounded-full bg-black/40 hover:bg-blue-500/80 transition-colors" title="Yeniden Adlandır">
-                                                    <Pencil size={16} className="text-white/70" />
-                                                </button>
-                                            </div>
-                                        )}
+
+                                        {/* Hover overlay */}
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200" />
+
+                                        {/* Top-left: type badge */}
                                         {asset.type === "video" && (
-                                            <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
-                                                VİDEO • {asset.duration}
+                                            <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-black/60 text-white flex items-center gap-1">
+                                                <Video size={10} /> VİDEO
                                             </div>
                                         )}
-                                        {asset.type === "audio" && (
-                                            <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium bg-black/60 text-white">
-                                                🎵 SES
+
+                                        {/* Top-right: favorite star */}
+                                        {asset.isFavorite && (
+                                            <div className="absolute top-1.5 right-1.5">
+                                                <Star size={14} fill="#eab308" className="text-yellow-500 drop-shadow" />
                                             </div>
                                         )}
-                                        {!isSelectMode && (
-                                            <div className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs bg-black/60 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                Sürükle → Chat
-                                            </div>
-                                        )}
+
+                                        {/* Bottom-right: attach to chat button (hover only) */}
+                                        <button
+                                            onClick={e => handleAttachToChat(asset, e)}
+                                            className="absolute bottom-1.5 right-1.5 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110"
+                                            style={{ background: "var(--accent)", color: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
+                                            title="Chat'e Ekle"
+                                        >
+                                            <MessageSquarePlus size={14} />
+                                        </button>
+
+                                        {/* Bottom-left: more options (hover only) */}
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setContextMenu({ asset, x: e.clientX, y: e.clientY }); }}
+                                            className="absolute bottom-1.5 left-1.5 p-1.5 rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-black/70"
+                                            title="Daha Fazla"
+                                        >
+                                            <MoreHorizontal size={14} className="text-white" />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -624,32 +519,19 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                     )}
                 </div>
 
-                {/* Bottom actions */}
-                <div
-                    className="p-3 border-t flex items-center gap-1"
-                    style={{ borderColor: "var(--border)" }}
-                >
-                    <button
-                        onClick={handleDownloadAll}
-                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Tümünü İndir"
-                    >
-                        <Download size={18} style={{ color: "var(--foreground-muted)" }} />
-                    </button>
-                    <button
-                        onClick={handleCopyLink}
-                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Link Kopyala"
-                    >
-                        <Copy size={18} style={{ color: "var(--foreground-muted)" }} />
-                    </button>
-                    <button
-                        onClick={handleShare}
-                        className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                        title="Paylaş"
-                    >
-                        <Globe size={18} style={{ color: "var(--foreground-muted)" }} />
-                    </button>
+                {/* Bottom actions bar */}
+                <div className="p-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-1">
+                        <button onClick={handleDownloadAll} className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors" title="Tümünü İndir">
+                            <Download size={16} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                        <button onClick={handleCopyLink} className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors" title="Link Kopyala">
+                            <Copy size={16} style={{ color: "var(--foreground-muted)" }} />
+                        </button>
+                    </div>
+                    <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                        {filteredAssets.length} medya
+                    </span>
                 </div>
             </aside>
         </>
