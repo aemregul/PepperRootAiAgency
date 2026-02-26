@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Download, Copy, Globe, RefreshCw, ChevronLeft, Star, Loader2, Trash2, X, Bookmark, Pencil, LayoutGrid, ImageIcon, Video, Upload, Search, MoreHorizontal, MessageSquarePlus, Send, ChevronRight } from "lucide-react";
+import { Download, Copy, Globe, RefreshCw, ChevronLeft, Star, Loader2, Trash2, X, Bookmark, Pencil, LayoutGrid, ImageIcon, Video, Upload, Search, MoreHorizontal, MessageSquarePlus, Send, ChevronRight, Music } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe, renameAsset } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
@@ -16,7 +16,7 @@ interface Asset {
     thumbnailUrl?: string;
 }
 
-type FilterTab = "all" | "images" | "videos" | "uploads";
+type FilterTab = "all" | "images" | "videos" | "audio" | "favorites" | "uploads";
 
 interface AssetsPanelProps {
     collapsed?: boolean;
@@ -75,6 +75,8 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         let result = assets;
         if (activeFilter === "images") result = result.filter(a => a.type === "image");
         else if (activeFilter === "videos") result = result.filter(a => a.type === "video");
+        else if (activeFilter === "audio") result = result.filter(a => a.type === "audio");
+        else if (activeFilter === "favorites") result = result.filter(a => a.isFavorite);
         else if (activeFilter === "uploads") result = result.filter(a => a.type === "uploaded");
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
@@ -191,6 +193,8 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         { key: "all", icon: LayoutGrid, label: "Tümü", count: assets.length },
         { key: "images", icon: ImageIcon, label: "Görseller", count: assets.filter(a => a.type === "image").length },
         { key: "videos", icon: Video, label: "Videolar", count: assets.filter(a => a.type === "video").length },
+        { key: "audio", icon: Music, label: "Sesler", count: assets.filter(a => a.type === "audio").length },
+        { key: "favorites", icon: Star, label: "Favoriler", count: assets.filter(a => a.isFavorite).length },
         { key: "uploads", icon: Upload, label: "Yüklemeler", count: assets.filter(a => a.type === "uploaded").length },
     ];
 
@@ -343,14 +347,15 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                     <button
                                         key={tab.key}
                                         onClick={() => setActiveFilter(tab.key)}
-                                        className={`relative flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all duration-200 group ${isActive ? "shadow-lg" : "hover:bg-[var(--card)]"}`}
+                                        className={`relative flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all duration-200 ${isActive ? "shadow-md" : "hover:bg-[var(--card)]"}`}
                                         style={isActive ? {
                                             background: "var(--accent)",
                                             color: "white",
                                         } : { color: "var(--foreground-muted)" }}
+                                        title={`${tab.label} (${tab.count})`}
                                     >
-                                        <Icon size={16} />
-                                        <span className="text-[9px] font-medium leading-none">{tab.label}</span>
+                                        <Icon size={14} />
+                                        {isActive && <span className="text-[10px] font-semibold leading-none whitespace-nowrap">{tab.label}</span>}
                                     </button>
                                 );
                             })}
