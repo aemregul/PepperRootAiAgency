@@ -854,7 +854,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             contentToSend += `\n\n[Referans Ses](${attachedAudioUrl})`;
         }
 
-        const currentInput = contentToSend;
+        const currentInput = contentToSend || (attachedFiles.length > 0 ? `[${attachedFiles.length} Referans Görsel]` : attachedVideoUrl ? '[📹 Video Referansı]' : attachedAudioUrl ? '[🎵 Ses Referansı]' : "");
         const currentFiles = [...attachedFiles];
 
         setInput("");
