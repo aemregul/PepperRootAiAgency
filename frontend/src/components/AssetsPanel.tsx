@@ -485,7 +485,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         )}
 
                                         {/* Hover overlay */}
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200" />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 pointer-events-none" />
 
                                         {/* Top-left: type badge */}
                                         {asset.type === "video" && (
