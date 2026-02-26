@@ -584,6 +584,13 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         imageUrl = msg.metadata_.reference_url;
                         imageUrls = [imageUrl];
                     }
+                    // Video URL: metadata'dan
+                    const videoUrl = (() => {
+                        if (msg.role !== 'assistant' || !msg.metadata_) return undefined;
+                        const meta = msg.metadata_ as Record<string, unknown>;
+                        const videos = meta.videos as { url: string }[] | undefined;
+                        return videos?.[0]?.url;
+                    })();
                     return {
                         id: msg.id,
                         role: msg.role as 'user' | 'assistant',
@@ -591,6 +598,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         timestamp: new Date(msg.created_at),
                         image_url: imageUrl,
                         image_urls: imageUrls,
+                        video_url: videoUrl,
                     }
                 });
                 setMessages(formattedMessages);
@@ -1334,6 +1342,17 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                     onClick={() => setLightboxImage(msg.image_url!)}
                                                     loading="lazy"
                                                     decoding="async"
+                                                />
+                                            )}
+
+                                            {/* Video player for generated videos */}
+                                            {msg.video_url && (
+                                                <video
+                                                    src={msg.video_url}
+                                                    controls
+                                                    playsInline
+                                                    preload="metadata"
+                                                    className="mt-3 rounded-xl max-w-[320px] max-h-[280px] object-cover border border-white/10"
                                                 />
                                             )}
                                         </div>
