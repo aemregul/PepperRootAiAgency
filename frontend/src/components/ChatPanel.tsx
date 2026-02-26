@@ -1302,7 +1302,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                     key={i}
                                                     src={url}
                                                     alt={`Referans görsel ${i + 1}`}
-                                                    className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                                    className="object-cover rounded-lg cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                                    style={{ width: '100px', height: '100px' }}
                                                     onClick={() => setLightboxImage(url)}
                                                     loading="lazy"
                                                     decoding="async"
@@ -1313,7 +1314,15 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         <img
                                             src={msg.image_url}
                                             alt="Referans görsel"
-                                            className="w-32 h-32 object-cover rounded-lg mb-2 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                            className="object-cover rounded-lg mb-2 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                                            style={{ width: '200px', height: '300px' }}
+                                            onLoad={e => {
+                                                const img = e.currentTarget;
+                                                if (img.naturalWidth > img.naturalHeight) {
+                                                    img.style.width = '300px';
+                                                    img.style.height = '200px';
+                                                }
+                                            }}
                                             onClick={() => setLightboxImage(msg.image_url!)}
                                             loading="lazy"
                                             decoding="async"
@@ -1334,13 +1343,13 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         loop
                                                         preload="metadata"
                                                         className="object-cover"
-                                                        style={{ width: '280px', height: '420px' }}
+                                                        style={{ width: '200px', height: '300px' }}
                                                         onLoadedMetadata={e => {
                                                             const v = e.currentTarget;
                                                             if (v.videoWidth > v.videoHeight) {
-                                                                v.style.width = '420px';
-                                                                v.style.height = '280px';
-                                                                (v.parentElement as HTMLElement).style.width = '420px';
+                                                                v.style.width = '300px';
+                                                                v.style.height = '200px';
+                                                                (v.parentElement as HTMLElement).style.width = '300px';
                                                             }
                                                         }}
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
