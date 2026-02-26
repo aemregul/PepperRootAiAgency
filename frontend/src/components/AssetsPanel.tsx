@@ -453,9 +453,9 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                                     <img src={asset.thumbnailUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
                                                 ) : (
                                                     <video
-                                                        src={asset.url}
+                                                        src={`${asset.url}#t=0.1`}
                                                         className="w-full h-full object-cover"
-                                                        muted loop playsInline preload="none"
+                                                        muted loop playsInline preload="metadata"
                                                         onMouseOver={e => { const p = e.currentTarget.play(); if (p) p.catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
