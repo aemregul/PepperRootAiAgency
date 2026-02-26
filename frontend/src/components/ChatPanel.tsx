@@ -940,10 +940,12 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                 const responseContent = typeof response.response === 'string'
                     ? response.response
                     : response.response?.content ?? 'Yanıt alınamadı';
+                // Inline asset tag'lerini temizle (thumbnail olarak render edilecek)
+                const cleanContent = responseContent.replace(/\n\n\[(?:ÜRETİLEN (?:GÖRSELLER|VİDEOLAR)|Bu mesajda üretilen (?:görseller|videolar)):\s*[^\]]+\]/gi, '').trim();
                 const assistantMessage: Message = {
                     id: (Date.now() + 1).toString(),
                     role: "assistant",
-                    content: responseContent,
+                    content: cleanContent,
                     timestamp: new Date(),
                     image_url: response.assets?.find((a: { asset_type: string; url: string }) => a.asset_type === 'image')?.url,
                 };
