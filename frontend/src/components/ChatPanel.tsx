@@ -1324,8 +1324,10 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {msg.video_url && (
                                                 <div>
                                                     <video
-                                                        src={msg.video_url}
+                                                        src={`${msg.video_url}#t=0.1`}
                                                         controls
+                                                        playsInline
+                                                        preload="metadata"
                                                         className="w-36 h-24 object-cover rounded-lg border border-[var(--border)] bg-black/10"
                                                     />
                                                     <div className="text-[10px] mt-0.5 text-[var(--foreground-muted)] flex items-center gap-1">
@@ -1379,7 +1381,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {/* Video player for generated videos */}
                                             {msg.video_url && (
                                                 <video
-                                                    src={msg.video_url}
+                                                    src={`${msg.video_url}#t=0.1`}
                                                     controls
                                                     playsInline
                                                     preload="metadata"
