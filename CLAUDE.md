@@ -40,7 +40,7 @@ Bu proje **basit bir chatbot DEĞİL**. Ajantik (agent-first) bir sistemdir:
 
 ---
 
-## 📊 Genel Durum (26 Şubat 2026 - 04:33)
+## 📊 Genel Durum (26 Şubat 2026 - 05:31)
 
 | Faz | Durum | Tamamlanma |
 |-----|-------|------------|
@@ -299,7 +299,7 @@ git add . && git commit -m "mesaj" && git push
 
 ---
 
-## 🎯 SON DURUM (26 Şubat 2026 - 04:33)
+## 🎯 SON DURUM (26 Şubat 2026 - 05:31)
 
 **🚀 FAZLAR + YENİ ÖZELLİKLER:**
 
@@ -316,7 +316,7 @@ git add . && git commit -m "mesaj" && git push
 
 **Toplam Kod:** 10000+ satır | **28+ Agent Tool** | **47 AI Modeli**
 
-### 🖼️ Assets Panel UX & Chat Media Rendering (26 Şubat 2026 - 04:33) ⭐ YENİ
+### 🖼️ Assets Panel UX & Chat Media Rendering (26 Şubat 2026 - 05:31) ⭐ YENİ
 
 1. **Assets Panel Header Düzeltmeleri (`AssetsPanel.tsx`):**
    - Sağ panel header yüksekliği sol panelle eşitlendi (`h-14` = 56px) → flush alignment
@@ -336,7 +336,6 @@ git add . && git commit -m "mesaj" && git push
    - Regex düzeltildi: `[ÜRETİLEN GÖRSELLER: url]` ve `[Bu mesajda üretilen görseller: url]` her ikisi tanınıyor
    - Streaming sonrası inline asset tag'leri otomatik temizleniyor → thumbnail render
    - Non-streaming (dosyalı) yanıtlarda da inline URL tag'leri temizleniyor
-   - **Asistan mesajlarında video player:** `video_url` artık embedded player olarak render ediliyor
    - Chat history'den `metadata_.videos[0].url` çıkarılıp `video_url` set ediliyor
 
 5. **Video Progress Card Yeniden Yazıldı (`GenerationProgressCard.tsx`):**
@@ -345,6 +344,38 @@ git add . && git commit -m "mesaj" && git push
    - ChatPanel'in çalışan WebSocket'inden gelen **gerçek ilerleme** yüzdesi karta aktarılıyor
    - Alt kısımdaki İngilizce prompt yazısı kaldırıldı
    - Duplicate "Videonuz hazır!" mesajı önlendi (`message_id` dedup)
+
+6. **Custom Chat Video Player:**
+   - Native browser controls kaldırıldı (karmaşık butonlar, kötü fullscreen)
+   - Sol altta play butonu → hover'da video sessiz preview oynatılıyor
+   - Tıklayınca **lightbox modal** açılıyor (tam ekran, proper controls)
+   - `lightboxVideo` state + portal modal eklendi
+
+7. **ChatGPT Tarzı Medya Düzeni:**
+   - Medya (görsel/video/ses) artık text bubble **DIŞINDA** ayrı bloklar olarak render ediliyor
+   - Kullanıcı: medya üstte, metin altta
+   - Asistan: metin üstte, medya altta
+   - Daha temiz görsel hiyerarşi
+
+8. **Otomatik Yön Algılama & Sabit Boyutlar:**
+   - `onLoadedMetadata` (video) ve `onLoad` (image) ile dikey/yatay algılama
+   - **Asistan medyası:** Dikey 280×420px, Yatay 420×280px
+   - **Kullanıcı medyası:** Dikey 200×300px, Yatay 300×200px (biraz daha küçük)
+   - `object-cover` ile doğal oran korunuyor
+
+### 🐛 DEVAM EDEN SORUNLAR (Çözülmedi — Bir Sonraki Oturumda Düzeltilecek)
+
+1. **Chat Video Siyah Ekran Sorunu:**
+   - `#t=0.1` eklenmesine rağmen bazı videolarda hâlâ siyah ekran gösteriyor
+   - Muhtemel sebep: `renderContent` fonksiyonundaki eski video rendering kodu (lightbox dışı)
+   - Kontrol edilecek: `renderContent` içinde video URL'lerinin nasıl render edildiği
+
+2. **"Yatay formatta çevir" Komutu Yanlış Sonuç Üretiyor:**
+   - Kullanıcı referans görseli gönderip "yatay formatta bir videoya çevir" dediğinde
+   - AI tamamen alakasız bir video üretti (referans görselle hiç ilgisi yok)
+   - Backend logları kontrol edilemedi (terminal çıktısı boştu)
+   - Muhtemel sebep: AI prompt'u "yatay format" ifadesini farklı yorumladı veya referans görseli kullanmadı
+   - Kontrol edilecek: orchestrator.py ve video generation tool'daki prompt/image_url iletimi
 
 ---
 
