@@ -1325,7 +1325,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {msg.video_url && (
                                                 <div
                                                     className="relative group/vid cursor-pointer rounded-lg overflow-hidden border border-[var(--border)]"
-                                                    style={{ maxWidth: '200px' }}
+                                                    style={{ width: '200px', height: '250px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1334,7 +1334,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         muted
                                                         loop
                                                         preload="metadata"
-                                                        className="w-full block"
+                                                        className="w-full h-full object-cover"
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
@@ -1382,7 +1382,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                 <img
                                                     src={msg.image_url}
                                                     alt="Üretilen görsel"
-                                                    className="mt-3 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
+                                                    className="mt-3 rounded-xl object-cover cursor-pointer hover:opacity-90 hover:shadow-xl transition-all border border-white/10"
+                                                    style={{ width: '200px', height: '250px' }}
                                                     onClick={() => setLightboxImage(msg.image_url!)}
                                                     loading="lazy"
                                                     decoding="async"
@@ -1393,7 +1394,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             {msg.video_url && (
                                                 <div
                                                     className="mt-3 relative group/vid cursor-pointer rounded-xl overflow-hidden border border-white/10 inline-block"
-                                                    style={{ maxWidth: '280px' }}
+                                                    style={{ width: '200px', height: '250px' }}
                                                     onClick={() => setLightboxVideo(msg.video_url!)}
                                                 >
                                                     <video
@@ -1402,7 +1403,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                         muted
                                                         loop
                                                         preload="metadata"
-                                                        className="w-full block"
+                                                        className="w-full h-full object-cover"
                                                         onMouseOver={e => { e.currentTarget.play().catch(() => { }); }}
                                                         onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                                     />
