@@ -1400,12 +1400,6 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                     <div className="absolute bottom-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
                                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
                                                     </div>
-                                                    {/* Expand hint */}
-                                                    <div className="absolute top-2 right-2 opacity-0 group-hover/vid:opacity-100 transition-opacity">
-                                                        <div className="w-7 h-7 rounded-full bg-black/60 flex items-center justify-center">
-                                                            <ZoomIn size={14} className="text-white" />
-                                                        </div>
-                                                    </div>
                                                 </div>
                                             )}
                                         </div>
