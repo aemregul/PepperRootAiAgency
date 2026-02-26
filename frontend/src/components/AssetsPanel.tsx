@@ -75,7 +75,7 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         let result = assets;
         if (activeFilter === "images") result = result.filter(a => a.type === "image");
         else if (activeFilter === "videos") result = result.filter(a => a.type === "video");
-        else if (activeFilter === "uploads") result = result.filter(a => a.type === "audio");
+        else if (activeFilter === "uploads") result = result.filter(a => a.isFavorite);
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             result = result.filter(a => a.label?.toLowerCase().includes(q));
@@ -187,12 +187,11 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         return () => window.removeEventListener("click", handler);
     }, []);
 
-    // Filter tab config
     const filterTabs: { key: FilterTab; icon: React.ElementType; label: string; count: number }[] = [
         { key: "all", icon: LayoutGrid, label: "Tümü", count: assets.length },
         { key: "images", icon: ImageIcon, label: "Görseller", count: assets.filter(a => a.type === "image").length },
         { key: "videos", icon: Video, label: "Videolar", count: assets.filter(a => a.type === "video").length },
-        { key: "uploads", icon: Upload, label: "Sesler", count: assets.filter(a => a.type === "audio").length },
+        { key: "uploads", icon: Star, label: "Favoriler", count: assets.filter(a => a.isFavorite).length },
     ];
 
     if (collapsed) {
@@ -344,14 +343,14 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                     <button
                                         key={tab.key}
                                         onClick={() => setActiveFilter(tab.key)}
-                                        className={`relative p-2.5 rounded-xl transition-all duration-200 group ${isActive ? "shadow-lg" : "hover:bg-[var(--card)]"}`}
+                                        className={`relative flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all duration-200 group ${isActive ? "shadow-lg" : "hover:bg-[var(--card)]"}`}
                                         style={isActive ? {
                                             background: "var(--accent)",
                                             color: "white",
                                         } : { color: "var(--foreground-muted)" }}
-                                        title={`${tab.label} (${tab.count})`}
                                     >
-                                        <Icon size={18} />
+                                        <Icon size={16} />
+                                        <span className="text-[9px] font-medium leading-none">{tab.label}</span>
                                     </button>
                                 );
                             })}
