@@ -352,9 +352,6 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         title={`${tab.label} (${tab.count})`}
                                     >
                                         <Icon size={18} />
-                                        {hasItems && !isActive && (
-                                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)]" />
-                                        )}
                                     </button>
                                 );
                             })}
