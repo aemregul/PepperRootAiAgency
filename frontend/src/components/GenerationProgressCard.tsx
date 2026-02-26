@@ -162,10 +162,7 @@ export function GenerationProgressCard({
                     </div>
                 )}
 
-                {/* Prompt preview */}
-                {prompt && (
-                    <p className="text-[11px] text-white/25 mt-3 truncate">{prompt}</p>
-                )}
+
             </div>
         </div>
     );

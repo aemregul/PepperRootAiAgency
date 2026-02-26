@@ -650,6 +650,13 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
                     if (data.type === 'progress') {
                         setLoadingStatus(data.message);
+                        // Ensure video progress card is visible
+                        setActiveGenerations(prev => {
+                            if (prev.length === 0) {
+                                return [{ type: 'video', duration: data.duration }];
+                            }
+                            return prev;
+                        });
                     } else if (data.type === 'error') {
                         setMessages(prev => [...prev, {
                             id: Date.now().toString(),
@@ -658,6 +665,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                             timestamp: new Date()
                         }]);
                         setLoadingStatus("");
+                        setActiveGenerations([]);
                     } else if (data.type === 'complete') {
                         if (data.result?.message) {
                             setMessages(prev => [...prev, {
@@ -672,6 +680,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                             }
                         }
                         setLoadingStatus("");
+                        setActiveGenerations([]);
                     }
                 } catch (err) {
                     console.error("[WS] Parse error", err);
