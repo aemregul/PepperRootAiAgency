@@ -668,13 +668,24 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         setActiveGenerations([]);
                     } else if (data.type === 'complete') {
                         if (data.result?.message) {
-                            setMessages(prev => [...prev, {
-                                id: data.result.message_id || Date.now().toString(),
-                                role: 'assistant',
-                                content: data.result.message,
-                                video_url: data.result.video_url,
-                                timestamp: new Date()
-                            }]);
+                            const msgId = data.result.message_id || Date.now().toString();
+                            setMessages(prev => {
+                                // Aynı message_id varsa güncelle, yoksa ekle (duplicate önleme)
+                                const exists = prev.some(m => m.id === msgId);
+                                if (exists) {
+                                    return prev.map(m => m.id === msgId
+                                        ? { ...m, video_url: data.result.video_url || m.video_url }
+                                        : m
+                                    );
+                                }
+                                return [...prev, {
+                                    id: msgId,
+                                    role: 'assistant' as const,
+                                    content: data.result.message,
+                                    video_url: data.result.video_url,
+                                    timestamp: new Date()
+                                }];
+                            });
                             if (data.result.video_url && onNewAsset) {
                                 onNewAsset({ url: data.result.video_url, type: 'video' });
                             }
