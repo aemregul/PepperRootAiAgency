@@ -527,21 +527,25 @@ async def chat_stream(
         
         # Yanıtı DB'ye kaydet — üretilen görsellerin URL'lerini de mesaja ekle
         try:
-            # Image/video URL'leri metadata'da saklanır, content'e eklenmez
-            enriched_response = full_response or "(stream yanıtı)"
-            
-            assistant_msg = Message(
-                session_id=session.id,
-                role="assistant",
-                content=enriched_response,
-                metadata_={
-                    "images": all_images,
-                    "videos": all_videos,
-                    "streamed": True
-                } if all_images or all_videos else {"streamed": True}
-            )
-            db.add(assistant_msg)
-            await db.commit()
+            # Boş yanıt durumunda: video/görsel arka planda üretiliyorsa placeholder koyma
+            # Sadece gerçekten content veya media varsa kaydet
+            if full_response or all_images or all_videos:
+                enriched_response = full_response or ""
+                
+                assistant_msg = Message(
+                    session_id=session.id,
+                    role="assistant",
+                    content=enriched_response,
+                    metadata_={
+                        "images": all_images,
+                        "videos": all_videos,
+                        "streamed": True
+                    } if all_images or all_videos else {"streamed": True}
+                )
+                db.add(assistant_msg)
+                await db.commit()
+            else:
+                print("ℹ️ Stream yanıtı boş — arka plan görevi çalışıyor olabilir, DB'ye kayıt atlanıyor")
         except Exception as e:
             print(f"⚠️ Stream DB kayıt hatası: {e}")
     

@@ -766,9 +766,28 @@ Kurallar:
         """Tool call'ları çalıştır ve messages listesini güncelle (stream versiyonu)."""
         MAX_RETRIES = 2
         
+        # ── Duplicate video guard ──
+        VIDEO_TOOLS = {"generate_video", "generate_long_video"}
+        video_already_called = False
+        
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments)
+            
+            # ── GUARD: GPT-4o bazen aynı istek için 2x video çağrısı gönderir, sadece ilkini çalıştır ──
+            if tool_name in VIDEO_TOOLS:
+                if video_already_called:
+                    print(f"⚠️ DUPLICATE VIDEO GUARD: {tool_name} skip edildi (zaten bir video üretimi çalıştı)")
+                    # Skip ama tool_calls/tool response'u yine de ekle (OpenAI API gereksinimi)
+                    tool_call_dict = {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": tool_call.function.arguments}
+                    }
+                    messages.append({"role": "assistant", "content": None, "tool_calls": [tool_call_dict]})
+                    messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Bu istek için zaten bir video üretimi başlatıldı, tekrar üretim gereksiz."})})
+                    continue
+                video_already_called = True
             
             print(f"🔧 STREAM TOOL: {tool_name} (retry={retry_count})")
             
@@ -924,9 +943,22 @@ Kurallar:
         
         # Tool calls varsa işle
         if message.tool_calls:
+            # ── Duplicate video guard ──
+            VIDEO_TOOLS = {"generate_video", "generate_long_video"}
+            video_already_called = False
+            
             for tool_call in message.tool_calls:
                 tool_name = tool_call.function.name
                 tool_args = json.loads(tool_call.function.arguments)
+                
+                # ── GUARD: GPT-4o bazen aynı istek için 2x video çağrısı gönderir ──
+                if tool_name in VIDEO_TOOLS:
+                    if video_already_called:
+                        print(f"⚠️ DUPLICATE VIDEO GUARD: {tool_name} skip edildi (non-stream)")
+                        messages.append({"role": "assistant", "content": None, "tool_calls": [{"id": tool_call.id, "type": "function", "function": {"name": tool_name, "arguments": tool_call.function.arguments}}]})
+                        messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Bu istek için zaten bir video üretimi başlatıldı."})})
+                        continue
+                    video_already_called = True
                 
                 # 🔍 DEBUG: Tool çağrısı başlıyor
                 print(f"🔧 TOOL EXECUTION START: {tool_name}")
