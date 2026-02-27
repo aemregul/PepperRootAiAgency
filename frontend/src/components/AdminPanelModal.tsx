@@ -200,24 +200,25 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                         { id: "models", label: "AI Modeller", icon: Puzzle },
                         { id: "plugins", label: "AI Servisleri", icon: Store },
                         { id: "analytics", label: "Analitik", icon: TrendingUp },
-                    ].map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-lg ${activeTab === tab.id
-                                ? "font-medium shadow-lg"
-                                : "opacity-60 hover:opacity-100"
-                                }`}
-                            style={{
-                                background: activeTab === tab.id ? "var(--accent)" : "transparent",
-                                color: activeTab === tab.id ? "var(--background)" : "var(--foreground)",
-                                transition: "opacity 0.2s",
-                            }}
-                        >
-                            <tab.icon size={16} />
-                            {tab.label}
-                        </button>
-                    ))}
+                    ].map((tab) => {
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-lg"
+                                style={{
+                                    backgroundColor: isActive ? "#22c55e" : "transparent",
+                                    color: isActive ? "#0a0a0a" : "rgba(255,255,255,0.5)",
+                                    fontWeight: isActive ? 600 : 400,
+                                    boxShadow: isActive ? "0 4px 12px rgba(34, 197, 94, 0.3)" : "none",
+                                }}
+                            >
+                                <tab.icon size={16} />
+                                {tab.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* Content */}
