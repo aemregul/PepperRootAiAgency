@@ -392,11 +392,11 @@ async def get_usage_stats(days: int = 7, db: AsyncSession = Depends(get_db)):
     
     # Eğer veritabanında veri yoksa, son 7 gün için sıfır değerlerle döndür
     if not stats:
-        day_names = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
+        day_names_tr = {0: "Pzt", 1: "Sal", 2: "Çar", 3: "Per", 4: "Cum", 5: "Cmt", 6: "Paz"}
         today = datetime.now()
         return [
             UsageStatsResponse(
-                date=day_names[(today - timedelta(days=6-i)).weekday()],
+                date=day_names_tr[(today - timedelta(days=6-i)).weekday()],
                 api_calls=0,
                 images_generated=0,
                 videos_generated=0
@@ -404,12 +404,20 @@ async def get_usage_stats(days: int = 7, db: AsyncSession = Depends(get_db)):
             for i in range(7)
         ]
     
-    return [UsageStatsResponse(
-        date=s.date.strftime("%a"),
-        api_calls=s.api_calls,
-        images_generated=s.images_generated,
-        videos_generated=s.videos_generated
-    ) for s in stats]
+    # Aynı güne ait kayıtları grupla ve topla (çift kayıt önle)
+    day_names_tr = {0: "Pzt", 1: "Sal", 2: "Çar", 3: "Per", 4: "Cum", 5: "Cmt", 6: "Paz"}
+    from collections import OrderedDict
+    daily: OrderedDict[str, dict] = OrderedDict()
+    for s in stats:
+        date_key = s.date.strftime("%Y-%m-%d")
+        day_label = day_names_tr[s.date.weekday()]
+        if date_key not in daily:
+            daily[date_key] = {"date": day_label, "api_calls": 0, "images_generated": 0, "videos_generated": 0}
+        daily[date_key]["api_calls"] += s.api_calls
+        daily[date_key]["images_generated"] += s.images_generated
+        daily[date_key]["videos_generated"] += s.videos_generated
+    
+    return [UsageStatsResponse(**d) for d in daily.values()]
 
 
 @router.get("/stats/overview", response_model=OverviewStats)
@@ -448,7 +456,6 @@ class ModelDistributionItem(BaseModel):
 async def get_model_distribution(db: AsyncSession = Depends(get_db)):
     """Model kullanım dağılımı - Hangi model ne kadar kullanılmış."""
     
-    # GeneratedAsset tablosundan model_name grupla
     result = await db.execute(
         select(
             GeneratedAsset.model_name,
@@ -460,47 +467,129 @@ async def get_model_distribution(db: AsyncSession = Depends(get_db)):
     
     model_counts = result.all()
     
-    # Renk haritası
+    # Model adı → display name normalize mapping
+    name_normalize: dict[str, str] = {}
+    for raw_name in [
+        "nano-banana-pro", "nano_banana_pro", "nano-banana", "nano_banana_with_face_swap"
+    ]:
+        name_normalize[raw_name] = "Nano Banana Pro"
+    for raw_name in ["nano-banana-2", "nano_banana_2"]:
+        name_normalize[raw_name] = "Nano Banana 2"
+    for raw_name in ["flux-dev", "flux-dev-img2img", "flux", "flux2"]:
+        name_normalize[raw_name] = "Flux"
+    for raw_name in ["flux-kontext", "flux_kontext", "flux_kontext_pro"]:
+        name_normalize[raw_name] = "Flux Kontext"
+    for raw_name in ["gpt-image-1-mini", "gpt_image"]:
+        name_normalize[raw_name] = "GPT Image"
+    for raw_name in ["gpt_image_1_edit"]:
+        name_normalize[raw_name] = "GPT Image Edit"
+    for raw_name in ["nano_banana_pro_edit", "nano-banana-2-edit", "nano_banana_2_edit"]:
+        name_normalize[raw_name] = "Nano Edit"
+    for raw_name in ["gemini-inpainting", "gemini-2.5-flash"]:
+        name_normalize[raw_name] = "Gemini Edit"
+    for raw_name in ["kling-3.0-pro", "kling-2.5-turbo", "kling"]:
+        name_normalize[raw_name] = "Kling Video"
+    for raw_name in ["veo", "veo-3.1", "veo_fast", "veo_quality"]:
+        name_normalize[raw_name] = "Veo 3.1"
+    for raw_name in ["face-swap", "face_swap"]:
+        name_normalize[raw_name] = "Face Swap"
+    for raw_name in ["birefnet-v2", "rembg"]:
+        name_normalize[raw_name] = "Arka Plan Kaldırma"
+    name_normalize.update({
+        "reve": "Reve", "seedream": "Seedream", "recraft": "Recraft",
+        "omnigen": "OmniGen", "object-removal": "Object Removal",
+        "sora2": "Sora 2", "seedance": "Seedance", "hailuo": "Hailuo",
+        "ltx-video": "LTX Video", "topaz": "Topaz Upscale",
+        "elevenlabs": "ElevenLabs", "stable_audio": "Stable Audio",
+        "whisper": "Whisper", "mmaudio": "MMAudio", "ffmpeg-local": "FFmpeg",
+        "style_transfer": "Stil Aktarımı",
+        # Edge case model adları
+        "nano_banana_faceswap": "Nano Banana Pro",
+        "nano banana faceswap": "Nano Banana Pro",
+        "nano_banana_regen": "Nano Banana Pro",
+        "nano banana regen": "Nano Banana Pro",
+        "nano_banana+face_swap": "Nano Banana Pro",
+        "nano banana+face swap": "Nano Banana Pro",
+        "veo_fallback_kling": "Kling Video",
+        "veo fallback kling": "Kling Video",
+        "flux_kontext_native": "Flux Kontext",
+        "flux kontext native": "Flux Kontext",
+    })
+    
+    # Gizlenen iç model adları
+    hidden = {"user_upload", "unknown", ""}
+    
+    # Renk haritası (kategori bazlı)
     color_map = {
-        "nano-banana-pro": "#22c55e",      # Yeşil - Görsel
-        "nano_banana_with_face_swap": "#10b981",  # Koyu yeşil
-        "face-swap": "#8b5cf6",            # Mor
-        "kling-3.0-pro": "#3b82f6",        # Mavi - Video
-        "kling-2.5-turbo": "#60a5fa",      # Açık mavi
-        "flux-dev-img2img": "#f59e0b",     # Turuncu
-        "topaz": "#ec4899",                # Pembe
-        "bria-rmbg": "#6366f1",            # İndigo
+        "Nano Banana Pro": "#22c55e", "Nano Banana 2": "#16a34a",
+        "Flux": "#f59e0b", "Flux Kontext": "#d97706",
+        "GPT Image": "#8b5cf6", "GPT Image Edit": "#7c3aed",
+        "Reve": "#06b6d4", "Seedream": "#14b8a6", "Recraft": "#ec4899",
+        "Nano Edit": "#10b981", "Gemini Edit": "#a855f7",
+        "OmniGen": "#6366f1", "Object Removal": "#64748b",
+        "Kling Video": "#3b82f6", "Sora 2": "#2563eb",
+        "Veo 3.1": "#1d4ed8", "Seedance": "#0ea5e9",
+        "Hailuo": "#0284c7", "LTX Video": "#0369a1",
+        "Face Swap": "#e11d48", "Topaz Upscale": "#be185d",
+        "Arka Plan Kaldırma": "#64748b", "FFmpeg": "#475569",
+        "ElevenLabs": "#f97316", "Stable Audio": "#ea580c",
+        "Whisper": "#c2410c", "MMAudio": "#9a3412",
+        "Stil Aktarımı": "#db2777",
     }
     
-    distribution = []
+    # Normalize et, grupla, topla
+    grouped: dict[str, int] = {}
     for model_name, count in model_counts:
-        # Model adını kısalt ve güzelleştir
-        display_name = model_name
-        if "nano-banana" in model_name.lower():
-            display_name = "Nano Banana"
-        elif "kling" in model_name.lower():
-            display_name = "Kling Video"
-        elif "face" in model_name.lower():
-            display_name = "Face Swap"
-        elif "flux" in model_name.lower():
-            display_name = "Flux"
-        elif "topaz" in model_name.lower():
-            display_name = "Topaz"
+        if not model_name or model_name.lower() in hidden:
+            continue
         
-        color = color_map.get(model_name, "#6b7280")  # Default gray
+        display_name = name_normalize.get(model_name.lower())
+        if display_name is None:
+            display_name = name_normalize.get(model_name)
+        if display_name is None:
+            # Contains-based fallback (tam endpoint path'leri için)
+            ml = model_name.lower()
+            if "nano" in ml and "banana" in ml:
+                display_name = "Nano Banana Pro"
+            elif "kling" in ml:
+                display_name = "Kling Video"
+            elif "veo" in ml:
+                display_name = "Veo 3.1"
+            elif "sora" in ml:
+                display_name = "Sora 2"
+            elif "flux" in ml and "kontext" in ml:
+                display_name = "Flux Kontext"
+            elif "flux" in ml:
+                display_name = "Flux"
+            elif "seedance" in ml:
+                display_name = "Seedance"
+            elif "hailuo" in ml:
+                display_name = "Hailuo"
+            elif "gemini" in ml:
+                display_name = "Gemini Edit"
+            elif "face" in ml and "swap" in ml:
+                display_name = "Face Swap"
+            elif "topaz" in ml:
+                display_name = "Topaz Upscale"
+            else:
+                display_name = model_name.replace("-", " ").replace("_", " ").title()
         
+        grouped[display_name] = grouped.get(display_name, 0) + count
+    
+    # Sırala (en çok kullanılan üstte)
+    distribution = []
+    for name, count in sorted(grouped.items(), key=lambda x: -x[1]):
         distribution.append(ModelDistributionItem(
-            name=display_name,
+            name=name,
             value=count,
-            color=color
+            color=color_map.get(name, "#6b7280")
         ))
     
-    # Veri yoksa default değerler
     if not distribution:
         distribution = [
-            ModelDistributionItem(name="GPT-4o", value=0, color="#22c55e"),
-            ModelDistributionItem(name="fal.ai", value=0, color="#8b5cf6"),
-            ModelDistributionItem(name="Kling", value=0, color="#3b82f6"),
+            ModelDistributionItem(name="Nano Banana Pro", value=0, color="#22c55e"),
+            ModelDistributionItem(name="Kling Video", value=0, color="#3b82f6"),
+            ModelDistributionItem(name="Flux", value=0, color="#f59e0b"),
         ]
     
     return distribution
