@@ -38,12 +38,74 @@ class FalPluginV2(PluginBase):
     - Yüz tutarlılığı (face swap)
     """
     
+    # Endpoint → DB model name mapping (admin toggle ile eşleştirme)
+    ENDPOINT_TO_DB_NAME = {
+        # Görsel
+        "fal-ai/nano-banana-pro": "nano_banana_pro",
+        "fal-ai/nano-banana-2": "nano_banana_2",
+        "fal-ai/flux-2": "flux2",
+        "fal-ai/flux-2-max": "flux2_max",
+        "fal-ai/gpt-image-1-mini": "gpt_image",
+        "fal-ai/reve/text-to-image": "reve",
+        "fal-ai/bytedance/seedream/v4.5/text-to-image": "seedream",
+        "fal-ai/recraft/v3/text-to-image": "recraft",
+        # Edit
+        "fal-ai/flux-kontext": "flux_kontext",
+        "fal-ai/flux-pro/kontext": "flux_kontext_pro",
+        "fal-ai/omnigen-v1": "omnigen",
+        "fal-ai/flux-general/inpainting": "flux_inpainting",
+        "fal-ai/object-removal": "object_removal",
+        "fal-ai/image-apps-v2/outpaint": "outpainting",
+        "fal-ai/nano-banana-2/edit": "nano_banana_2_edit",
+        # Video (i2v + t2v endpoints → tek DB name)
+        "fal-ai/kling-video/v3/pro/image-to-video": "kling",
+        "fal-ai/kling-video/v3/pro/text-to-video": "kling",
+        "fal-ai/sora-2/image-to-video/pro": "sora2",
+        "fal-ai/sora-2/text-to-video/pro": "sora2",
+        "fal-ai/veo3.1/fast/image-to-video": "veo_fast",
+        "fal-ai/veo3.1/fast": "veo_fast",
+        "fal-ai/veo3.1/image-to-video": "veo_quality",
+        "fal-ai/veo3.1": "veo_quality",
+        "fal-ai/bytedance/seedance/v1.5/pro/image-to-video": "seedance",
+        "fal-ai/bytedance/seedance/v1.5/pro/fast/text-to-video": "seedance",
+        "fal-ai/minimax/hailuo-02/standard/image-to-video": "hailuo",
+        "fal-ai/minimax/hailuo-02/standard/text-to-video": "hailuo",
+        # Utility
+        "fal-ai/face-swap": "face_swap",
+        "fal-ai/topaz": "topaz_upscale",
+        "fal-ai/imageutils/rembg": "rembg",
+        "fal-ai/image-apps-v2/style-transfer": "style_transfer",
+    }
+    
+    # Shortcode → DB name mapping (IMAGE/VIDEO MAP key → DB name)
+    SHORTCODE_TO_DB_NAME = {
+        "nano_banana": "nano_banana_pro",
+        "nano_banana_2": "nano_banana_2",
+        "flux2": "flux2",
+        "flux2_max": "flux2_max",
+        "gpt_image": "gpt_image",
+        "reve": "reve",
+        "seedream": "seedream",
+        "recraft": "recraft",
+        "kling": "kling",
+        "sora2": "sora2",
+        "veo": "veo_fast",
+        "veo_quality": "veo_quality",
+        "seedance": "seedance",
+        "hailuo": "hailuo",
+    }
+    
     def __init__(self):
         super().__init__()
         
         # API key ayarla
         if settings.FAL_KEY:
             os.environ["FAL_KEY"] = settings.FAL_KEY
+        
+        # Model enabled/disabled cache (30s TTL)
+        self._enabled_models_cache: dict[str, bool] = {}
+        self._cache_timestamp: float = 0
+        self._cache_ttl: float = 30.0  # 30 saniye
     
     @property
     def info(self) -> PluginInfo:
@@ -171,6 +233,71 @@ class FalPluginV2(PluginBase):
             return False
     
     # ===============================
+    # MODEL ENABLED/DISABLED CHECK
+    # ===============================
+    
+    async def _load_enabled_models(self) -> dict[str, bool]:
+        """DB'den enabled model listesini çek (cache'li)."""
+        now = time.time()
+        if now - self._cache_timestamp < self._cache_ttl and self._enabled_models_cache:
+            return self._enabled_models_cache
+        
+        try:
+            from app.core.database import async_session_maker
+            from app.models.models import AIModel
+            from sqlalchemy import select
+            
+            async with async_session_maker() as db:
+                result = await db.execute(select(AIModel.name, AIModel.is_enabled))
+                rows = result.all()
+                self._enabled_models_cache = {name: enabled for name, enabled in rows}
+                self._cache_timestamp = now
+                logger.debug(f"🔄 Model cache yenilendi: {len(self._enabled_models_cache)} model")
+        except Exception as e:
+            logger.warning(f"⚠️ Model cache yüklenemedi: {e} — tüm modeller enabled sayılacak")
+            # Cache yüklenemezse tüm modeller enabled
+            if not self._enabled_models_cache:
+                self._enabled_models_cache = {}
+        
+        return self._enabled_models_cache
+    
+    def invalidate_model_cache(self):
+        """Admin toggle sonrası cache'i invalidate et."""
+        self._cache_timestamp = 0
+        self._enabled_models_cache = {}
+        logger.info("🔄 Model cache invalidate edildi")
+    
+    async def is_model_enabled(self, endpoint_or_shortcode: str) -> bool:
+        """Bir modelin enabled olup olmadığını kontrol et."""
+        cache = await self._load_enabled_models()
+        
+        # Önce shortcode olarak bak
+        db_name = self.SHORTCODE_TO_DB_NAME.get(endpoint_or_shortcode)
+        if not db_name:
+            # Endpoint olarak bak
+            db_name = self.ENDPOINT_TO_DB_NAME.get(endpoint_or_shortcode)
+        if not db_name:
+            # Doğrudan DB name olabilir
+            db_name = endpoint_or_shortcode
+        
+        # Cache'de yoksa (yeni model, henüz DB'ye eklenmemiş) → enabled say
+        return cache.get(db_name, True)
+    
+    async def _filter_enabled_endpoint(self, endpoint: str, fallback_chain: list[str]) -> str:
+        """Endpoint disabled ise fallback chain'den ilk enabled olanı döndür."""
+        if await self.is_model_enabled(endpoint):
+            return endpoint
+        
+        logger.info(f"⛔ {endpoint} disabled — fallback aranıyor...")
+        for fb in fallback_chain:
+            if await self.is_model_enabled(fb):
+                logger.info(f"✅ Fallback: {fb}")
+                return fb
+        
+        # Hiç enabled model yoksa hata
+        raise ValueError(f"Bu kategorideki tüm modeller kapatılmış! Lütfen admin panelden en az bir modeli açın.")
+    
+    # ===============================
     # SMART MODEL ROUTER
     # ===============================
     
@@ -219,16 +346,20 @@ class FalPluginV2(PluginBase):
         "hailuo": {"i2v": "fal-ai/minimax/hailuo-02/standard/image-to-video", "t2v": "fal-ai/minimax/hailuo-02/standard/text-to-video"},
     }
     
-    def _select_image_model(self, prompt: str, agent_model: str = "auto") -> str:
+    async def _select_image_model(self, prompt: str, agent_model: str = "auto") -> str:
         """
         Smart Model Router — agent'ın model seçimini öncelikle kullan,
         yoksa prompt'a göre en iyi görsel modelini seç.
+        Disabled modeller atlanır.
         """
-        # Agent belirli bir model seçtiyse → direkt kullan
+        # Agent belirli bir model seçtiyse → direkt kullan (disabled kontrolü ile)
         if agent_model and agent_model != "auto" and agent_model in self.IMAGE_MODEL_MAP:
             endpoint = self.IMAGE_MODEL_MAP[agent_model]
-            logger.info(f"🎯 Agent Model Seçimi: {agent_model} → {endpoint}")
-            return endpoint
+            if await self.is_model_enabled(agent_model):
+                logger.info(f"🎯 Agent Model Seçimi: {agent_model} → {endpoint}")
+                return endpoint
+            else:
+                logger.info(f"⛔ Agent Model {agent_model} disabled — smart router devralıyor")
         
         # Auto mod — prompt analizi ile seç
         prompt_lower = prompt.lower()
@@ -241,8 +372,10 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in artistic_keywords):
-            logger.info("🎯 Smart Router: GPT Image 1 seçildi (artistic/anime)")
-            return "fal-ai/gpt-image-1-mini"
+            ep = "fal-ai/gpt-image-1-mini"
+            if await self.is_model_enabled(ep):
+                logger.info("🎯 Smart Router: GPT Image 1 seçildi (artistic/anime)")
+                return ep
         
         # Metin/tipografi/logo gerektiren promptlar
         text_keywords = [
@@ -253,8 +386,10 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in text_keywords):
-            logger.info("🎯 Smart Router: Flux.2 seçildi (tipografi)")
-            return "fal-ai/flux-2"
+            ep = "fal-ai/flux-2"
+            if await self.is_model_enabled(ep):
+                logger.info("🎯 Smart Router: Flux.2 seçildi (tipografi)")
+                return ep
         
         # Premium/detaylı istekler
         premium_keywords = [
@@ -264,8 +399,10 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in premium_keywords):
-            logger.info("🎯 Smart Router: Flux 2 Max seçildi (premium)")
-            return "fal-ai/flux-2-max"
+            ep = "fal-ai/flux-2-max"
+            if await self.is_model_enabled(ep):
+                logger.info("🎯 Smart Router: Flux 2 Max seçildi (premium)")
+                return ep
         
         # Hızlı/draft/taslak istekler → Nano Banana 2 (hızlı + ucuz)
         fast_keywords = [
@@ -275,25 +412,36 @@ class FalPluginV2(PluginBase):
         ]
         
         if any(kw in prompt_lower for kw in fast_keywords):
-            logger.info("🎯 Smart Router: Nano Banana 2 seçildi (hızlı/draft)")
-            return "fal-ai/nano-banana-2"
+            ep = "fal-ai/nano-banana-2"
+            if await self.is_model_enabled(ep):
+                logger.info("🎯 Smart Router: Nano Banana 2 seçildi (hızlı/draft)")
+                return ep
         
-        # Varsayılan: Nano Banana Pro (en iyi kalite)
-        logger.info("🎯 Smart Router: Nano Banana Pro seçildi (varsayılan)")
-        return "fal-ai/nano-banana-pro"
+        # Varsayılan: IMAGE_MODEL_CHAIN'den ilk enabled model
+        for ep in self.IMAGE_MODEL_CHAIN:
+            if await self.is_model_enabled(ep):
+                logger.info(f"🎯 Smart Router: {ep} seçildi (varsayılan/fallback)")
+                return ep
+        
+        # Hiç enabled model yoksa hata
+        raise ValueError("Tüm görsel modelleri kapatılmış! Admin panelden en az birini açın.")
     
-    def _select_video_model(self, prompt: str, has_image: bool, agent_model: str = "auto") -> str:
+    async def _select_video_model(self, prompt: str, has_image: bool, agent_model: str = "auto") -> str:
         """
         Smart Video Model Router — agent'ın model seçimini öncelikle kullan,
         yoksa prompt'a göre en iyi video modelini seç.
+        Disabled modeller atlanır.
         """
         mode = "i2v" if has_image else "t2v"
         
-        # Agent belirli bir model seçtiyse → direkt kullan
+        # Agent belirli bir model seçtiyse → direkt kullan (disabled kontrolü ile)
         if agent_model and agent_model != "auto" and agent_model in self.VIDEO_MODEL_MAP:
             endpoint = self.VIDEO_MODEL_MAP[agent_model][mode]
-            logger.info(f"🎯 Agent Model Seçimi: {agent_model} → {endpoint}")
-            return endpoint
+            if await self.is_model_enabled(agent_model):
+                logger.info(f"🎯 Agent Model Seçimi: {agent_model} → {endpoint}")
+                return endpoint
+            else:
+                logger.info(f"⛔ Agent Model {agent_model} disabled — smart router devralıyor")
         
         # Auto mod — prompt analizi ile seç
         prompt_lower = prompt.lower()
@@ -307,10 +455,11 @@ class FalPluginV2(PluginBase):
         
         if any(kw in prompt_lower for kw in long_keywords):
             endpoint = self.VIDEO_MODEL_MAP["sora2"][mode]
-            logger.info(f"🎯 Smart Router: Sora 2 seçildi (uzun/hikaye) — {endpoint}")
-            return endpoint
+            if await self.is_model_enabled(endpoint):
+                logger.info(f"🎯 Smart Router: Sora 2 seçildi (uzun/hikaye) — {endpoint}")
+                return endpoint
         
-        # Yüksek kalite / profesyonel / premium → Veo 3.1 Quality (daha yavaş ama en iyi kalite)
+        # Yüksek kalite / profesyonel / premium → Veo 3.1 Quality
         quality_keywords = [
             "yüksek kalite", "high quality", "en iyi kalite", "best quality",
             "premium", "profesyonel", "professional", "ultra",
@@ -321,10 +470,11 @@ class FalPluginV2(PluginBase):
         
         if any(kw in prompt_lower for kw in quality_keywords):
             endpoint = self.VIDEO_MODEL_MAP["veo_quality"][mode]
-            logger.info(f"🎯 Smart Router: Veo 3.1 QUALITY seçildi (premium istek) — {endpoint}")
-            return endpoint
+            if await self.is_model_enabled(endpoint):
+                logger.info(f"🎯 Smart Router: Veo 3.1 QUALITY seçildi (premium istek) — {endpoint}")
+                return endpoint
         
-        # Sinematik/gerçekçi/fizik istekler → Veo 3.1 Fast (hızlı + yeterli kalite)
+        # Sinematik/gerçekçi/fizik istekler → Veo 3.1 Fast
         cinematic_keywords = [
             "cinematic", "sinematik", "realistic", "gerçekçi",
             "film", "movie", "documentary", "belgesel",
@@ -333,8 +483,9 @@ class FalPluginV2(PluginBase):
         
         if any(kw in prompt_lower for kw in cinematic_keywords):
             endpoint = self.VIDEO_MODEL_MAP["veo"][mode]
-            logger.info(f"🎯 Smart Router: Veo 3.1 Fast seçildi (sinematik) — {endpoint}")
-            return endpoint
+            if await self.is_model_enabled(endpoint):
+                logger.info(f"🎯 Smart Router: Veo 3.1 Fast seçildi (sinematik) — {endpoint}")
+                return endpoint
         
         # Kısa/hızlı/sosyal medya → Hailuo 02
         short_keywords = [
@@ -345,11 +496,18 @@ class FalPluginV2(PluginBase):
         
         if any(kw in prompt_lower for kw in short_keywords):
             endpoint = self.VIDEO_MODEL_MAP["hailuo"][mode]
-            logger.info(f"🎯 Smart Router: Hailuo 02 seçildi (kısa/hızlı) — {endpoint}")
-            return endpoint
+            if await self.is_model_enabled(endpoint):
+                logger.info(f"🎯 Smart Router: Hailuo 02 seçildi (kısa/hızlı) — {endpoint}")
+                return endpoint
         
-        # Varsayılan: Kling 3.0 Pro
-        return self.VIDEO_MODEL_CHAIN[0][mode]
+        # Varsayılan: VIDEO_MODEL_CHAIN'den ilk enabled model
+        for chain_item in self.VIDEO_MODEL_CHAIN:
+            endpoint = chain_item[mode]
+            if await self.is_model_enabled(endpoint):
+                logger.info(f"🎯 Smart Router: {endpoint} seçildi (varsayılan/fallback)")
+                return endpoint
+        
+        raise ValueError("Tüm video modelleri kapatılmış! Admin panelden en az birini açın.")
     
     # ===============================
     # PRIVATE METHODS
@@ -390,7 +548,7 @@ class FalPluginV2(PluginBase):
             image_size = {"width": w, "height": h}
         
         # Smart Model Router: Agent seçimi veya prompt analizi
-        selected_model = self._select_image_model(prompt, agent_model=preferred_model)
+        selected_model = await self._select_image_model(prompt, agent_model=preferred_model)
         
         # Auto-Retry Fallback zinciri oluştur
         models_to_try = [selected_model]
@@ -458,7 +616,7 @@ class FalPluginV2(PluginBase):
         mode = "i2v" if has_image else "t2v"
         
         # Smart Router: Agent seçimi veya prompt analizi ile model belirle
-        selected_endpoint = self._select_video_model(prompt, has_image, agent_model=agent_model)
+        selected_endpoint = await self._select_video_model(prompt, has_image, agent_model=agent_model)
         
         # Hangi model ailesine ait? (duration formatı için)
         model_family = agent_model if agent_model != "auto" else "kling"

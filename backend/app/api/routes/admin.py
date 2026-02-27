@@ -113,23 +113,77 @@ class OverviewStats(BaseModel):
 
 @router.get("/models", response_model=list[AIModelResponse])
 async def list_ai_models(db: AsyncSession = Depends(get_db)):
-    """Tüm AI modellerini listele."""
-    result = await db.execute(select(AIModel).order_by(AIModel.display_name))
-    models = result.scalars().all()
+    """Tüm AI modellerini listele. İlk çağrıda ~38 gerçek modeli seed eder."""
     
-    # Eğer model yoksa varsayılanları ekle (sadece gerçekten entegre olanlar)
-    if not models:
-        default_models = [
-            AIModel(name="gpt4o", display_name="GPT-4o", model_type="llm", provider="openai", description="Metin ve sohbet - Ana LLM", icon="💬", is_enabled=True),
-            AIModel(name="falai", display_name="fal.ai", model_type="image", provider="fal", description="Görsel üretimi - Nano Banana Pro", icon="🖼️", is_enabled=True),
-            AIModel(name="kling", display_name="Kling 3.0 Pro", model_type="video", provider="kling", description="Video üretimi - En iyi kalite", icon="🎥", is_enabled=True),
-        ]
-        for model in default_models:
-            db.add(model)
-        await db.commit()
+    # Tüm modellerin master listesi — her biri gerçekten projede kullanılan model
+    MASTER_MODELS = [
+        # 🤖 LLM
+        ("gpt4o", "GPT-4o", "llm", "openai", "Ana dil modeli — sohbet, analiz, orchestration", "🤖"),
         
-        result = await db.execute(select(AIModel).order_by(AIModel.display_name))
-        models = result.scalars().all()
+        # 🖼️ Görsel Üretim
+        ("nano_banana_pro", "Nano Banana Pro", "image", "fal", "Varsayılan görsel üretim — en iyi kalite", "🖼️"),
+        ("nano_banana_2", "Nano Banana 2", "image", "fal", "Hızlı görsel üretim — Gemini 3.1 Flash", "⚡"),
+        ("flux2", "Flux.2", "image", "fal", "Metin/tipografi render — yazılı görseller", "✍️"),
+        ("flux2_max", "Flux 2 Max", "image", "fal", "Ultra detaylı premium görseller", "💎"),
+        ("gpt_image", "GPT Image 1", "image", "fal", "Anime/Ghibli/cartoon tarzı görseller", "🎨"),
+        ("reve", "Reve", "image", "fal", "Alternatif görsel üretim", "🌟"),
+        ("seedream", "Seedream 4.5", "image", "fal", "ByteDance görsel modeli", "🌱"),
+        ("recraft", "Recraft V3", "image", "fal", "Vektör tarzı ve illüstrasyon", "📐"),
+        
+        # 🎨 Görsel Düzenleme
+        ("flux_kontext", "Flux Kontext", "edit", "fal", "Akıllı lokal görsel düzenleme", "🎯"),
+        ("flux_kontext_pro", "Flux Kontext Pro", "edit", "fal", "Profesyonel görsel düzenleme", "🎯"),
+        ("omnigen", "OmniGen V1", "edit", "fal", "Instruction-based düzenleme", "✨"),
+        ("flux_inpainting", "Flux Inpainting", "edit", "fal", "Bölgesel dolgu düzenleme", "🖌️"),
+        ("object_removal", "Object Removal", "edit", "fal", "Nesne silme", "🗑️"),
+        ("outpainting", "Outpainting", "edit", "fal", "Görsel genişletme", "🔲"),
+        ("nano_banana_2_edit", "Nano Banana 2 Edit", "edit", "fal", "AI resize + aspect ratio dönüşümü", "📐"),
+        
+        # 🎬 Video Üretim
+        ("kling", "Kling 3.0 Pro", "video", "fal", "Varsayılan video — yüksek kalite", "🎬"),
+        ("sora2", "Sora 2 Pro", "video", "fal", "Uzun/hikaye anlatımı videoları", "🎥"),
+        ("veo_fast", "Veo 3.1 Fast", "video", "fal", "Hızlı sinematik video", "⚡"),
+        ("veo_quality", "Veo 3.1 Quality", "video", "fal", "En yüksek kalite video — premium", "💎"),
+        ("veo_google", "Veo 3.1 (Google SDK)", "video", "google", "Google GenAI SDK ile direkt video", "🔷"),
+        ("seedance", "Seedance 1.5 Pro", "video", "fal", "ByteDance video modeli", "🌱"),
+        ("hailuo", "Hailuo 02", "video", "fal", "Kısa/hızlı sosyal medya videoları", "📱"),
+        
+        # 🔧 Araç & Utility
+        ("face_swap", "Face Swap", "utility", "fal", "Yüz değiştirme — karakter tutarlılığı", "👤"),
+        ("topaz_upscale", "Topaz Upscale", "utility", "fal", "Görsel çözünürlük artırma", "🔍"),
+        ("rembg", "Background Removal", "utility", "fal", "Arka plan kaldırma", "✂️"),
+        ("style_transfer", "Style Transfer", "utility", "fal", "Sanatsal stil aktarımı", "🎨"),
+        
+        # 🔊 Ses & Müzik
+        ("elevenlabs_tts", "ElevenLabs TTS", "audio", "elevenlabs", "Metin → ses dönüştürme", "🗣️"),
+        ("whisper", "Whisper STT", "audio", "openai", "Ses → metin dönüştürme", "🎤"),
+        ("mmaudio", "MMAudio (V2A)", "audio", "fal", "Video → ses efekti üretimi", "🔊"),
+        ("stable_audio", "Stable Audio", "audio", "fal", "Müzik üretimi", "🎵"),
+        ("elevenlabs_sfx", "ElevenLabs SFX", "audio", "elevenlabs", "Ses efekti üretimi", "💥"),
+    ]
+    
+    # Mevcut modelleri çek
+    result = await db.execute(select(AIModel))
+    existing = {m.name: m for m in result.scalars().all()}
+    
+    # Eksik modelleri ekle (mevcut modellerin is_enabled durumunu koru)
+    added = 0
+    for name, display, mtype, provider, desc, icon in MASTER_MODELS:
+        if name not in existing:
+            db.add(AIModel(
+                name=name, display_name=display, model_type=mtype,
+                provider=provider, description=desc, icon=icon, is_enabled=True
+            ))
+            added += 1
+    
+    if added > 0:
+        await db.commit()
+    
+    # Tümünü model_type sırasına göre getir
+    result = await db.execute(
+        select(AIModel).order_by(AIModel.model_type, AIModel.display_name)
+    )
+    models = result.scalars().all()
     
     return [AIModelResponse(
         id=str(m.id),
@@ -159,6 +213,13 @@ async def toggle_ai_model(
     model.is_enabled = data.is_enabled
     await db.commit()
     await db.refresh(model)
+    
+    # Smart router cache'ini invalidate et
+    try:
+        from app.services.plugins.fal_plugin_v2 import fal_plugin_v2
+        fal_plugin_v2.invalidate_model_cache()
+    except Exception:
+        pass
     
     return AIModelResponse(
         id=str(model.id),
