@@ -68,7 +68,7 @@ class FalPluginV2(PluginBase):
                 "style_transfer",
             ],
             config_schema={
-                "default_model": {"type": "string", "default": "fal-ai/nano-banana-pro"},
+                "default_model": {"type": "string", "default": "fal-ai/nano-banana-2"},
                 "default_resolution": {"type": "string", "default": "1K"},
             }
         )
@@ -173,7 +173,7 @@ class FalPluginV2(PluginBase):
     
     # Model fallback zincirleri — bir model başarısız olursa sıradaki denenir
     IMAGE_MODEL_CHAIN = [
-        "fal-ai/nano-banana-pro",
+        "fal-ai/nano-banana-2",
         "fal-ai/flux-2",
         "fal-ai/reve/text-to-image",
     ]
@@ -196,7 +196,7 @@ class FalPluginV2(PluginBase):
     
     # Agent shortcode → endpoint mapping
     IMAGE_MODEL_MAP = {
-        "nano_banana": "fal-ai/nano-banana-pro",
+        "nano_banana": "fal-ai/nano-banana-2",
         "flux2": "fal-ai/flux-2",
         "flux2_max": "fal-ai/flux-2-max",
         "gpt_image": "fal-ai/gpt-image-1-mini",
@@ -262,9 +262,9 @@ class FalPluginV2(PluginBase):
             logger.info("🎯 Smart Router: Flux 2 Max seçildi (premium)")
             return "fal-ai/flux-2-max"
         
-        # Varsayılan: Nano Banana Pro
-        logger.info("🎯 Smart Router: Nano Banana Pro seçildi (varsayılan)")
-        return "fal-ai/nano-banana-pro"
+        # Varsayılan: Nano Banana 2
+        logger.info("🎯 Smart Router: Nano Banana 2 seçildi (varsayılan)")
+        return "fal-ai/nano-banana-2"
     
     def _select_video_model(self, prompt: str, has_image: bool, agent_model: str = "auto") -> str:
         """
