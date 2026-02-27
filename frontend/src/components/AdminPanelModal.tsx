@@ -44,6 +44,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
     const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null);
     const [modelDistribution, setModelDistribution] = useState<ModelDistributionItem[]>(defaultModelDistribution);
     const [isLoading, setIsLoading] = useState(true);
+    const [modelCategoryFilter, setModelCategoryFilter] = useState<string>("all");
 
     // UI states
     const [apiKeyModal, setApiKeyModal] = useState<{ isOpen: boolean; plugin: typeof marketplacePlugins[0] | null }>({ isOpen: false, plugin: null });
@@ -295,36 +296,77 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                             {/* Models Tab */}
                             {activeTab === "models" && (
                                 <div className="space-y-3">
-                                    {models.map((model) => (
-                                        <div
-                                            key={model.id}
-                                            className="flex items-center justify-between p-4 rounded-xl"
-                                            style={{ background: "var(--background)" }}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-2xl">{model.icon}</span>
-                                                <div>
-                                                    <div className="font-medium flex items-center gap-2">
-                                                        {model.display_name}
-                                                        <span className="px-2 py-0.5 text-xs rounded" style={{ background: "var(--card)" }}>
-                                                            {model.model_type.toUpperCase()}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                                        {model.provider} • {model.description}
+                                    {/* Kategori Filtre Tabları */}
+                                    <div className="flex gap-1.5 flex-wrap pb-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                                        {[
+                                            { id: "all", label: "Tümü", icon: "🔮" },
+                                            { id: "image", label: "Görsel", icon: "🖼️" },
+                                            { id: "edit", label: "Düzenleme", icon: "🎨" },
+                                            { id: "video", label: "Video", icon: "🎬" },
+                                            { id: "utility", label: "Araçlar", icon: "🔧" },
+                                            { id: "audio", label: "Ses", icon: "🔊" },
+                                            { id: "llm", label: "LLM", icon: "🤖" },
+                                        ].map((cat) => {
+                                            const count = cat.id === "all"
+                                                ? models.length
+                                                : models.filter(m => m.model_type === cat.id).length;
+                                            const isActive = modelCategoryFilter === cat.id;
+                                            return (
+                                                <button
+                                                    key={cat.id}
+                                                    onClick={() => setModelCategoryFilter(cat.id)}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all duration-200 ${isActive ? 'font-medium shadow-sm' : 'opacity-60 hover:opacity-100'
+                                                        }`}
+                                                    style={{
+                                                        background: isActive ? 'var(--accent)' : 'var(--background)',
+                                                        color: isActive ? 'var(--background)' : 'var(--foreground)',
+                                                        border: isActive ? 'none' : '1px solid var(--border)',
+                                                    }}
+                                                >
+                                                    <span>{cat.icon}</span>
+                                                    {cat.label}
+                                                    <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-white/20' : ''
+                                                        }`} style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'var(--card)' }}>
+                                                        {count}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Filtrelenmiş Model Listesi */}
+                                    {models
+                                        .filter(m => modelCategoryFilter === "all" || m.model_type === modelCategoryFilter)
+                                        .map((model) => (
+                                            <div
+                                                key={model.id}
+                                                className="flex items-center justify-between p-4 rounded-xl"
+                                                style={{ background: "var(--background)" }}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-2xl">{model.icon}</span>
+                                                    <div>
+                                                        <div className="font-medium flex items-center gap-2">
+                                                            {model.display_name}
+                                                            <span className="px-2 py-0.5 text-xs rounded" style={{ background: "var(--card)" }}>
+                                                                {model.model_type.toUpperCase()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                                            {model.provider} • {model.description}
+                                                        </div>
                                                     </div>
                                                 </div>
+                                                <button
+                                                    onClick={() => handleToggleModel(model.id, model.is_enabled)}
+                                                    className={`relative w-12 h-6 rounded-full transition-colors ${model.is_enabled ? 'bg-green-500' : 'bg-gray-600'}`}
+                                                >
+                                                    <div
+                                                        className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${model.is_enabled ? 'translate-x-7' : 'translate-x-1'}`}
+                                                    />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => handleToggleModel(model.id, model.is_enabled)}
-                                                className={`relative w-12 h-6 rounded-full transition-colors ${model.is_enabled ? 'bg-green-500' : 'bg-gray-600'}`}
-                                            >
-                                                <div
-                                                    className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${model.is_enabled ? 'translate-x-7' : 'translate-x-1'}`}
-                                                />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        ))}
                                 </div>
                             )}
 
