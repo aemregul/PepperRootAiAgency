@@ -12,7 +12,7 @@ Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını a
 Pepper Root AI Agency, **agent-first** (ajantik) bir AI yaratıcı stüdyodur. Kullanıcı doğal dilde istek yapar; AI asistan planlar, üretir, düzenler ve adapte olur. Basit bir chatbot değil — otonom düşünen bir yaratıcı yönetmendir.
 
 **Temel Yetkinlikler:**
-- 🖼️ Görsel üretim ve düzenleme (47 AI modeli)
+- 🖼️ Görsel üretim ve düzenleme (31 AI modeli, admin toggle ile yönetim)
 - 🎬 Video üretim ve post-production (FFmpeg + AI)
 - 🎵 Müzik/ses üretimi ve senkronizasyon
 - 🚀 Tek cümleden tam kampanya oluşturma (otonom)
@@ -141,29 +141,42 @@ Agent, GPT-4o tabanlıdır. Kullanıcının mesajını alır, hangi araçları k
 
 ---
 
-## 🎬 47 AI Modeli (9 Kategori)
+## 🛡️ Admin Panel (Yönetim Paneli)
+
+Admin paneli 3 sekmeden oluşur:
+
+| Sekme | Ne Yapar |
+|---|---|
+| **Genel Bakış** | Toplam oturum, asset, mesaj, aktif model istatistikleri |
+| **AI Modeller** | 31 modelin açma/kapama toggle'ları. 5 kategori: Görsel (8), Düzenleme (7), Video (7), Ses (5), Araçlar (4) |
+| **Analitik** | Model kullanım dağılımı pie chart, günlük üretim trendleri line chart |
+
+### Model Toggle Sistemi
+- Toggle admin panelden yapılır → DB `ai_models.is_enabled` güncellenir
+- Smart Router (`fal_plugin_v2.py`) her model seçiminde `is_model_enabled()` kontrol eder (16 yerde)
+- Kapalı model → fallback chain'den sonraki enabled model kullanılır
+- **Disabled Model Warning**: Kullanıcı açıkça kapalı bir model isterse ("nano banana 2 kullan"), agent kullanıcıya modelin kapalı olduğunu ve yerine hangi modelin kullanıldığını söyler
+- GPT-4o (LLM) admin panelde gösterilmez — tek LLM, kapatılamaz
+- `MASTER_MODELS` listesinde olmayan eski modeller DB'den otomatik temizlenir
+
+### Dosyalar
+- `backend/app/api/routes/admin.py` — CRUD + model seed + cleanup
+- `frontend/src/components/AdminPanelModal.tsx` — Admin panel UI
+- `frontend/src/app/globals.css` — `.admin-tab` / `.admin-tab-active` CSS sınıfları
+
+---
+
+## 🎬 31 AI Modeli (5 Kategori)
 
 Tüm modeller `fal_models.py`'de tanımlı, `fal_plugin_v2.py` ile çağrılır. GPT-4o prompt içeriğini analiz edip en uygun modeli seçer ("auto" mode).
 
-| Kategori | Model Sayısı | Model İsimleri |
+| Kategori | Sayı | Modeller |
 |---|---|---|
-| Görsel Üretim | 9 | Nano Banana Pro, Flux.2, Flux 2 Max, GPT Image 1, Reve, Seedream 4.5, Flux Kontext, Recraft V3, Flux Schnell |
-| Görsel Edit | 6 | Nano Banana Edit, Flux Kontext, Qwen Image Edit/Max, Seedream 4.5 Edit, Fibo Edit |
-| Video | 15 | Kling 3.0 (i2v/t2v), Sora 2 (i2v/t2v), Veo 3.1 (i2v/t2v), Seedance 1.5 (i2v/t2v), Hailuo 02 (i2v/t2v), Kling 2.5 Turbo (i2v/t2v), Kling O1, LTX-2, PixVerse V5 |
-| Ses Efekti | 1 | Mirelo SFX v1.5 |
-| Konuşma | 4 | ElevenLabs TTS Turbo, MiniMax Speech-02, Kokoro TTS, Whisper v3 |
-| Yüz İşleme | 3 | Face Swap, InstantID, IP-Adapter |
-| Upscale | 3 | Topaz, Crystal Upscaler, RealESRGAN |
-| Utility | 3 | BiRefNet (bg remove), NSFW Filter, FFmpeg API |
-
-**Model Seçim Örnekleri:**
-- "Ghibli tarzı kız" → GPT Image 1 (anime/illustrasyon)
-- "Fotorealistik portre" → Nano Banana Pro
-- "Tipografi içeren poster" → Flux.2
-- "Sinematik sahne" → Reve
-- "Logo tasarla" → Recraft V3
-- "20 saniyelik hikaye" → Sora 2
-- "Kısa sosyal medya clip" → Hailuo 02
+| Görsel Üretim | 8 | Nano Banana Pro, Nano Banana 2, Flux.2, Flux 2 Max, GPT Image 1, Reve, Seedream 4.5, Recraft V3 |
+| Görsel Düzenleme | 7 | Flux Kontext, Flux Kontext Pro, OmniGen V1, Flux Inpainting, Object Removal, Outpainting, Nano Banana 2 Edit |
+| Video | 7 | Kling 3.0 Pro, Sora 2 Pro, Veo 3.1 Fast, Veo 3.1 Quality, Veo 3.1 (Google SDK), Seedance 1.5, Hailuo 02 |
+| Ses & Müzik | 5 | ElevenLabs TTS, ElevenLabs SFX, Whisper STT, MMAudio (V2A), Stable Audio |
+| Araç & Utility | 4 | Face Swap, Topaz Upscale, Background Removal, Style Transfer |
 
 ---
 
@@ -240,6 +253,7 @@ npm run dev
 | **22** | **27 Şubat** | **Full Autonomous Studio Orchestration** — `campaign_planner_service.py` |
 | **23** | **27 Şubat** | **Real-time Interactive Video Editing** — `video_editor_service.py` |
 | **24** | **27 Şubat** | **Audio-Visual Synchronization** — `audio_sync_service.py` |
+| **25** | **27 Şubat** | **Admin Panel** — Model toggle sistemi, disabled model warning, AI Servisleri kaldırıldı |
 
 ---
 
@@ -248,8 +262,8 @@ npm run dev
 | Metrik | Değer |
 |---|---|
 | Agent Araç Sayısı | 36 |
-| AI Model Sayısı | 47 |
-| Toplam Faz | 24 (tümü tamamlandı) |
+| AI Model Sayısı | 31 (admin toggle ile yönetilebilir) |
+| Toplam Faz | 25 (tümü tamamlandı) |
 | Backend Satır | ~15.000+ |
 | Frontend Satır | ~5.000+ |
 | Python | 3.14 |
