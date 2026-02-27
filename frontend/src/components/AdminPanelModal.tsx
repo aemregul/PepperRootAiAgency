@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Shield, Puzzle, Activity, Zap, TrendingUp, PieChart as PieChartIcon, Store, Download, Star, Key, Plus, Check, ExternalLink, Loader2 } from "lucide-react";
+import { X, Shield, Puzzle, Activity, Zap, TrendingUp, PieChart as PieChartIcon, Loader2 } from "lucide-react";
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, BarChart, Bar, Legend
 } from "recharts";
 import {
-    getAIModels, toggleAIModel, getInstalledPlugins, installPlugin, uninstallPlugin,
+    getAIModels, toggleAIModel,
     getUsageStats, getOverviewStats, getModelDistribution,
-    AIModel, InstalledPlugin, UsageStats, OverviewStats, ModelDistributionItem
+    AIModel, UsageStats, OverviewStats, ModelDistributionItem
 } from "@/lib/api";
 
 interface AdminPanelModalProps {
@@ -24,31 +24,21 @@ const defaultModelDistribution: ModelDistributionItem[] = [
     { name: "Kling", value: 0, color: "#3b82f6" },
 ];
 
-// Marketplace Plugins (static catalog)
-const marketplacePlugins = [
-    { id: "midjourney", name: "Midjourney", author: "Midjourney Inc.", description: "Yüksek kaliteli AI görsel üretimi", rating: 4.9, downloads: 15420, icon: "🎨", category: "Görsel" },
-    { id: "runway", name: "Runway ML", author: "Runway", description: "AI video düzenleme ve üretim", rating: 4.7, downloads: 8930, icon: "✂️", category: "Video" },
-    { id: "suno", name: "Suno AI", author: "Suno Labs", description: "AI müzik ve ses üretimi", rating: 4.8, downloads: 12100, icon: "🎵", category: "Ses" },
-    { id: "elevenlabs", name: "ElevenLabs", author: "ElevenLabs", description: "Gerçekçi AI seslendirme", rating: 4.9, downloads: 20500, icon: "🎤", category: "Ses" },
-    { id: "leonardo", name: "Leonardo AI", author: "Leonardo", description: "Oyun ve konsept görsel üretimi", rating: 4.6, downloads: 7200, icon: "🎮", category: "Görsel" },
-    { id: "pika", name: "Pika Labs", author: "Pika", description: "Kısa video ve animasyon", rating: 4.5, downloads: 5800, icon: "📹", category: "Video" },
-];
+
 
 export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
-    const [activeTab, setActiveTab] = useState<"overview" | "models" | "plugins" | "analytics">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "models" | "analytics">("overview");
 
     // Backend data states
     const [models, setModels] = useState<AIModel[]>([]);
-    const [installedPlugins, setInstalledPlugins] = useState<InstalledPlugin[]>([]);
+
     const [usageData, setUsageData] = useState<UsageStats[]>([]);
     const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null);
     const [modelDistribution, setModelDistribution] = useState<ModelDistributionItem[]>(defaultModelDistribution);
     const [isLoading, setIsLoading] = useState(true);
     const [modelCategoryFilter, setModelCategoryFilter] = useState<string>("all");
 
-    // UI states
-    const [apiKeyModal, setApiKeyModal] = useState<{ isOpen: boolean; plugin: typeof marketplacePlugins[0] | null }>({ isOpen: false, plugin: null });
-    const [apiKeyInput, setApiKeyInput] = useState("");
+
 
     // Fetch data from backend — her API bağımsız, biri hata verse diğerleri çalışır
     useEffect(() => {
@@ -60,7 +50,6 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
             // Her API'yi bağımsız çağır — biri başarısız olunca diğerlerini engellemesin
             const results = await Promise.allSettled([
                 getAIModels(),
-                getInstalledPlugins(),
                 getUsageStats(7),
                 getOverviewStats(),
                 getModelDistribution()
@@ -69,19 +58,16 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
             if (results[0].status === 'fulfilled') setModels(results[0].value);
             else console.error('Models fetch failed:', results[0].reason);
 
-            if (results[1].status === 'fulfilled') setInstalledPlugins(results[1].value);
-            else console.error('Plugins fetch failed:', results[1].reason);
+            if (results[1].status === 'fulfilled') setUsageData(results[1].value);
+            else console.error('Usage stats fetch failed:', results[1].reason);
 
-            if (results[2].status === 'fulfilled') setUsageData(results[2].value);
-            else console.error('Usage stats fetch failed:', results[2].reason);
+            if (results[2].status === 'fulfilled') setOverviewStats(results[2].value);
+            else console.error('Overview stats fetch failed:', results[2].reason);
 
-            if (results[3].status === 'fulfilled') setOverviewStats(results[3].value);
-            else console.error('Overview stats fetch failed:', results[3].reason);
-
-            if (results[4].status === 'fulfilled') {
-                const dist = results[4].value;
+            if (results[3].status === 'fulfilled') {
+                const dist = results[3].value;
                 setModelDistribution(dist.length > 0 ? dist : defaultModelDistribution);
-            } else console.error('Distribution fetch failed:', results[4].reason);
+            } else console.error('Distribution fetch failed:', results[3].reason);
 
             setIsLoading(false);
         };
@@ -98,45 +84,6 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
         }
     };
 
-    const handleInstallPlugin = async (plugin: typeof marketplacePlugins[0]) => {
-        setApiKeyModal({ isOpen: true, plugin });
-    };
-
-    const confirmInstall = async () => {
-        if (apiKeyModal.plugin && apiKeyInput) {
-            try {
-                const installed = await installPlugin({
-                    plugin_id: apiKeyModal.plugin.id,
-                    name: apiKeyModal.plugin.name,
-                    description: apiKeyModal.plugin.description,
-                    icon: apiKeyModal.plugin.icon,
-                    category: apiKeyModal.plugin.category,
-                    api_key: apiKeyInput
-                });
-                setInstalledPlugins([...installedPlugins, installed]);
-                setApiKeyModal({ isOpen: false, plugin: null });
-                setApiKeyInput("");
-            } catch (error) {
-                console.error('Plugin yükleme hatası:', error);
-            }
-        }
-    };
-
-    const handleUninstallPlugin = async (pluginId: string) => {
-        try {
-            const success = await uninstallPlugin(pluginId);
-            if (success) {
-                setInstalledPlugins(installedPlugins.filter(p => p.id !== pluginId));
-            }
-        } catch (error) {
-            console.error('Plugin kaldırma hatası:', error);
-        }
-    };
-
-    // Check if a marketplace plugin is installed
-    const isPluginInstalled = (pluginId: string) => {
-        return installedPlugins.some(p => p.plugin_id === pluginId);
-    };
 
     if (!isOpen) return null;
 
@@ -198,7 +145,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                     {[
                         { id: "overview", label: "Genel Bakış", icon: Activity },
                         { id: "models", label: "AI Modeller", icon: Puzzle },
-                        { id: "plugins", label: "AI Servisleri", icon: Store },
+
                         { id: "analytics", label: "Analitik", icon: TrendingUp },
                     ].map((tab) => {
                         const isActive = activeTab === tab.id;
@@ -375,111 +322,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                                 </div>
                             )}
 
-                            {/* Plugins Tab */}
-                            {activeTab === "plugins" && (
-                                <div className="space-y-6">
-                                    {/* Installed Plugins */}
-                                    <div>
-                                        <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                                            <Check size={16} className="text-green-500" />
-                                            Yüklü Pluginler ({installedPlugins.length})
-                                        </h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {installedPlugins.map((plugin) => (
-                                                <div
-                                                    key={plugin.id}
-                                                    className="p-4 rounded-xl flex items-center justify-between"
-                                                    style={{ background: "var(--background)" }}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="text-2xl">{plugin.icon}</span>
-                                                        <div>
-                                                            <div className="font-medium flex items-center gap-2">
-                                                                {plugin.name}
-                                                                <span className="px-1.5 py-0.5 text-xs rounded" style={{ background: "rgba(34, 197, 94, 0.2)", color: "#22c55e" }}>
-                                                                    Aktif
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                                                {plugin.category} • {plugin.description}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors"
-                                                            title="API Key Düzenle"
-                                                        >
-                                                            <Key size={16} style={{ color: "var(--foreground-muted)" }} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleUninstallPlugin(plugin.id)}
-                                                            className="px-3 py-1.5 text-xs rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
-                                                        >
-                                                            Kaldır
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
 
-                                    {/* Marketplace */}
-                                    <div>
-                                        <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                                            <Store size={16} style={{ color: "var(--accent)" }} />
-                                            Eklenti Mağazası
-                                        </h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {marketplacePlugins.filter(p => !isPluginInstalled(p.id)).map((plugin) => (
-                                                <div
-                                                    key={plugin.id}
-                                                    className="p-4 rounded-xl"
-                                                    style={{ background: "var(--background)" }}
-                                                >
-                                                    <div className="flex items-start justify-between mb-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="text-2xl">{plugin.icon}</span>
-                                                            <div>
-                                                                <div className="font-medium">{plugin.name}</div>
-                                                                <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                                                    by {plugin.author}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <span className="px-2 py-0.5 text-xs rounded" style={{ background: "var(--card)" }}>
-                                                            {plugin.category}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs mb-3" style={{ color: "var(--foreground-muted)" }}>
-                                                        {plugin.description}
-                                                    </p>
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-3 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                                            <span className="flex items-center gap-1">
-                                                                <Star size={12} className="text-yellow-500" />
-                                                                {plugin.rating}
-                                                            </span>
-                                                            <span className="flex items-center gap-1">
-                                                                <Download size={12} />
-                                                                {plugin.downloads.toLocaleString()}
-                                                            </span>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => handleInstallPlugin(plugin)}
-                                                            className="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1"
-                                                            style={{ background: "var(--accent)", color: "var(--background)" }}
-                                                        >
-                                                            <Plus size={12} />
-                                                            Ekle
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Analytics Tab */}
                             {activeTab === "analytics" && (
@@ -572,55 +415,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                     )}
                 </div>
 
-                {/* API Key Modal */}
-                {apiKeyModal.isOpen && apiKeyModal.plugin && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-2xl">
-                        <div className="w-full max-w-md p-6 rounded-xl" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-                            <div className="flex items-center gap-3 mb-4">
-                                <span className="text-3xl">{apiKeyModal.plugin.icon}</span>
-                                <div>
-                                    <h3 className="font-semibold">{apiKeyModal.plugin.name}</h3>
-                                    <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>API Key gerekli</p>
-                                </div>
-                            </div>
-                            <p className="text-sm mb-4" style={{ color: "var(--foreground-muted)" }}>
-                                Bu plugin'i kullanmak için API anahtarınızı girin.
-                            </p>
-                            <input
-                                type="password"
-                                value={apiKeyInput}
-                                onChange={(e) => setApiKeyInput(e.target.value)}
-                                placeholder="sk-xxxx..."
-                                className="w-full px-4 py-3 rounded-xl text-sm mb-4"
-                                style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-                            />
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => { setApiKeyModal({ isOpen: false, plugin: null }); setApiKeyInput(""); }}
-                                    className="flex-1 px-4 py-2.5 text-sm rounded-xl hover:bg-[var(--background)] transition-colors"
-                                    style={{ border: "1px solid var(--border)" }}
-                                >
-                                    İptal
-                                </button>
-                                <button
-                                    onClick={confirmInstall}
-                                    disabled={!apiKeyInput}
-                                    className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
-                                    style={{ background: "var(--accent)", color: "var(--background)" }}
-                                >
-                                    Yükle
-                                </button>
-                            </div>
-                            <a
-                                href="#"
-                                className="flex items-center justify-center gap-1 text-xs mt-4 hover:underline"
-                                style={{ color: "var(--foreground-muted)" }}
-                            >
-                                API Key nasıl alınır? <ExternalLink size={10} />
-                            </a>
-                        </div>
-                    </div>
-                )}
+
             </div>
         </div>
     );
