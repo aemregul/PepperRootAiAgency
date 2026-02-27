@@ -206,13 +206,7 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-lg"
-                                style={{
-                                    backgroundColor: isActive ? "#22c55e" : "transparent",
-                                    color: isActive ? "#0a0a0a" : "rgba(255,255,255,0.5)",
-                                    fontWeight: isActive ? 600 : 400,
-                                    boxShadow: isActive ? "0 4px 12px rgba(34, 197, 94, 0.3)" : "none",
-                                }}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-lg ${isActive ? "admin-tab-active" : "admin-tab"}`}
                             >
                                 <tab.icon size={16} />
                                 {tab.label}
