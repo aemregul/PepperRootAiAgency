@@ -204,13 +204,14 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-lg transition-all duration-200 ${activeTab === tab.id
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-lg ${activeTab === tab.id
                                 ? "font-medium shadow-lg"
                                 : "opacity-60 hover:opacity-100"
                                 }`}
                             style={{
                                 background: activeTab === tab.id ? "var(--accent)" : "transparent",
                                 color: activeTab === tab.id ? "var(--background)" : "var(--foreground)",
+                                transition: "opacity 0.2s",
                             }}
                         >
                             <tab.icon size={16} />
