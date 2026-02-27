@@ -50,31 +50,40 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
     const [apiKeyModal, setApiKeyModal] = useState<{ isOpen: boolean; plugin: typeof marketplacePlugins[0] | null }>({ isOpen: false, plugin: null });
     const [apiKeyInput, setApiKeyInput] = useState("");
 
-    // Fetch data from backend
+    // Fetch data from backend — her API bağımsız, biri hata verse diğerleri çalışır
     useEffect(() => {
         const fetchData = async () => {
             if (!isOpen) return;
 
             setIsLoading(true);
-            try {
-                const [modelsData, pluginsData, statsData, overviewData, distributionData] = await Promise.all([
-                    getAIModels(),
-                    getInstalledPlugins(),
-                    getUsageStats(7),
-                    getOverviewStats(),
-                    getModelDistribution()
-                ]);
 
-                setModels(modelsData);
-                setInstalledPlugins(pluginsData);
-                setUsageData(statsData);
-                setOverviewStats(overviewData);
-                setModelDistribution(distributionData.length > 0 ? distributionData : defaultModelDistribution);
-            } catch (error) {
-                console.error('Admin panel veri yükleme hatası:', error);
-            } finally {
-                setIsLoading(false);
-            }
+            // Her API'yi bağımsız çağır — biri başarısız olunca diğerlerini engellemesin
+            const results = await Promise.allSettled([
+                getAIModels(),
+                getInstalledPlugins(),
+                getUsageStats(7),
+                getOverviewStats(),
+                getModelDistribution()
+            ]);
+
+            if (results[0].status === 'fulfilled') setModels(results[0].value);
+            else console.error('Models fetch failed:', results[0].reason);
+
+            if (results[1].status === 'fulfilled') setInstalledPlugins(results[1].value);
+            else console.error('Plugins fetch failed:', results[1].reason);
+
+            if (results[2].status === 'fulfilled') setUsageData(results[2].value);
+            else console.error('Usage stats fetch failed:', results[2].reason);
+
+            if (results[3].status === 'fulfilled') setOverviewStats(results[3].value);
+            else console.error('Overview stats fetch failed:', results[3].reason);
+
+            if (results[4].status === 'fulfilled') {
+                const dist = results[4].value;
+                setModelDistribution(dist.length > 0 ? dist : defaultModelDistribution);
+            } else console.error('Distribution fetch failed:', results[4].reason);
+
+            setIsLoading(false);
         };
 
         fetchData();
