@@ -208,7 +208,8 @@ class FalPluginV2(PluginBase):
     VIDEO_MODEL_MAP = {
         "kling": {"i2v": "fal-ai/kling-video/v3/pro/image-to-video", "t2v": "fal-ai/kling-video/v3/pro/text-to-video"},
         "sora2": {"i2v": "fal-ai/sora-2/image-to-video/pro", "t2v": "fal-ai/sora-2/text-to-video/pro"},
-        "veo": {"i2v": "fal-ai/veo3.1/image-to-video", "t2v": "fal-ai/veo3.1/text-to-video"},
+        "veo": {"i2v": "fal-ai/veo3.1/fast/image-to-video", "t2v": "fal-ai/veo3.1/fast"},
+        "veo_quality": {"i2v": "fal-ai/veo3.1/image-to-video", "t2v": "fal-ai/veo3.1"},
         "seedance": {"i2v": "fal-ai/bytedance/seedance/v1.5/pro/image-to-video", "t2v": "fal-ai/bytedance/seedance/v1.5/pro/fast/text-to-video"},
         "hailuo": {"i2v": "fal-ai/minimax/hailuo-02/standard/image-to-video", "t2v": "fal-ai/minimax/hailuo-02/standard/text-to-video"},
     }
@@ -293,7 +294,21 @@ class FalPluginV2(PluginBase):
             logger.info(f"🎯 Smart Router: Sora 2 seçildi (uzun/hikaye) — {endpoint}")
             return endpoint
         
-        # Sinematik/gerçekçi/fizik istekler → Veo 3.1
+        # Yüksek kalite / profesyonel / premium → Veo 3.1 Quality (daha yavaş ama en iyi kalite)
+        quality_keywords = [
+            "yüksek kalite", "high quality", "en iyi kalite", "best quality",
+            "premium", "profesyonel", "professional", "ultra",
+            "mükemmel", "perfect", "maximum quality", "max quality",
+            "kaliteli", "4k video", "8k video", "hd video",
+            "masterpiece", "showcase", "portfolio",
+        ]
+        
+        if any(kw in prompt_lower for kw in quality_keywords):
+            endpoint = self.VIDEO_MODEL_MAP["veo_quality"][mode]
+            logger.info(f"🎯 Smart Router: Veo 3.1 QUALITY seçildi (premium istek) — {endpoint}")
+            return endpoint
+        
+        # Sinematik/gerçekçi/fizik istekler → Veo 3.1 Fast (hızlı + yeterli kalite)
         cinematic_keywords = [
             "cinematic", "sinematik", "realistic", "gerçekçi",
             "film", "movie", "documentary", "belgesel",
@@ -302,7 +317,7 @@ class FalPluginV2(PluginBase):
         
         if any(kw in prompt_lower for kw in cinematic_keywords):
             endpoint = self.VIDEO_MODEL_MAP["veo"][mode]
-            logger.info(f"🎯 Smart Router: Veo 3.1 seçildi (sinematik) — {endpoint}")
+            logger.info(f"🎯 Smart Router: Veo 3.1 Fast seçildi (sinematik) — {endpoint}")
             return endpoint
         
         # Kısa/hızlı/sosyal medya → Hailuo 02
@@ -442,14 +457,14 @@ class FalPluginV2(PluginBase):
             # Model-specific duration formatting
             dur_int = int(duration)
             
-            if model_family == "veo":
+            if model_family in ("veo", "veo_quality"):
                 # Veo uses durationSeconds (4-8 range)
                 formatted_duration = max(4, min(8, dur_int))
             else:
                 formatted_duration = duration
             
             # Model-specific arguments
-            if model_family == "veo":
+            if model_family in ("veo", "veo_quality"):
                 arguments = {
                     "prompt": prompt,
                     "durationSeconds": formatted_duration,
