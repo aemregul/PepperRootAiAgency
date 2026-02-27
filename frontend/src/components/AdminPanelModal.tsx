@@ -509,8 +509,8 @@ export function AdminPanelModal({ isOpen, onClose }: AdminPanelModalProps) {
                                                 </PieChart>
                                             </ResponsiveContainer>
                                             <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                                                {modelDistribution.map((item) => (
-                                                    <span key={item.name} className="flex items-center gap-1 text-xs">
+                                                {modelDistribution.map((item, idx) => (
+                                                    <span key={`dist-${idx}`} className="flex items-center gap-1 text-xs">
                                                         <span className="w-2 h-2 rounded-full" style={{ background: item.color }} />
                                                         {item.name}
                                                     </span>
