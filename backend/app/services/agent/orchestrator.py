@@ -1403,6 +1403,9 @@ Kurallar:
         elif tool_name == "audio_visual_sync":
             return await self._audio_visual_sync(db, session_id, tool_input)
         
+        elif tool_name == "resize_image":
+            return await self._resize_image(db, session_id, tool_input)
+        
         # (add_audio_to_video zaten yukarıda handle ediliyor)
         
         return {"success": False, "error": f"Bilinmeyen araç: {tool_name}"}
@@ -2702,6 +2705,47 @@ Konuşma:
             
         except Exception as e:
             print(f"❌ Phase 24 audio_visual_sync hatası: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def _resize_image(self, db, session_id, params: dict) -> dict:
+        """Tek görsel birçok boyut — Nano Banana 2 ile AI-powered aspect ratio dönüşümü."""
+        try:
+            from app.services.plugins.fal_plugin_v2 import fal_plugin_v2
+            from app.services.asset_service import AssetService
+            asset_service = AssetService()
+            
+            result = await fal_plugin_v2.execute("resize_image", params)
+            
+            if result.success and result.data:
+                data = result.data
+                images = data.get("images", [])
+                
+                # Her boyutu asset olarak kaydet
+                image_url = None
+                for img in images:
+                    if img.get("image_url"):
+                        try:
+                            await asset_service.save_asset(
+                                db=db, session_id=session_id,
+                                url=img["image_url"], asset_type="image",
+                                prompt=f"Resize: {img.get('ratio_name', img.get('ratio', ''))}",
+                                model_name="nano-banana-2-edit",
+                            )
+                        except Exception:
+                            pass
+                        if not image_url:
+                            image_url = img["image_url"]
+                
+                return {
+                    "success": True,
+                    "image_url": image_url,
+                    "images": images,
+                    "total": data.get("total", 0),
+                    "model": "nano-banana-2-edit",
+                }
+            
+            return {"success": False, "error": result.error or "Resize başarısız"}
+        except Exception as e:
             return {"success": False, "error": str(e)}
     
     async def _transcribe_voice(self, params: dict) -> dict:

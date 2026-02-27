@@ -88,6 +88,7 @@ class FalPluginV2(PluginBase):
             "apply_style",
             "text_to_speech",
             "video_to_audio",
+            "resize_image",
         ]
     
     async def execute(self, action: str, params: dict) -> PluginResult:
@@ -135,6 +136,8 @@ class FalPluginV2(PluginBase):
                 result = await self._text_to_speech(params)
             elif action == "video_to_audio":
                 result = await self._video_to_audio(params)
+            elif action == "resize_image":
+                result = await self._resize_image(params)
             else:
                 return PluginResult(
                     success=False,
@@ -1469,6 +1472,87 @@ class FalPluginV2(PluginBase):
                     os_module.remove(tmp_path)
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    async def _resize_image(self, params: dict) -> dict:
+        """
+        Tek Görsel Birçok Boyut — Nano Banana 2 Edit ile AI-powered aspect ratio dönüşümü.
+        
+        Görseli kırpmadan, kenarları AI ile doğal doldurarak farklı formatlara çevirir.
+        Birden fazla hedef boyut verilirse paralel üretim yapar.
+        """
+        image_url = params.get("image_url", "")
+        target_ratios = params.get("target_ratios", ["16:9"])
+        prompt = params.get("prompt", "")
+        resolution = params.get("resolution", "1K")
+        
+        if not image_url:
+            return {"success": False, "error": "image_url gerekli"}
+        
+        # Aspect ratio isimleri (kullanıcı-dostu)
+        ratio_names = {
+            "21:9": "Ultra Geniş (21:9)",
+            "16:9": "Yatay / YouTube (16:9)",
+            "3:2": "Fotoğraf Yatay (3:2)",
+            "4:3": "Klasik Yatay (4:3)",
+            "5:4": "Kare-Yatay (5:4)",
+            "1:1": "Kare (1:1)",
+            "4:5": "Instagram Post (4:5)",
+            "3:4": "Klasik Dikey (3:4)",
+            "2:3": "Fotoğraf Dikey (2:3)",
+            "9:16": "Dikey / Story (9:16)",
+        }
+        
+        async def _generate_single_ratio(ratio: str) -> dict:
+            """Tek bir aspect ratio için üretim yap."""
+            try:
+                fill_prompt = prompt or f"Resize this image to {ratio} aspect ratio. Extend the canvas naturally, maintaining the original subject and style. Fill any new areas with contextually appropriate content."
+                
+                result = await fal_client.subscribe_async(
+                    "fal-ai/nano-banana-2/edit",
+                    arguments={
+                        "prompt": fill_prompt,
+                        "image_urls": [image_url],
+                        "aspect_ratio": ratio,
+                        "output_format": "png",
+                        "resolution": resolution,
+                        "num_images": 1,
+                        "limit_generations": True,
+                        "safety_tolerance": "6",
+                    },
+                    with_logs=True,
+                )
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    return {
+                        "success": True,
+                        "ratio": ratio,
+                        "ratio_name": ratio_names.get(ratio, ratio),
+                        "image_url": result["images"][0]["url"],
+                    }
+                else:
+                    return {"success": False, "ratio": ratio, "error": "API yanıtı boş"}
+            except Exception as e:
+                logger.warning(f"⚠️ Resize {ratio} başarısız: {e}")
+                return {"success": False, "ratio": ratio, "error": str(e)}
+        
+        # Paralel üretim
+        logger.info(f"🔲 Resize Image: {len(target_ratios)} boyut üretiliyor — {target_ratios}")
+        tasks = [_generate_single_ratio(r) for r in target_ratios]
+        results = await asyncio.gather(*tasks)
+        
+        successful = [r for r in results if r.get("success")]
+        failed = [r for r in results if not r.get("success")]
+        
+        if not successful:
+            return {"success": False, "error": f"Tüm boyut dönüşümleri başarısız: {failed}"}
+        
+        return {
+            "success": True,
+            "images": successful,
+            "total": len(successful),
+            "failed": len(failed),
+            "model": "nano-banana-2-edit",
+        }
 
 # Backward compatibility için singleton instance
 fal_plugin_v2 = FalPluginV2()

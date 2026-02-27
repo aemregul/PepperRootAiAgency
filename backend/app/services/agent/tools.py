@@ -767,6 +767,25 @@ AGENT_TOOLS_ANTHROPIC = [
             },
             "required": ["operation"]
         }
+    },
+    # 37. Tool: Resize Image — Tek görsel birçok boyut
+    {
+        "name": "resize_image",
+        "description": "Görseli farklı aspect ratio'lara AI ile dönüştür. Kenarları kırpmadan akıllıca doldurur. Kullanıcı '16:9 yap', 'Instagram story formatı', 'dikey çevir', 'farklı boyutlarda ver' istediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_url": {"type": "string", "description": "Kaynak görsel URL'si"},
+                "target_ratios": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]},
+                    "description": "Hedef boyutlar listesi. Örn: ['16:9', '9:16'] veya tek ['16:9']. Birden fazla verilirse her biri paralel üretilir."
+                },
+                "prompt": {"type": "string", "description": "Opsiyonel: Doldurma sırasında ek talimat (ör: 'sahil arka planı ekle'). Yoksa doğal doldurma yapılır."},
+                "resolution": {"type": "string", "enum": ["0.5K", "1K", "2K", "4K"], "description": "Çıktı çözünürlüğü. Varsayılan: 1K"}
+            },
+            "required": ["image_url", "target_ratios"]
+        }
     }
 ]
 
