@@ -986,7 +986,15 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         try {
             // Reference images varsa FormData endpoint kullan
             if (currentFiles.length > 0) {
+                // 📊 Dosyalı isteklerde progress kartı simülasyonu
+                // with-files endpoint SSE kullanmadığı için yapay progress göster
+                setActiveGenerations([{ type: 'image', prompt: currentInput.slice(0, 80) }]);
+
                 const response = await sendMessage(sessionId, currentInput, currentFiles, sessionId);
+
+                // Progress kartını kapat
+                setActiveGenerations([]);
+
                 const responseContent = typeof response.response === 'string'
                     ? response.response
                     : response.response?.content ?? 'Yanıt alınamadı';
