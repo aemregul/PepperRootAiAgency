@@ -117,9 +117,6 @@ async def list_ai_models(db: AsyncSession = Depends(get_db)):
     
     # Tüm modellerin master listesi — her biri gerçekten projede kullanılan model
     MASTER_MODELS = [
-        # 🤖 LLM
-        ("gpt4o", "GPT-4o", "llm", "openai", "Ana dil modeli — sohbet, analiz, orchestration", "🤖"),
-        
         # 🖼️ Görsel Üretim
         ("nano_banana_pro", "Nano Banana Pro", "image", "fal", "Varsayılan görsel üretim — en iyi kalite", "🖼️"),
         ("nano_banana_2", "Nano Banana 2", "image", "fal", "Hızlı görsel üretim — Gemini 3.1 Flash", "⚡"),
@@ -167,6 +164,7 @@ async def list_ai_models(db: AsyncSession = Depends(get_db)):
     existing = {m.name: m for m in result.scalars().all()}
     
     # Eksik modelleri ekle (mevcut modellerin is_enabled durumunu koru)
+    master_names = {m[0] for m in MASTER_MODELS}
     added = 0
     for name, display, mtype, provider, desc, icon in MASTER_MODELS:
         if name not in existing:
@@ -176,7 +174,14 @@ async def list_ai_models(db: AsyncSession = Depends(get_db)):
             ))
             added += 1
     
-    if added > 0:
+    # Master listesinde olmayan modelleri kaldır (ör. eski LLM, placeholder)
+    removed = 0
+    for name, model in existing.items():
+        if name not in master_names:
+            await db.delete(model)
+            removed += 1
+    
+    if added > 0 or removed > 0:
         await db.commit()
     
     # Tümünü model_type sırasına göre getir
