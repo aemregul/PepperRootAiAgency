@@ -529,6 +529,51 @@ export async function uninstallPlugin(pluginId: string): Promise<boolean> {
     return response.ok;
 }
 
+// Marketplace
+export interface MarketplacePlugin {
+    id: string;
+    name: string;
+    description: string;
+    author: string;
+    icon: string;
+    color: string;
+    style: string;
+    rating: number;
+    downloads: number;
+    created_at: string;
+    source: 'official' | 'community';
+    config: Record<string, unknown>;
+    is_installed: boolean;
+}
+
+export async function getMarketplacePlugins(
+    sort: 'downloads' | 'rating' | 'recent' = 'downloads',
+    category: 'all' | 'community' | 'official' = 'all',
+    search: string = ''
+): Promise<MarketplacePlugin[]> {
+    const params = new URLSearchParams({ sort, category });
+    if (search) params.set('search', search);
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/marketplace/plugins?${params}`);
+    if (!response.ok) throw new Error('Failed to fetch marketplace plugins');
+    return response.json();
+}
+
+export async function publishPlugin(pluginId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/creative-plugins/${pluginId}/publish`, {
+        method: 'PATCH',
+    });
+    if (!response.ok) throw new Error('Failed to publish plugin');
+    return response.json();
+}
+
+export async function installMarketplacePlugin(pluginId: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/marketplace/plugins/${pluginId}/install`, {
+        method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to install plugin');
+    return response.json();
+}
+
 // User Settings
 export interface UserSettings {
     id: string;

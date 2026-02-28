@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { X, Store, Search, Star, Download, Plus, Filter, TrendingUp, Clock, Users } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { X, Store, Search, Star, Download, Plus, TrendingUp, Clock, Users, Loader2, Sparkles } from "lucide-react";
 import { CreativePlugin } from "./CreativePluginModal";
+import { getMarketplacePlugins, installMarketplacePlugin, type MarketplacePlugin } from "@/lib/api";
 
 interface PluginMarketplaceModalProps {
     isOpen: boolean;
@@ -11,953 +12,86 @@ interface PluginMarketplaceModalProps {
     myPlugins: CreativePlugin[];
 }
 
-// Community creative plugins - gerçekçi verilerle
-const communityPlugins: CreativePlugin[] = [
-    // === EN POPÜLERler (ESKİ + YÜKSEK İNDİRME) ===
-    {
-        id: "comm1",
-        name: "Digital Art Fantasy",
-        description: "Fantastik dijital sanat. Ejderhalar, büyücüler, efsanevi dünyalar.",
-        author: "FantasyArt",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Karakter", isVariable: true },
-            location: { id: "fantasy", name: "Fantasy World", settings: "" },
-            timeOfDay: "Magical",
-            cameraAngles: ["Epic Wide", "Character Portrait", "Action Scene"],
-            style: "Fantasy Art",
-            promptTemplate: "digital fantasy art, epic, magical, detailed, {character}"
-        },
-        createdAt: new Date("2025-10-15"), // ESKİ
-        downloads: 4500, // ÇOK YÜKSEK
-        rating: 4.9
-    },
-    {
-        id: "social1",
-        name: "Instagram Influencer Pack",
-        description: "Instagram için estetik içerik. Lifestyle, selfie, flat lay kompozisyonlar.",
-        author: "InstaCreator",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Influencer", isVariable: true },
-            location: { id: "aesthetic", name: "Aesthetic Space", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Instagram", "Selfie Style", "Flat Lay"],
-            style: "Instagram",
-            promptTemplate: "instagram aesthetic, lifestyle, vibrant, trendy, {character}"
-        },
-        createdAt: new Date("2025-11-01"), // ESKİ
-        downloads: 4200, // YÜKSEK
-        rating: 4.9
-    },
-    {
-        id: "video2",
-        name: "Anime & Manga Style",
-        description: "Anime tarzı karakter ve sahne üretimi. Studio Ghibli, Makoto Shinkai stilleri.",
-        author: "AnimeArtist",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Karakter", isVariable: true },
-            location: { id: "fantasy", name: "Anime World", settings: "" },
-            timeOfDay: "Sunset",
-            cameraAngles: ["Anime", "Portrait", "Action Pose"],
-            style: "Anime",
-            promptTemplate: "anime style, detailed, vibrant colors, studio ghibli inspired, {character}"
-        },
-        createdAt: new Date("2025-09-20"), // ÇOK ESKİ
-        downloads: 3450, // YÜKSEK
-        rating: 4.8
-    },
-
-    // === EN İYİ PUANLILAR (YÜKSEK RATING) ===
-    {
-        id: "sector4",
-        name: "Game Character Design",
-        description: "Video oyun karakterleri için konsept sanatı.",
-        author: "GameArtist",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Karakter", isVariable: true },
-            location: { id: "game", name: "Game Environment", settings: "" },
-            timeOfDay: "Dramatic",
-            cameraAngles: ["Game Art", "Character Sheet", "Action Pose"],
-            style: "Game Art",
-            promptTemplate: "game character design, concept art, detailed, {character}"
-        },
-        createdAt: new Date("2025-12-01"),
-        downloads: 3200,
-        rating: 4.9 // EN YÜKSEK
-    },
-    {
-        id: "special1",
-        name: "Wedding Photography",
-        description: "Düğün fotoğrafçılığı için romantik ve duygusal anlar.",
-        author: "WeddingMoments",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Çift", isVariable: true },
-            location: { id: "wedding", name: "Wedding Venue", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Romantic", "Couple Portrait", "Candid Moment"],
-            style: "Romantic",
-            promptTemplate: "wedding photography, romantic, emotional, {character}"
-        },
-        createdAt: new Date("2025-08-22"),
-        downloads: 2100,
-        rating: 4.9 // EN YÜKSEK
-    },
-
-    // === YENİ EKLENENler (YENİ TARİH + AZ İNDİRME) ===
-    {
-        id: "new1",
-        name: "AI Portrait Studio",
-        description: "Yapay zeka destekli profesyonel portre stüdyosu. Headshot, CV fotoğrafları.",
-        author: "AIPortrait",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Kişi", isVariable: true },
-            location: { id: "studio", name: "Professional Studio", settings: "" },
-            timeOfDay: "Studio",
-            cameraAngles: ["Headshot", "Professional", "LinkedIn"],
-            style: "Professional",
-            promptTemplate: "professional headshot, clean background, confident, {character}"
-        },
-        createdAt: new Date("2026-02-04"), // DÜN EKLENDİ
-        downloads: 45, // ÇOK AZ
-        rating: 4.5
-    },
-    {
-        id: "new2",
-        name: "Cyberpunk 2077 Style",
-        description: "Neon ışıklar, fütüristik şehir, cyberpunk estetiği.",
-        author: "NeonDreams",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Karakter", isVariable: true },
-            location: { id: "cyberpunk", name: "Neon City", settings: "" },
-            timeOfDay: "Night",
-            cameraAngles: ["Cyberpunk", "Neon Portrait", "Street Scene"],
-            style: "Cyberpunk",
-            promptTemplate: "cyberpunk aesthetic, neon lights, futuristic, {character}"
-        },
-        createdAt: new Date("2026-02-03"), // 2 GÜN ÖNCE
-        downloads: 128,
-        rating: 4.7
-    },
-    {
-        id: "new3",
-        name: "Vintage Film Look",
-        description: "80'ler ve 90'lar film estetiği. Grain, fade, nostaljik renkler.",
-        author: "RetroLens",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Kişi", isVariable: true },
-            location: { id: "vintage", name: "Retro Setting", settings: "" },
-            timeOfDay: "Warm",
-            cameraAngles: ["Vintage", "Film Look", "Nostalgic"],
-            style: "Vintage",
-            promptTemplate: "vintage film aesthetic, 80s style, grain, nostalgic, {character}"
-        },
-        createdAt: new Date("2026-02-02"), // 3 GÜN ÖNCE
-        downloads: 256,
-        rating: 4.6
-    },
-
-    // === ORTA SEVİYE (KARMA VERİLER) ===
-    {
-        id: "social3",
-        name: "YouTube Thumbnail Pro",
-        description: "Yüksek CTR için dikkat çekici YouTube thumbnail tasarımları.",
-        author: "ThumbnailKing",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Creator", isVariable: true },
-            location: { id: "colorful", name: "Vibrant Background", settings: "" },
-            timeOfDay: "Bright",
-            cameraAngles: ["YouTube", "Face Reaction", "Dramatic"],
-            style: "YouTube",
-            promptTemplate: "youtube thumbnail, expressive, bold colors, eye-catching, {character}"
-        },
-        createdAt: new Date("2025-12-15"),
-        downloads: 2890,
-        rating: 4.8
-    },
-    {
-        id: "video1",
-        name: "Video Reklam Paketi",
-        description: "Sosyal medya video reklamları için hazır şablonlar.",
-        author: "AdCreative",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Ürün", isVariable: true },
-            location: { id: "studio", name: "Clean Studio", settings: "" },
-            timeOfDay: "Bright",
-            cameraAngles: ["Commercial", "Product Hero", "Lifestyle"],
-            style: "Commercial Video",
-            promptTemplate: "video advertisement, product showcase, engaging, {character}"
-        },
-        createdAt: new Date("2025-11-20"),
-        downloads: 2100,
-        rating: 4.7
-    },
-    {
-        id: "comm2",
-        name: "E-Commerce Product Shots",
-        description: "Online mağaza için ürün fotoğrafları. Beyaz arka plan, soft shadows.",
-        author: "ShopVisuals",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Ürün", isVariable: true },
-            location: { id: "whitebg", name: "White Background", settings: "" },
-            timeOfDay: "Studio Light",
-            cameraAngles: ["E-Commerce", "Front View", "45 Degree"],
-            style: "Commercial",
-            promptTemplate: "product photography, white background, professional lighting"
-        },
-        createdAt: new Date("2025-10-20"),
-        downloads: 1890,
-        rating: 4.7
-    },
-    {
-        id: "sector3",
-        name: "Fashion Lookbook",
-        description: "Moda markaları için lookbook ve katalog çekimleri.",
-        author: "FashionForward",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Model", isVariable: true },
-            location: { id: "studio", name: "Fashion Studio", settings: "" },
-            timeOfDay: "Soft Light",
-            cameraAngles: ["Fashion", "Full Body", "Detail Close-up"],
-            style: "Fashion Editorial",
-            promptTemplate: "fashion photography, editorial, high fashion, {character}"
-        },
-        createdAt: new Date("2025-12-01"),
-        downloads: 1340,
-        rating: 4.8
-    },
-
-    // === DÜŞÜK PUANLILAR ===
-    {
-        id: "sector2",
-        name: "NFT Collection Art",
-        description: "NFT koleksiyonları için unique dijital sanat eserleri.",
-        author: "NFTCreator",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "NFT", isVariable: true },
-            location: { id: "abstract", name: "Abstract Space", settings: "" },
-            timeOfDay: "Colorful",
-            cameraAngles: ["NFT Style", "Abstract", "Unique"],
-            style: "NFT Art",
-            promptTemplate: "nft art, unique, digital collectible, vibrant, {character}"
-        },
-        createdAt: new Date("2025-11-10"),
-        downloads: 3100,
-        rating: 4.7
-    },
-    {
-        id: "special2",
-        name: "Sports Action Shots",
-        description: "Spor ve aksiyon fotoğrafçılığı. Dinamik hareketler.",
-        author: "ActionFreeze",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Sporcu", isVariable: true },
-            location: { id: "sports", name: "Sports Arena", settings: "" },
-            timeOfDay: "Day",
-            cameraAngles: ["Sports", "Action Freeze", "Wide Arena"],
-            style: "Sports",
-            promptTemplate: "sports photography, action, dynamic, powerful, {character}"
-        },
-        createdAt: new Date("2025-09-18"),
-        downloads: 890,
-        rating: 4.7
-    },
-    {
-        id: "special3",
-        name: "Podcast Cover Art",
-        description: "Podcast kapak görselleri ve sosyal medya tanıtımları.",
-        author: "PodcastPro",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Host", isVariable: true },
-            location: { id: "studio", name: "Podcast Studio", settings: "" },
-            timeOfDay: "Moody",
-            cameraAngles: ["Portrait", "Microphone Shot", "Graphic Style"],
-            style: "Podcast",
-            promptTemplate: "podcast cover art, professional, engaging, personal brand, {character}"
-        },
-        createdAt: new Date("2026-02-03"),
-        downloads: 560,
-        rating: 4.5
-    },
-
-    // === 3D & TECH ===
-    {
-        id: "tech1",
-        name: "3D Product Render",
-        description: "Ürün için fotorealistik 3D renderlar. Stüdyo kalitesinde.",
-        author: "3DStudio",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Ürün", isVariable: true },
-            location: { id: "3dstudio", name: "3D Studio", settings: "" },
-            timeOfDay: "Studio",
-            cameraAngles: ["Hero Shot", "Exploded View", "Material Detail"],
-            style: "3D Render",
-            promptTemplate: "3d product render, photorealistic, studio lighting, professional, {character}"
-        },
-        createdAt: new Date("2026-02-04"),
-        downloads: 1120,
-        rating: 4.8
-    },
-    {
-        id: "tech2",
-        name: "Tech Startup Visuals",
-        description: "Teknoloji startup'ları için modern ve futuristik görseller.",
-        author: "TechVision",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Tech Product", isVariable: true },
-            location: { id: "futuristic", name: "Futuristic Lab", settings: "" },
-            timeOfDay: "Blue Hour",
-            cameraAngles: ["Product Feature", "In Use", "Abstract Tech"],
-            style: "Tech",
-            promptTemplate: "technology, futuristic, innovative, clean design, startup, {character}"
-        },
-        createdAt: new Date("2026-02-04"),
-        downloads: 780,
-        rating: 4.6
-    },
-
-    // === SANAT & YARATICI ===
-    {
-        id: "art1",
-        name: "Digital Art Fantasy",
-        description: "Fantastik dijital sanat. Ejderhalar, büyücüler, efsanevi dünyalar.",
-        author: "FantasyArt",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Karakter", isVariable: true },
-            location: { id: "fantasy", name: "Fantasy Realm", settings: "" },
-            timeOfDay: "Mystical",
-            cameraAngles: ["Epic Wide", "Character Portrait", "Battle Scene"],
-            style: "Fantasy Art",
-            promptTemplate: "digital fantasy art, epic, magical, detailed, dramatic lighting, {character}"
-        },
-        createdAt: new Date("2026-01-20"),
-        downloads: 4500,
-        rating: 4.9
-    },
-    {
-        id: "art2",
-        name: "Watercolor Illustration",
-        description: "Sulu boya tarzı illüstrasyonlar. Yumuşak, organik, sanatsal.",
-        author: "WatercolorArt",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Konu", isVariable: true },
-            location: { id: "nature", name: "Nature Scene", settings: "" },
-            timeOfDay: "Soft",
-            cameraAngles: ["Portrait", "Landscape", "Still Life"],
-            style: "Watercolor",
-            promptTemplate: "watercolor illustration, soft colors, artistic, organic texture, {character}"
-        },
-        createdAt: new Date("2026-01-15"),
-        downloads: 1230,
-        rating: 4.7
-    },
-    {
-        id: "art3",
-        name: "Retro 80s Synthwave",
-        description: "80'ler retro synthwave estetiği. Neon, grid, güneş batımı.",
-        author: "RetroWave",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Element", isVariable: true },
-            location: { id: "retro", name: "Synthwave City", settings: "" },
-            timeOfDay: "Sunset",
-            cameraAngles: ["Wide Horizon", "Neon Portrait", "Car Chase"],
-            style: "Synthwave",
-            promptTemplate: "synthwave aesthetic, 80s retro, neon colors, grid, sunset, {character}"
-        },
-        createdAt: new Date("2026-02-02"),
-        downloads: 2340,
-        rating: 4.8
-    },
-
-    // === EĞİTİM & KURUMSAL ===
-    {
-        id: "edu1",
-        name: "E-Learning Course Visuals",
-        description: "Online kurslar için eğitici görseller ve illüstrasyonlar.",
-        author: "EduDesign",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Konu", isVariable: true },
-            location: { id: "classroom", name: "Digital Classroom", settings: "" },
-            timeOfDay: "Bright",
-            cameraAngles: ["Infographic", "Diagram", "Character Explain"],
-            style: "Educational",
-            promptTemplate: "educational illustration, clean, informative, friendly, modern design, {character}"
-        },
-        createdAt: new Date("2026-02-03"),
-        downloads: 890,
-        rating: 4.6
-    },
-    {
-        id: "edu2",
-        name: "Children's Book Illustration",
-        description: "Çocuk kitapları için sevimli ve eğlenceli illüstrasyonlar.",
-        author: "KidsArt",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Karakter", isVariable: true },
-            location: { id: "fantasy", name: "Magical World", settings: "" },
-            timeOfDay: "Colorful",
-            cameraAngles: ["Character Focus", "Scene Wide", "Action Moment"],
-            style: "Children's Book",
-            promptTemplate: "children's book illustration, cute, colorful, whimsical, friendly, {character}"
-        },
-        createdAt: new Date("2026-01-28"),
-        downloads: 1560,
-        rating: 4.9
-    },
-
-    // === SAĞLIK & WELLNESS ===
-    {
-        id: "health1",
-        name: "Medical & Healthcare",
-        description: "Sağlık sektörü için profesyonel tıbbi görseller.",
-        author: "MedVisuals",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Tıbbi Konu", isVariable: true },
-            location: { id: "hospital", name: "Medical Facility", settings: "" },
-            timeOfDay: "Clean Light",
-            cameraAngles: ["Clinical", "Caring", "Professional"],
-            style: "Medical",
-            promptTemplate: "medical photography, healthcare, professional, clean, trustworthy, {character}"
-        },
-        createdAt: new Date("2026-01-25"),
-        downloads: 670,
-        rating: 4.5
-    },
-    {
-        id: "health2",
-        name: "Yoga & Meditation",
-        description: "Yoga ve meditasyon için huzurlu, zen görseller.",
-        author: "ZenStudio",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Pose", isVariable: true },
-            location: { id: "zen", name: "Peaceful Space", settings: "" },
-            timeOfDay: "Soft Morning",
-            cameraAngles: ["Full Body Flow", "Close Focus", "Environment"],
-            style: "Zen",
-            promptTemplate: "yoga photography, peaceful, serene, natural light, mindfulness, {character}"
-        },
-        createdAt: new Date("2026-02-01"),
-        downloads: 1120,
-        rating: 4.8
-    },
-
-    // === FİNANS & İŞ ===
-    {
-        id: "finance1",
-        name: "Fintech & Banking",
-        description: "Fintech ve bankacılık için modern, güvenilir görseller.",
-        author: "FinanceViz",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Finansal Konsept", isVariable: true },
-            location: { id: "modern", name: "Modern Office", settings: "" },
-            timeOfDay: "Professional",
-            cameraAngles: ["Data Visualization", "App Interface", "Trust Shot"],
-            style: "Fintech",
-            promptTemplate: "fintech design, modern, trustworthy, clean, professional, digital banking, {character}"
-        },
-        createdAt: new Date("2026-01-30"),
-        downloads: 780,
-        rating: 4.6
-    },
-    {
-        id: "finance2",
-        name: "Crypto & Blockchain",
-        description: "Kripto para ve blockchain projeleri için futuristik görseller.",
-        author: "CryptoArt",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Crypto Element", isVariable: true },
-            location: { id: "digital", name: "Digital Space", settings: "" },
-            timeOfDay: "Neon",
-            cameraAngles: ["Abstract", "Network Visual", "Coin Hero"],
-            style: "Crypto",
-            promptTemplate: "cryptocurrency design, blockchain, futuristic, neon, digital, {character}"
-        },
-        createdAt: new Date("2026-02-02"),
-        downloads: 1890,
-        rating: 4.7
-    },
-
-    // === OYUN & ENTERTAİNMENT ===
-    {
-        id: "game1",
-        name: "Game Character Design",
-        description: "Video oyun karakterleri için konsept sanatı.",
-        author: "GameArtist",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Karakter", isVariable: true },
-            location: { id: "game", name: "Game World", settings: "" },
-            timeOfDay: "Dramatic",
-            cameraAngles: ["Character Sheet", "Action Pose", "Portrait"],
-            style: "Game Art",
-            promptTemplate: "game character design, detailed, dynamic, concept art, {character}"
-        },
-        createdAt: new Date("2026-01-22"),
-        downloads: 3200,
-        rating: 4.9
-    },
-    {
-        id: "game2",
-        name: "Mobile Game UI",
-        description: "Mobil oyunlar için renkli ve eğlenceli UI elementleri.",
-        author: "MobileGameUI",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "UI Element", isVariable: true },
-            location: { id: "game", name: "Game Interface", settings: "" },
-            timeOfDay: "Vibrant",
-            cameraAngles: ["Button", "Icon", "Screen Layout"],
-            style: "Game UI",
-            promptTemplate: "mobile game UI, colorful, playful, engaging, cartoon style, {character}"
-        },
-        createdAt: new Date("2026-02-01"),
-        downloads: 1450,
-        rating: 4.7
-    },
-
-    // === SEYAHAT & TURİZM ===
-    {
-        id: "travel1",
-        name: "Travel Photography",
-        description: "Seyahat ve turizm için etkileyici destinasyon fotoğrafları.",
-        author: "Wanderlust",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Destinasyon", isVariable: true },
-            location: { id: "travel", name: "Exotic Location", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Landscape Wide", "Detail Shot", "Human Element"],
-            style: "Travel",
-            promptTemplate: "travel photography, wanderlust, beautiful destination, inspiring, {character}"
-        },
-        createdAt: new Date("2026-01-20"),
-        downloads: 2100,
-        rating: 4.8
-    },
-    {
-        id: "travel2",
-        name: "Hotel & Resort Marketing",
-        description: "Otel ve resort tanıtımı için lüks konaklama görselleri.",
-        author: "HospitalityPro",
-        isPublic: true,
-        config: {
-            character: { id: "none", name: "Yok", isVariable: false },
-            location: { id: "hotel", name: "Luxury Resort", settings: "" },
-            timeOfDay: "Warm Afternoon",
-            cameraAngles: ["Room Interior", "Pool View", "Dining Experience"],
-            style: "Hospitality",
-            promptTemplate: "luxury hotel photography, elegant, inviting, high-end resort, relaxing atmosphere"
-        },
-        createdAt: new Date("2026-01-28"),
-        downloads: 760,
-        rating: 4.6
-    },
-
-    // === BEBEK & AİLE ===
-    {
-        id: "family1",
-        name: "Newborn & Baby Photos",
-        description: "Yeni doğan ve bebek fotoğrafçılığı için yumuşak tonlar.",
-        author: "BabyMoments",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Bebek", isVariable: true },
-            location: { id: "nursery", name: "Cozy Nursery", settings: "" },
-            timeOfDay: "Soft Natural",
-            cameraAngles: ["Close-up", "With Parent", "Sleeping"],
-            style: "Newborn",
-            promptTemplate: "newborn photography, soft, gentle, warm tones, precious moments, {character}"
-        },
-        createdAt: new Date("2026-01-18"),
-        downloads: 1340,
-        rating: 4.9
-    },
-    {
-        id: "family2",
-        name: "Family Portrait Sessions",
-        description: "Aile portreleri için doğal ve samimi anlar.",
-        author: "FamilyFirst",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Aile", isVariable: true },
-            location: { id: "outdoor", name: "Natural Setting", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Group Portrait", "Candid Moment", "Playful"],
-            style: "Family",
-            promptTemplate: "family photography, warm, loving, natural, candid moments, {character}"
-        },
-        createdAt: new Date("2026-01-25"),
-        downloads: 980,
-        rating: 4.7
-    },
-
-    // === EVCİL HAYVAN ===
-    {
-        id: "pet1",
-        name: "Pet Photography Pro",
-        description: "Evcil hayvan fotoğrafçılığı için eğlenceli ve sevimli kareler.",
-        author: "PetLens",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Evcil Hayvan", isVariable: true },
-            location: { id: "studio", name: "Pet Studio", settings: "" },
-            timeOfDay: "Bright",
-            cameraAngles: ["Portrait", "Action", "Funny Moment"],
-            style: "Pet",
-            promptTemplate: "pet photography, adorable, playful, expressive, {character}"
-        },
-        createdAt: new Date("2026-02-01"),
-        downloads: 2200,
-        rating: 4.9
-    },
-
-    // === KOZMETİK & GÜZELLİK ===
-    {
-        id: "beauty1",
-        name: "Beauty & Cosmetics",
-        description: "Kozmetik ürünleri ve güzellik içerikleri için glamour çekimler.",
-        author: "GlamourShots",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Ürün/Model", isVariable: true },
-            location: { id: "beauty", name: "Beauty Studio", settings: "" },
-            timeOfDay: "Soft Light",
-            cameraAngles: ["Product Close-up", "Application Shot", "Model Portrait"],
-            style: "Beauty",
-            promptTemplate: "beauty photography, glamorous, elegant, cosmetics, flawless, {character}"
-        },
-        createdAt: new Date("2026-01-30"),
-        downloads: 1670,
-        rating: 4.8
-    },
-    {
-        id: "beauty2",
-        name: "Skincare & Wellness",
-        description: "Cilt bakımı ve wellness markaları için doğal görseller.",
-        author: "SkinGlow",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Ürün", isVariable: true },
-            location: { id: "spa", name: "Spa Environment", settings: "" },
-            timeOfDay: "Natural",
-            cameraAngles: ["Product Hero", "Texture Detail", "Lifestyle"],
-            style: "Skincare",
-            promptTemplate: "skincare photography, natural, clean, fresh, wellness, organic feel, {character}"
-        },
-        createdAt: new Date("2026-02-02"),
-        downloads: 890,
-        rating: 4.6
-    },
-
-    // === FİTNESS & SPOR ===
-    {
-        id: "fitness1",
-        name: "Gym & Fitness Marketing",
-        description: "Spor salonları ve fitness markaları için enerjik görseller.",
-        author: "FitMedia",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Sporcu", isVariable: true },
-            location: { id: "gym", name: "Modern Gym", settings: "" },
-            timeOfDay: "Dramatic",
-            cameraAngles: ["Action Shot", "Equipment Focus", "Motivation"],
-            style: "Fitness",
-            promptTemplate: "fitness photography, powerful, energetic, motivational, athletic, {character}"
-        },
-        createdAt: new Date("2026-01-28"),
-        downloads: 1450,
-        rating: 4.7
-    },
-
-    // === MİMARİ ===
-    {
-        id: "arch1",
-        name: "Architectural Visualization",
-        description: "Mimari projeler için fotorealistik 3D görselleştirmeler.",
-        author: "ArchRender",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Bina", isVariable: true },
-            location: { id: "exterior", name: "Urban Context", settings: "" },
-            timeOfDay: "Blue Hour",
-            cameraAngles: ["Exterior Hero", "Interior Space", "Detail"],
-            style: "Architectural",
-            promptTemplate: "architectural visualization, photorealistic, modern design, {character}"
-        },
-        createdAt: new Date("2026-02-03"),
-        downloads: 1120,
-        rating: 4.8
-    },
-
-    // === MÜZİK ===
-    {
-        id: "music1",
-        name: "Album Cover Art",
-        description: "Albüm kapakları için yaratıcı ve dikkat çekici tasarımlar.",
-        author: "AlbumArtist",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Artist/Tema", isVariable: true },
-            location: { id: "abstract", name: "Abstract Space", settings: "" },
-            timeOfDay: "Artistic",
-            cameraAngles: ["Square Format", "Visual Metaphor", "Typography Ready"],
-            style: "Album Art",
-            promptTemplate: "album cover art, creative, eye-catching, artistic, memorable, {character}"
-        },
-        createdAt: new Date("2026-01-22"),
-        downloads: 2560,
-        rating: 4.8
-    },
-
-    // === FİLM & TV ===
-    {
-        id: "film1",
-        name: "Movie Poster Design",
-        description: "Film ve dizi posterleri için sinematik kompozisyonlar.",
-        author: "PosterPro",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Film/Karakter", isVariable: true },
-            location: { id: "cinematic", name: "Dramatic Scene", settings: "" },
-            timeOfDay: "Dramatic",
-            cameraAngles: ["Hero Poster", "Character Ensemble", "Teaser"],
-            style: "Movie Poster",
-            promptTemplate: "movie poster design, cinematic, dramatic, compelling, theatrical, {character}"
-        },
-        createdAt: new Date("2026-02-01"),
-        downloads: 1890,
-        rating: 4.9
-    },
-    {
-        id: "film2",
-        name: "Documentary Style",
-        description: "Belgesel ve gerçekçi hikaye anlatımı için görsel stil.",
-        author: "DocuVision",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Konu", isVariable: true },
-            location: { id: "real", name: "Real Location", settings: "" },
-            timeOfDay: "Natural",
-            cameraAngles: ["Candid", "Environmental Portrait", "Detail"],
-            style: "Documentary",
-            promptTemplate: "documentary photography, authentic, real, storytelling, human interest, {character}"
-        },
-        createdAt: new Date("2026-01-28"),
-        downloads: 670,
-        rating: 4.5
-    },
-
-    // === YEMEK & İÇECEK ===
-    {
-        id: "food2",
-        name: "Beverage & Cocktails",
-        description: "İçecek markaları ve barlar için profesyonel içecek fotoğrafları.",
-        author: "DrinkShots",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "İçecek", isVariable: true },
-            location: { id: "bar", name: "Bar Setting", settings: "" },
-            timeOfDay: "Moody",
-            cameraAngles: ["Hero Shot", "Pour Action", "Ingredient Detail"],
-            style: "Beverage",
-            promptTemplate: "beverage photography, refreshing, elegant, professional, {character}"
-        },
-        createdAt: new Date("2026-02-03"),
-        downloads: 890,
-        rating: 4.7
-    },
-    {
-        id: "food3",
-        name: "Bakery & Desserts",
-        description: "Pastane ve tatlılar için iştah açıcı görseller.",
-        author: "SweetLens",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Tatlı", isVariable: true },
-            location: { id: "bakery", name: "Artisan Bakery", settings: "" },
-            timeOfDay: "Warm",
-            cameraAngles: ["Close-up", "Slice Shot", "Display"],
-            style: "Bakery",
-            promptTemplate: "bakery photography, delicious, appetizing, artisan, warm tones, {character}"
-        },
-        createdAt: new Date("2026-01-30"),
-        downloads: 1230,
-        rating: 4.8
-    },
-
-    // === MODA DETAY ===
-    {
-        id: "fashion2",
-        name: "Streetwear & Urban Fashion",
-        description: "Streetwear markaları için urban ve edgy görseller.",
-        author: "StreetStyle",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Model", isVariable: true },
-            location: { id: "urban", name: "Urban Environment", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Full Look", "Brand Focus", "Lifestyle"],
-            style: "Streetwear",
-            promptTemplate: "streetwear fashion, urban, edgy, authentic, street culture, {character}"
-        },
-        createdAt: new Date("2026-02-02"),
-        downloads: 1780,
-        rating: 4.8
-    },
-    {
-        id: "fashion3",
-        name: "Jewelry & Accessories",
-        description: "Takı ve aksesuar için detaylı makro çekimler.",
-        author: "LuxuryDetails",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Ürün", isVariable: true },
-            location: { id: "studio", name: "Luxury Studio", settings: "" },
-            timeOfDay: "Studio",
-            cameraAngles: ["Macro Detail", "On Model", "Artistic"],
-            style: "Jewelry",
-            promptTemplate: "jewelry photography, luxury, detailed, elegant, precious, {character}"
-        },
-        createdAt: new Date("2026-01-25"),
-        downloads: 920,
-        rating: 4.7
-    },
-
-    // === SOSYAL SORUMLULUK ===
-    {
-        id: "cause1",
-        name: "Environmental & Nature",
-        description: "Çevre ve doğa koruma projeleri için etkileyici görseller.",
-        author: "EcoVision",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Doğa", isVariable: true },
-            location: { id: "nature", name: "Natural Environment", settings: "" },
-            timeOfDay: "Golden Hour",
-            cameraAngles: ["Landscape", "Wildlife", "Environmental Impact"],
-            style: "Nature",
-            promptTemplate: "nature photography, environmental, majestic, conservation, beauty of earth, {character}"
-        },
-        createdAt: new Date("2026-01-20"),
-        downloads: 1450,
-        rating: 4.9
-    },
-
-    // === NFT & DİJİTAL SANAT ===
-    {
-        id: "nft1",
-        name: "NFT Collection Art",
-        description: "NFT koleksiyonları için unique dijital sanat eserleri.",
-        author: "NFTCreator",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "NFT Karakter", isVariable: true },
-            location: { id: "digital", name: "Digital Realm", settings: "" },
-            timeOfDay: "Vibrant",
-            cameraAngles: ["Character Portrait", "Full Body", "Trait Variations"],
-            style: "NFT Art",
-            promptTemplate: "NFT art, unique, collectible, digital art, distinctive style, {character}"
-        },
-        createdAt: new Date("2026-02-04"),
-        downloads: 3100,
-        rating: 4.7
-    },
-
-    // === HORROR & DARK ===
-    {
-        id: "dark1",
-        name: "Horror & Dark Fantasy",
-        description: "Korku ve karanlık fantezi temalı atmosferik görseller.",
-        author: "DarkArtist",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Creature/Scene", isVariable: true },
-            location: { id: "dark", name: "Haunted Space", settings: "" },
-            timeOfDay: "Night",
-            cameraAngles: ["Atmospheric", "Creature Reveal", "Suspense"],
-            style: "Horror",
-            promptTemplate: "horror art, dark fantasy, atmospheric, eerie, haunting, {character}"
-        },
-        createdAt: new Date("2026-01-28"),
-        downloads: 1670,
-        rating: 4.6
-    },
-
-    // === SCI-FI ===
-    {
-        id: "scifi1",
-        name: "Sci-Fi & Space",
-        description: "Bilim kurgu ve uzay temalı futuristik görseller.",
-        author: "SpaceArt",
-        isPublic: true,
-        config: {
-            character: { id: "variable", name: "Uzay/Konsept", isVariable: true },
-            location: { id: "space", name: "Outer Space", settings: "" },
-            timeOfDay: "Cosmic",
-            cameraAngles: ["Space Vista", "Ship Design", "Planet View"],
-            style: "Sci-Fi",
-            promptTemplate: "science fiction art, space, futuristic, cosmic, epic scale, {character}"
-        },
-        createdAt: new Date("2026-02-03"),
-        downloads: 2890,
-        rating: 4.9
-    }
-];
+type SortMode = "downloads" | "rating" | "recent";
+type CategoryMode = "all" | "community";
 
 export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }: PluginMarketplaceModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
-    const [sortBy, setSortBy] = useState<"downloads" | "rating" | "recent">("downloads");
+    const [sortBy, setSortBy] = useState<SortMode>("downloads");
+    const [category, setCategory] = useState<CategoryMode>("all");
+    const [plugins, setPlugins] = useState<MarketplacePlugin[]>([]);
+    const [loading, setLoading] = useState(false);
     const [installedIds, setInstalledIds] = useState<string[]>([]);
+
+    const fetchPlugins = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await getMarketplacePlugins(sortBy, category, searchQuery);
+            setPlugins(data);
+        } catch (err) {
+            console.error("Marketplace fetch error:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [sortBy, category, searchQuery]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchPlugins();
+        }
+    }, [isOpen, fetchPlugins]);
+
+    // Debounce search
+    useEffect(() => {
+        if (!isOpen) return;
+        const timer = setTimeout(() => {
+            fetchPlugins();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!isOpen) return null;
 
-    // Filter by search
-    const filteredPlugins = communityPlugins.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.author.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Sort
-    const sortedPlugins = [...filteredPlugins].sort((a, b) => {
-        if (sortBy === "downloads") return b.downloads - a.downloads;
-        if (sortBy === "rating") return b.rating - a.rating;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-
-    // Check if already installed
     const isInstalled = (pluginId: string) => {
         return myPlugins.some(p => p.id === pluginId) || installedIds.includes(pluginId);
     };
 
-    const handleInstall = (plugin: CreativePlugin) => {
-        onInstall(plugin);
-        setInstalledIds([...installedIds, plugin.id]);
+    const handleInstall = async (plugin: MarketplacePlugin) => {
+        // API ile install sayacını artır
+        try {
+            await installMarketplacePlugin(plugin.id);
+        } catch {
+            // Seed pluginler için hata olabilir, sorun değil
+        }
+
+        // Frontend CreativePlugin formatına çevir ve yükle
+        const creativePlugin: CreativePlugin = {
+            id: plugin.id,
+            name: plugin.name,
+            description: plugin.description,
+            author: plugin.author,
+            isPublic: false,
+            config: {
+                character: { id: "variable", name: "Karakter", isVariable: true },
+                location: { id: "custom", name: "Custom", settings: "" },
+                timeOfDay: (plugin.config?.timeOfDay as string) || "Auto",
+                cameraAngles: (plugin.config?.cameraAngles as string[]) || ["Portrait", "Wide", "Close-up"],
+                style: plugin.style || "Custom",
+                promptTemplate: (plugin.config?.promptTemplate as string) || "",
+            },
+            createdAt: new Date(plugin.created_at),
+            downloads: plugin.downloads,
+            rating: plugin.rating,
+        };
+        onInstall(creativePlugin);
+        setInstalledIds(prev => [...prev, plugin.id]);
     };
+
+    const filterButtons: { sort: SortMode; icon: React.ReactNode; label: string }[] = [
+        { sort: "downloads", icon: <TrendingUp size={12} />, label: "Popüler" },
+        { sort: "rating", icon: <Star size={12} />, label: "En İyi" },
+        { sort: "recent", icon: <Clock size={12} />, label: "Yeni" },
+    ];
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -979,7 +113,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                         <div>
                             <h2 className="text-xl font-bold">Eklenti Mağazası</h2>
                             <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                Topluluk tarafından oluşturulan Creative Plugin'ler
+                                {plugins.length} eklenti mevcut
                             </p>
                         </div>
                     </div>
@@ -989,113 +123,156 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                 </div>
 
                 {/* Search & Filters */}
-                <div className="flex items-center gap-3 p-4 border-b" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex-1 relative">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--foreground-muted)" }} />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Eklenti ara..."
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm"
-                            style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-                        />
+                <div className="flex flex-col gap-3 p-4 border-b" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-3">
+                        <div className="flex-1 relative">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--foreground-muted)" }} />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Eklenti ara..."
+                                className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm"
+                                style={{ background: "var(--background)", border: "1px solid var(--border)" }}
+                            />
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--background)" }}>
-                        <button
-                            onClick={() => setSortBy("downloads")}
-                            className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1 transition-all ${sortBy === "downloads" ? "bg-purple-500 text-white" : ""}`}
-                        >
-                            <Download size={12} /> Popüler
-                        </button>
-                        <button
-                            onClick={() => setSortBy("rating")}
-                            className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1 transition-all ${sortBy === "rating" ? "bg-purple-500 text-white" : ""}`}
-                        >
-                            <Star size={12} /> En İyi
-                        </button>
-                        <button
-                            onClick={() => setSortBy("recent")}
-                            className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1 transition-all ${sortBy === "recent" ? "bg-purple-500 text-white" : ""}`}
-                        >
-                            <Clock size={12} /> Yeni
-                        </button>
+
+                    {/* Filter row: Sort + Category */}
+                    <div className="flex items-center justify-between gap-2">
+                        {/* Sort buttons */}
+                        <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--background)" }}>
+                            {filterButtons.map((fb) => (
+                                <button
+                                    key={fb.sort}
+                                    onClick={() => setSortBy(fb.sort)}
+                                    className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1 transition-all ${sortBy === fb.sort ? "bg-purple-500 text-white" : ""}`}
+                                >
+                                    {fb.icon} {fb.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Category toggle */}
+                        <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--background)" }}>
+                            <button
+                                onClick={() => setCategory("all")}
+                                className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1 transition-all ${category === "all" ? "bg-blue-500 text-white" : ""}`}
+                            >
+                                <Sparkles size={12} /> Tümü
+                            </button>
+                            <button
+                                onClick={() => setCategory("community")}
+                                className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1 transition-all ${category === "community" ? "bg-emerald-500 text-white" : ""}`}
+                            >
+                                <Users size={12} /> Topluluk
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 {/* Plugin Grid */}
-                <div className="p-4 overflow-y-auto max-h-[calc(85vh-180px)]">
-                    <div className="grid grid-cols-2 gap-4 items-stretch">
-                        {sortedPlugins.map((plugin) => (
-                            <div
-                                key={plugin.id}
-                                className="p-4 rounded-xl transition-all hover:shadow-lg flex flex-col h-full"
-                                style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-                            >
-                                {/* Header */}
-                                <div className="flex items-start justify-between mb-3">
-                                    <div>
-                                        <h3 className="font-semibold text-sm">{plugin.name}</h3>
-                                        <div className="flex items-center gap-2 text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                                            <span className="flex items-center gap-1">
-                                                <Users size={10} /> {plugin.author}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="flex items-center gap-1">
-                                                <Star size={10} className="text-yellow-500" /> {plugin.rating}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="flex items-center gap-1">
-                                                <Download size={10} /> {plugin.downloads.toLocaleString()}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Description */}
-                                <p className="text-xs mb-3 line-clamp-2 flex-grow" style={{ color: "var(--foreground-muted)" }}>
-                                    {plugin.description}
-                                </p>
-
-                                {/* Tags */}
-                                <div className="flex flex-wrap gap-1 mb-3">
-                                    {plugin.config.style && (
-                                        <span className="px-2 py-0.5 text-xs rounded" style={{ background: "var(--card)" }}>
-                                            {plugin.config.style}
-                                        </span>
-                                    )}
-                                    {plugin.config.cameraAngles && plugin.config.cameraAngles.slice(0, 2).map((angle, i) => (
-                                        <span key={i} className="px-2 py-0.5 text-xs rounded" style={{ background: "var(--card)" }}>
-                                            {angle}
-                                        </span>
-                                    ))}
-                                </div>
-
-                                {/* Action */}
-                                <button
-                                    onClick={() => handleInstall(plugin)}
-                                    disabled={isInstalled(plugin.id)}
-                                    className={`w-full py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 mt-auto ${isInstalled(plugin.id)
-                                        ? "bg-green-500/20 text-green-500 cursor-default"
-                                        : "hover:opacity-90"
-                                        }`}
-                                    style={!isInstalled(plugin.id) ? { background: "var(--accent)", color: "var(--background)" } : {}}
+                <div className="p-4 overflow-y-auto max-h-[calc(85vh-220px)]">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-16 gap-3">
+                            <Loader2 size={32} className="animate-spin text-purple-500" />
+                            <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Eklentiler yükleniyor...</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-4 items-stretch">
+                            {plugins.map((plugin) => (
+                                <div
+                                    key={plugin.id}
+                                    className="p-4 rounded-xl transition-all hover:shadow-lg flex flex-col h-full"
+                                    style={{ background: "var(--background)", border: "1px solid var(--border)" }}
                                 >
-                                    {isInstalled(plugin.id) ? (
-                                        <>✓ Yüklendi</>
-                                    ) : (
-                                        <><Plus size={14} /> Projeme Ekle</>
-                                    )}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
+                                    {/* Header */}
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                                            <span className="text-xl flex-shrink-0">{plugin.icon}</span>
+                                            <div className="min-w-0">
+                                                <h3 className="font-semibold text-sm truncate">{plugin.name}</h3>
+                                                <div className="flex items-center gap-2 text-xs mt-1 flex-wrap" style={{ color: "var(--foreground-muted)" }}>
+                                                    <span className="flex items-center gap-1">
+                                                        <Users size={10} /> {plugin.author}
+                                                    </span>
+                                                    <span>•</span>
+                                                    <span className="flex items-center gap-1">
+                                                        <Star size={10} className="text-yellow-500" /> {plugin.rating}
+                                                    </span>
+                                                    <span>•</span>
+                                                    <span className="flex items-center gap-1">
+                                                        <Download size={10} /> {plugin.downloads.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* Source badge */}
+                                        <span
+                                            className="px-2 py-0.5 text-[10px] rounded-full font-medium flex-shrink-0 ml-2"
+                                            style={{
+                                                background: plugin.source === "official"
+                                                    ? "rgba(139, 92, 246, 0.15)"
+                                                    : "rgba(16, 185, 129, 0.15)",
+                                                color: plugin.source === "official"
+                                                    ? "#a78bfa"
+                                                    : "#34d399",
+                                            }}
+                                        >
+                                            {plugin.source === "official" ? "🏪 Resmi" : "👤 Topluluk"}
+                                        </span>
+                                    </div>
 
-                    {sortedPlugins.length === 0 && (
+                                    {/* Description */}
+                                    <p className="text-xs mb-3 line-clamp-2 flex-grow" style={{ color: "var(--foreground-muted)" }}>
+                                        {plugin.description}
+                                    </p>
+
+                                    {/* Tags */}
+                                    <div className="flex flex-wrap gap-1 mb-3">
+                                        {plugin.style && (
+                                            <span
+                                                className="px-2 py-0.5 text-xs rounded"
+                                                style={{ background: `${plugin.color}20`, color: plugin.color }}
+                                            >
+                                                {plugin.style}
+                                            </span>
+                                        )}
+                                        {plugin.config?.cameraAngles && (plugin.config.cameraAngles as string[]).slice(0, 2).map((angle: string, i: number) => (
+                                            <span key={i} className="px-2 py-0.5 text-xs rounded" style={{ background: "var(--card)" }}>
+                                                {angle}
+                                            </span>
+                                        ))}
+                                    </div>
+
+                                    {/* Action */}
+                                    <button
+                                        onClick={() => handleInstall(plugin)}
+                                        disabled={isInstalled(plugin.id)}
+                                        className={`w-full py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 mt-auto ${isInstalled(plugin.id)
+                                            ? "bg-green-500/20 text-green-500 cursor-default"
+                                            : "hover:opacity-90"
+                                            }`}
+                                        style={!isInstalled(plugin.id) ? { background: "var(--accent)", color: "var(--background)" } : {}}
+                                    >
+                                        {isInstalled(plugin.id) ? (
+                                            <>✓ Yüklendi</>
+                                        ) : (
+                                            <><Plus size={14} /> Projeme Ekle</>
+                                        )}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {!loading && plugins.length === 0 && (
                         <div className="text-center py-12">
                             <Store size={48} className="mx-auto mb-4 opacity-20" />
                             <p style={{ color: "var(--foreground-muted)" }}>
-                                Arama sonucu bulunamadı
+                                {category === "community"
+                                    ? "Henüz topluluk eklentisi yok"
+                                    : "Arama sonucu bulunamadı"}
                             </p>
                         </div>
                     )}
