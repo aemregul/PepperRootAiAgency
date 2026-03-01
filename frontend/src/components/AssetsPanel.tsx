@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Download, Copy, Globe, RefreshCw, ChevronLeft, Star, Loader2, Trash2, X, Bookmark, Pencil, LayoutGrid, ImageIcon, Video, Upload, Search, MoreHorizontal, MessageSquarePlus, Send, ChevronRight, Music } from "lucide-react";
+import { Download, Globe, RefreshCw, ChevronLeft, Star, Loader2, Trash2, X, Bookmark, Pencil, LayoutGrid, ImageIcon, Video, Upload, Search, MoreHorizontal, MessageSquarePlus, Send, ChevronRight, Music } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe, renameAsset } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
@@ -134,30 +134,6 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
         e?.stopPropagation();
         onAttachAssetUrl?.(asset.url, asset.type);
         toast.success(`${asset.type === "video" ? "Video" : asset.type === "audio" ? "Ses" : "Görsel"} chat'e eklendi`);
-    };
-
-    const handleDownloadAll = async () => {
-        for (const asset of filteredAssets) {
-            try {
-                const response = await fetch(asset.url);
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `pepper_${asset.id}.${asset.type === "video" ? "mp4" : asset.type === "audio" ? "wav" : "png"}`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-            } catch { }
-        }
-    };
-
-    const handleCopyLink = () => {
-        if (filteredAssets.length > 0) {
-            navigator.clipboard.writeText(filteredAssets[0].url);
-            toast.success("Link kopyalandı");
-        }
     };
 
     const downloadAsset = async (asset: Asset) => {
@@ -526,16 +502,8 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                     )}
                 </div>
 
-                {/* Bottom actions bar */}
-                <div className="p-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center gap-1">
-                        <button onClick={handleDownloadAll} className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors" title="Tümünü İndir">
-                            <Download size={16} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-                        <button onClick={handleCopyLink} className="p-2 rounded-lg hover:bg-[var(--card)] transition-colors" title="Link Kopyala">
-                            <Copy size={16} style={{ color: "var(--foreground-muted)" }} />
-                        </button>
-                    </div>
+                {/* Bottom bar */}
+                <div className="p-2 border-t flex items-center justify-end" style={{ borderColor: "var(--border)" }}>
                     <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
                         {filteredAssets.length} medya
                     </span>
