@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Download, Globe, RefreshCw, ChevronLeft, Star, Loader2, Trash2, X, Bookmark, Pencil, LayoutGrid, ImageIcon, Video, Upload, Search, MoreHorizontal, MessageSquarePlus, Send, ChevronRight, Music } from "lucide-react";
+import { Download, Globe, RefreshCw, ChevronLeft, Star, Loader2, Trash2, X, Bookmark, Pencil, LayoutGrid, ImageIcon, Video, Upload, Search, MoreHorizontal, MessageSquarePlus, Send, ChevronRight, Music, CheckSquare, Square } from "lucide-react";
 import { getAssets, GeneratedAsset, deleteAsset, saveAssetToWardrobe, renameAsset } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
@@ -38,7 +38,40 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
     const [contextMenu, setContextMenu] = useState<{ asset: Asset; x: number; y: number } | null>(null);
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState("");
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const toast = useToast();
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const handleDownloadSelected = async () => {
+        const toDownload = filteredAssets.filter(a => selectedIds.has(a.id));
+        if (toDownload.length === 0) return;
+        toast.success(`${toDownload.length} medya indiriliyor...`);
+        for (const asset of toDownload) {
+            try {
+                const response = await fetch(asset.url);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `pepper_${asset.id}.${asset.type === "video" ? "mp4" : asset.type === "audio" ? "wav" : "png"}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                await new Promise(r => setTimeout(r, 300));
+            } catch { }
+        }
+        setSelectMode(false);
+        setSelectedIds(new Set());
+    };
 
     // Fetch assets
     const fetchAssets = async () => {
@@ -416,9 +449,9 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                             {filteredAssets.map((asset) => (
                                 <div
                                     key={asset.id}
-                                    className="group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-[var(--accent)]/40"
+                                    className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${selectMode && selectedIds.has(asset.id) ? 'ring-2 ring-[var(--accent)]' : 'hover:ring-2 hover:ring-[var(--accent)]/40'}`}
                                     style={{ background: "var(--card)" }}
-                                    onClick={() => setSelectedAsset(asset)}
+                                    onClick={() => selectMode ? toggleSelect(asset.id) : setSelectedAsset(asset)}
                                     onContextMenu={e => { e.preventDefault(); setContextMenu({ asset, x: e.clientX, y: e.clientY }); }}
                                 >
                                     {/* Media content */}
@@ -461,7 +494,18 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                                         )}
 
                                         {/* Hover overlay */}
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 pointer-events-none" />
+                                        <div className={`absolute inset-0 transition-all duration-200 pointer-events-none ${selectMode && selectedIds.has(asset.id) ? 'bg-black/30' : 'bg-black/0 group-hover:bg-black/30'}`} />
+
+                                        {/* Selection checkbox */}
+                                        {selectMode && (
+                                            <div className="absolute top-1.5 left-1.5 z-10">
+                                                {selectedIds.has(asset.id) ? (
+                                                    <CheckSquare size={18} style={{ color: 'var(--accent)' }} fill="var(--accent)" className="drop-shadow" />
+                                                ) : (
+                                                    <Square size={18} className="text-white/70 drop-shadow" />
+                                                )}
+                                            </div>
+                                        )}
 
                                         {/* Top-left: type badge */}
                                         {asset.type === "video" && (
@@ -503,9 +547,29 @@ export function AssetsPanel({ collapsed = false, onToggle, sessionId, refreshKey
                 </div>
 
                 {/* Bottom bar */}
-                <div className="p-2 border-t flex items-center justify-end" style={{ borderColor: "var(--border)" }}>
+                <div className="p-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
+                            className={`p-1.5 rounded-lg transition-colors ${selectMode ? '' : 'hover:bg-[var(--card)]'}`}
+                            style={selectMode ? { background: 'var(--accent)', color: 'white' } : { color: 'var(--foreground-muted)' }}
+                            title={selectMode ? 'Seçimi İptal' : 'Seç ve İndir'}
+                        >
+                            <CheckSquare size={15} />
+                        </button>
+                        {selectMode && selectedIds.size > 0 && (
+                            <button
+                                onClick={handleDownloadSelected}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:opacity-90"
+                                style={{ background: 'var(--accent)', color: 'white' }}
+                            >
+                                <Download size={12} />
+                                {selectedIds.size} İndir
+                            </button>
+                        )}
+                    </div>
                     <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                        {filteredAssets.length} medya
+                        {selectMode ? `${selectedIds.size} / ${filteredAssets.length} seçili` : `${filteredAssets.length} medya`}
                     </span>
                 </div>
             </aside >
