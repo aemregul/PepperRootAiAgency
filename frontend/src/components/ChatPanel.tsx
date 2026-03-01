@@ -1732,6 +1732,11 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                     onClick={() => {
                                         const pluginMessage = "Bu sohbetteki bilgilerden bir plugin oluştur.";
                                         setInput(pluginMessage);
+                                        // Auto-send after a tick so React state updates first
+                                        setTimeout(() => {
+                                            const form = document.querySelector('form');
+                                            if (form) form.requestSubmit();
+                                        }, 50);
                                     }}
                                     className="p-2 rounded-lg transition-all hover:shadow-md"
                                     style={{
@@ -1739,6 +1744,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         border: "1px solid rgba(139, 92, 246, 0.3)"
                                     }}
                                     title="Bu sohbetten otomatik plugin oluştur"
+                                    disabled={isLoading || !isConnected}
                                 >
                                     <Sparkles size={18} className="text-purple-400" />
                                 </button>
