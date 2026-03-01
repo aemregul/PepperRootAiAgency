@@ -1,6 +1,6 @@
 # Pepper Root AI Agency — Proje Dokümantasyonu
 
-> **Son Güncelleme:** 27 Şubat 2026
+> **Son Güncelleme:** 1 Mart 2026
 > **Repo:** [github.com/aemregul/PepperRootAiAgency](https://github.com/aemregul/PepperRootAiAgency)
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
@@ -166,6 +166,41 @@ Admin paneli 3 sekmeden oluşur:
 
 ---
 
+## 🏪 Eklenti Mağazası (Plugin Marketplace)
+
+Kullanıcıların hazır yaratıcı şablonları keşfedip projelerine ekleyebildiği, kendi oluşturdukları plugin'leri toplulukla paylaşabildiği marketplace sistemi.
+
+### Özellikler
+- **41 resmi (seed) plugin**: 8 kategori — Sanat & Yaratıcı, Sosyal Medya, İş & Ticaret, Fotoğrafçılık, Moda & Güzellik, Oyun & Entertainment, Eğitim, Diğer
+- **Topluluk pluginleri**: Kullanıcılar kendi plugin'lerini `is_public=True` yaparak marketplace'e yayınlayabilir
+- **3 sıralama modu**: Popüler (downloads), En İyi (rating), Yeni (recent)
+- **2 kategori filtresi**: Tümü (resmi + topluluk), Topluluk (sadece kullanıcı plugin'leri)
+- **Canlı arama**: İsim, açıklama, stil ve yazar üzerinde debounced arama (300ms)
+- **Plugin kartları**: İkon, isim, yazar, rating (⭐), indirme sayısı, stil etiketi, kamera açıları, kaynak rozeti (🏪 Resmi / 👤 Topluluk)
+- **"Projeme Ekle" butonu**: Plugin'i `CreativePlugin` formatına çevirip kullanıcının projesine yükler
+
+### API Endpoints
+| Endpoint | Metod | Açıklama |
+|---|---|---|
+| `/admin/marketplace/plugins` | GET | Tüm plugin'leri getir (sort, category, search params) |
+| `/admin/marketplace/plugins/{id}/install` | POST | İndirme sayacını artır |
+| `/admin/creative-plugins/{id}/publish` | PATCH | Kullanıcı plugin'ini marketplace'e yayınla |
+
+### Akış
+```
+Kullanıcı plugin oluşturur → DB'ye kaydedilir (is_public=False)
+                           → "Markete Yayınla" → is_public=True
+                           → Marketplace'te "Topluluk" filtresinde görünür
+                           → Diğer kullanıcılar "Projeme Ekle" ile yükler
+```
+
+### Dosyalar
+- `backend/app/api/routes/admin.py` — Marketplace endpoints + `MARKETPLACE_SEED_PLUGINS` (41 plugin)
+- `frontend/src/components/PluginMarketplaceModal.tsx` — Marketplace UI
+- `frontend/src/lib/api.ts` — `getMarketplacePlugins()`, `publishPlugin()`, `installMarketplacePlugin()`
+
+---
+
 ## 🎬 31 AI Modeli (5 Kategori)
 
 Tüm modeller `fal_models.py`'de tanımlı, `fal_plugin_v2.py` ile çağrılır. GPT-4o prompt içeriğini analiz edip en uygun modeli seçer ("auto" mode).
@@ -254,6 +289,7 @@ npm run dev
 | **23** | **27 Şubat** | **Real-time Interactive Video Editing** — `video_editor_service.py` |
 | **24** | **27 Şubat** | **Audio-Visual Synchronization** — `audio_sync_service.py` |
 | **25** | **27 Şubat** | **Admin Panel** — Model toggle sistemi, disabled model warning, AI Servisleri kaldırıldı |
+| **26** | **1 Mart** | **Plugin Marketplace** — 41 resmi plugin, API-driven filtre/sıralama, topluluk yayınlama |
 
 ---
 
@@ -263,7 +299,7 @@ npm run dev
 |---|---|
 | Agent Araç Sayısı | 36 |
 | AI Model Sayısı | 31 (admin toggle ile yönetilebilir) |
-| Toplam Faz | 25 (tümü tamamlandı) |
+| Toplam Faz | 26 (tümü tamamlandı) |
 | Backend Satır | ~15.000+ |
 | Frontend Satır | ~5.000+ |
 | Python | 3.14 |

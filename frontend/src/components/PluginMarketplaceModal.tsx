@@ -238,7 +238,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                                                 {plugin.style}
                                             </span>
                                         )}
-                                        {plugin.config?.cameraAngles && (plugin.config.cameraAngles as string[]).slice(0, 2).map((angle: string, i: number) => (
+                                        {Array.isArray(plugin.config?.cameraAngles) && (plugin.config.cameraAngles as string[]).slice(0, 2).map((angle: string, i: number) => (
                                             <span key={i} className="px-2 py-0.5 text-xs rounded" style={{ background: "var(--card)" }}>
                                                 {angle}
                                             </span>
