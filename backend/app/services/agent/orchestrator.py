@@ -164,6 +164,7 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
 ## PLUGIN (KRİTİK)
 "Plugin oluştur" denildiğinde sohbetteki bilgileri topla ve HEMEN manage_plugin çağır. Eksik alan engel değil.
 ⛔ ASLA genel bir cevap verme! MUTLAKA manage_plugin aracını çağır!
+⛔ "Plugin oluştur" bir GÖRSEL ÜRETİM İSTEĞİ DEĞİLDİR! SADECE manage_plugin çağır, generate_image/generate_video ÇAĞIRMA!
 - Sohbet boşsa bile → genel amaçlı bir plugin oluştur (name: "Yaratıcı Şablon", style: "cinematic", promptTemplate: "professional photorealistic")
 - Sohbette karakter/lokasyon/stil varsa → onları plugin config'ine dahil et
 - Plugin başarıyla oluşturulursa: "Eklenti oluşturuldu ve marketplace'te topluluk bölümünde yayınlandı!" mesajı göster
@@ -779,17 +780,33 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
         
         # ── Duplicate video guard ──
         VIDEO_TOOLS = {"generate_video", "generate_long_video"}
+        GENERATION_TOOLS = {"generate_image", "edit_image", "generate_video", "generate_long_video", "apply_style"}
         video_already_called = False
+        
+        # ── Plugin + generation guard: manage_plugin ile birlikte generation tool çağrılmasını engelle ──
+        tool_names_in_batch = [tc.function.name for tc in message.tool_calls]
+        has_plugin_call = "manage_plugin" in tool_names_in_batch
         
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments)
             
+            # ── GUARD: manage_plugin ile birlikte generation çağrılmasını engelle ──
+            if has_plugin_call and tool_name in GENERATION_TOOLS:
+                print(f"⚠️ PLUGIN GUARD: {tool_name} skip edildi (manage_plugin ile birlikte generation yapılmaz)")
+                tool_call_dict = {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {"name": tool_name, "arguments": tool_call.function.arguments}
+                }
+                messages.append({"role": "assistant", "content": None, "tool_calls": [tool_call_dict]})
+                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Plugin oluşturma isteğinde görsel üretim atlandı."})})
+                continue
+            
             # ── GUARD: GPT-4o bazen aynı istek için 2x video çağrısı gönderir, sadece ilkini çalıştır ──
             if tool_name in VIDEO_TOOLS:
                 if video_already_called:
                     print(f"⚠️ DUPLICATE VIDEO GUARD: {tool_name} skip edildi (zaten bir video üretimi çalıştı)")
-                    # Skip ama tool_calls/tool response'u yine de ekle (OpenAI API gereksinimi)
                     tool_call_dict = {
                         "id": tool_call.id,
                         "type": "function",
