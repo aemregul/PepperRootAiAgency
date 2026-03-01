@@ -663,7 +663,7 @@ Kurallar:
             final_stream = await self.async_client.chat.completions.create(
                 model=self.model,
                 max_tokens=4096,
-                messages=[{"role": "system", "content": self.system_prompt}] + messages,
+                messages=[{"role": "system", "content": full_system_prompt}] + messages,
                 stream=True
             )
             
