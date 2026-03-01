@@ -238,6 +238,7 @@ Tüm modeller `fal_models.py`'de tanımlı, `fal_plugin_v2.py` ile çağrılır.
 ### Assets Panel (Sağ)
 - **6 kategori filtresi**: Tümü, Görsel, Video, Ses, Favoriler, Yüklemeler
 - **Yeniden eskiye sıralama**: En yeni medya en üstte
+- **Çoklu seçim & indirme**: Alt bardaki ☑️ butonla seçim modu, seçili medyaları toplu indirme
 - **Video hover oynatma**: Fareyle üzerine gelince otomatik preview
 - **Çöp kutusu**: Silinen asset'ler geri yüklenebilir (thumbnail'lı)
 
@@ -302,7 +303,7 @@ npm run dev
 | **24** | **27 Şubat** | **Audio-Visual Synchronization** — `audio_sync_service.py` |
 | **25** | **27 Şubat** | **Admin Panel** — Model toggle sistemi, disabled model warning, AI Servisleri kaldırıldı |
 | **26** | **1 Mart** | **Plugin Marketplace** — 41 resmi plugin, API-driven filtre/sıralama, topluluk yayınlama |
-| **27** | **1 Mart** | **Plugin & Entity Guards** — Proje seçici popup, duplicate kontrolü, auto-publish, Entity Guard (generate sırasında entity skip), Plugin Guard (plugin sırasında generation skip), sidebar hızlı silme |
+| **27** | **1 Mart** | **Plugin & Entity Guards, UX Temizliği** — Proje seçici popup, duplicate kontrolü, auto-publish, Entity Guard, Plugin Guard, sidebar hızlı silme, Assets Panel çoklu seçim & indirme |
 
 ---
 
