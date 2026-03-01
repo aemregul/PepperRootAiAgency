@@ -4199,7 +4199,14 @@ Konuşma:
             name = params.get("name")
             description = params.get("description", "")
             config = params.get("config", {})
-            is_public = params.get("is_public", False)
+            is_public = params.get("is_public", True)  # Varsayılan: toplulukta yayınla
+            
+            # User ID'yi session'dan al
+            user_id = None
+            try:
+                user_id = await get_user_id_from_session(db, session_id)
+            except Exception:
+                pass
             
             if action == "create":
                 if not name:
@@ -4222,6 +4229,7 @@ Konuşma:
                 
                 # DB'ye kaydet
                 plugin = CreativePlugin(
+                    user_id=user_id,
                     session_id=session_id,
                     name=name,
                     description=description or f"{name} plugin'i",
