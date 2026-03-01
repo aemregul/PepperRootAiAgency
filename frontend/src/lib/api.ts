@@ -566,9 +566,11 @@ export async function publishPlugin(pluginId: string): Promise<{ success: boolea
     return response.json();
 }
 
-export async function installMarketplacePlugin(pluginId: string): Promise<{ success: boolean }> {
+export async function installMarketplacePlugin(pluginId: string, sessionId: string): Promise<{ success: boolean; error?: string; message?: string; plugin_id?: string; installed_name?: string }> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/marketplace/plugins/${pluginId}/install`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId }),
     });
     if (!response.ok) throw new Error('Failed to install plugin');
     return response.json();

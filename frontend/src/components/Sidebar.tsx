@@ -1398,8 +1398,14 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             <PluginMarketplaceModal
                 isOpen={marketplaceOpen}
                 onClose={() => setMarketplaceOpen(false)}
-                onInstall={(plugin) => setCreativePlugins([...creativePlugins, plugin])}
-                myPlugins={creativePlugins}
+                onInstall={(plugin, projectId) => {
+                    // Sadece aktif projeye yükleniyorsa sidebar'da göster
+                    if (projectId === sessionId) {
+                        setCreativePlugins([...creativePlugins, plugin]);
+                    }
+                }}
+                projects={projects}
+                activeProjectId={sessionId || undefined}
             />
 
             <GridGeneratorModal

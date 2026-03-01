@@ -1,27 +1,40 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Store, Search, Star, Download, Plus, TrendingUp, Clock, Users, Loader2, Sparkles } from "lucide-react";
+import { X, Store, Search, Star, Download, Plus, TrendingUp, Clock, Users, Loader2, Sparkles, FolderOpen, Check, AlertCircle } from "lucide-react";
 import { CreativePlugin } from "./CreativePluginModal";
 import { getMarketplacePlugins, installMarketplacePlugin, type MarketplacePlugin } from "@/lib/api";
+
+interface Project {
+    id: string;
+    name: string;
+    active?: boolean;
+    category?: string;
+}
 
 interface PluginMarketplaceModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onInstall: (plugin: CreativePlugin) => void;
-    myPlugins: CreativePlugin[];
+    onInstall: (plugin: CreativePlugin, projectId: string) => void;
+    projects: Project[];
+    activeProjectId?: string;
 }
 
 type SortMode = "downloads" | "rating" | "recent";
 type CategoryMode = "all" | "community";
 
-export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }: PluginMarketplaceModalProps) {
+export function PluginMarketplaceModal({ isOpen, onClose, onInstall, projects, activeProjectId }: PluginMarketplaceModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState<SortMode>("downloads");
     const [category, setCategory] = useState<CategoryMode>("all");
     const [plugins, setPlugins] = useState<MarketplacePlugin[]>([]);
     const [loading, setLoading] = useState(false);
-    const [installedIds, setInstalledIds] = useState<string[]>([]);
+
+    // Project selector state
+    const [selectingPluginId, setSelectingPluginId] = useState<string | null>(null);
+    const [selectingPlugin, setSelectingPlugin] = useState<MarketplacePlugin | null>(null);
+    const [installing, setInstalling] = useState(false);
+    const [installResult, setInstallResult] = useState<{ pluginId: string; status: "success" | "error"; message: string } | null>(null);
 
     const fetchPlugins = useCallback(async () => {
         setLoading(true);
@@ -38,6 +51,10 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
     useEffect(() => {
         if (isOpen) {
             fetchPlugins();
+            // Reset states when modal opens
+            setSelectingPluginId(null);
+            setSelectingPlugin(null);
+            setInstallResult(null);
         }
     }, [isOpen, fetchPlugins]);
 
@@ -50,41 +67,63 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
         return () => clearTimeout(timer);
     }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Clear install result after 3 seconds
+    useEffect(() => {
+        if (installResult) {
+            const timer = setTimeout(() => setInstallResult(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [installResult]);
+
     if (!isOpen) return null;
 
-    const isInstalled = (pluginId: string) => {
-        return myPlugins.some(p => p.id === pluginId) || installedIds.includes(pluginId);
+    const handleSelectProject = (plugin: MarketplacePlugin) => {
+        setSelectingPluginId(plugin.id);
+        setSelectingPlugin(plugin);
     };
 
-    const handleInstall = async (plugin: MarketplacePlugin) => {
-        // API ile install sayacını artır
-        try {
-            await installMarketplacePlugin(plugin.id);
-        } catch {
-            // Seed pluginler için hata olabilir, sorun değil
-        }
+    const handleInstallToProject = async (projectId: string, projectName: string) => {
+        if (!selectingPlugin || installing) return;
+        setInstalling(true);
 
-        // Frontend CreativePlugin formatına çevir ve yükle
-        const creativePlugin: CreativePlugin = {
-            id: plugin.id,
-            name: plugin.name,
-            description: plugin.description,
-            author: plugin.author,
-            isPublic: false,
-            config: {
-                character: { id: "variable", name: "Karakter", isVariable: true },
-                location: { id: "custom", name: "Custom", settings: "" },
-                timeOfDay: (plugin.config?.timeOfDay as string) || "Auto",
-                cameraAngles: (plugin.config?.cameraAngles as string[]) || ["Portrait", "Wide", "Close-up"],
-                style: plugin.style || "Custom",
-                promptTemplate: (plugin.config?.promptTemplate as string) || "",
-            },
-            createdAt: new Date(plugin.created_at),
-            downloads: plugin.downloads,
-            rating: plugin.rating,
-        };
-        onInstall(creativePlugin);
-        setInstalledIds(prev => [...prev, plugin.id]);
+        try {
+            const result = await installMarketplacePlugin(selectingPlugin.id, projectId);
+
+            if (result.success) {
+                // Frontend CreativePlugin formatına çevir
+                const creativePlugin: CreativePlugin = {
+                    id: result.plugin_id || selectingPlugin.id,
+                    name: selectingPlugin.name,
+                    description: selectingPlugin.description,
+                    author: selectingPlugin.author,
+                    isPublic: false,
+                    config: {
+                        character: { id: "variable", name: "Karakter", isVariable: true },
+                        location: { id: "custom", name: "Custom", settings: "" },
+                        timeOfDay: (selectingPlugin.config?.timeOfDay as string) || "Auto",
+                        cameraAngles: (selectingPlugin.config?.cameraAngles as string[]) || ["Portrait", "Wide", "Close-up"],
+                        style: selectingPlugin.style || "Custom",
+                        promptTemplate: (selectingPlugin.config?.promptTemplate as string) || "",
+                    },
+                    createdAt: new Date(selectingPlugin.created_at),
+                    downloads: selectingPlugin.downloads,
+                    rating: selectingPlugin.rating,
+                };
+                onInstall(creativePlugin, projectId);
+                setInstallResult({ pluginId: selectingPlugin.id, status: "success", message: `"${selectingPlugin.name}" → "${projectName}" projesine eklendi!` });
+            } else if (result.error === "already_installed") {
+                setInstallResult({ pluginId: selectingPlugin.id, status: "error", message: result.message || "Bu plugin zaten bu projede ekli." });
+            } else {
+                setInstallResult({ pluginId: selectingPlugin.id, status: "error", message: result.message || "Yükleme başarısız oldu." });
+            }
+        } catch (err) {
+            console.error("Install error:", err);
+            setInstallResult({ pluginId: selectingPlugin.id, status: "error", message: "Bağlantı hatası. Tekrar deneyin." });
+        } finally {
+            setInstalling(false);
+            setSelectingPluginId(null);
+            setSelectingPlugin(null);
+        }
     };
 
     const filterButtons: { sort: SortMode; icon: React.ReactNode; label: string }[] = [
@@ -95,7 +134,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => { setSelectingPluginId(null); onClose(); }} />
 
             <div
                 className="relative w-full max-w-4xl max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden"
@@ -121,6 +160,21 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                         <X size={20} />
                     </button>
                 </div>
+
+                {/* Install result toast */}
+                {installResult && (
+                    <div
+                        className="mx-4 mt-3 px-4 py-3 rounded-xl flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-2 duration-300"
+                        style={{
+                            background: installResult.status === "success" ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                            border: `1px solid ${installResult.status === "success" ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+                            color: installResult.status === "success" ? "#22c55e" : "#ef4444"
+                        }}
+                    >
+                        {installResult.status === "success" ? <Check size={16} /> : <AlertCircle size={16} />}
+                        {installResult.message}
+                    </div>
+                )}
 
                 {/* Search & Filters */}
                 <div className="flex flex-col gap-3 p-4 border-b" style={{ borderColor: "var(--border)" }}>
@@ -183,7 +237,7 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                             {plugins.map((plugin) => (
                                 <div
                                     key={plugin.id}
-                                    className="p-4 rounded-xl transition-all hover:shadow-lg flex flex-col h-full"
+                                    className="p-4 rounded-xl transition-all hover:shadow-lg flex flex-col h-full relative"
                                     style={{ background: "var(--background)", border: "1px solid var(--border)" }}
                                 >
                                     {/* Header */}
@@ -245,22 +299,71 @@ export function PluginMarketplaceModal({ isOpen, onClose, onInstall, myPlugins }
                                         ))}
                                     </div>
 
-                                    {/* Action */}
+                                    {/* Action Button */}
                                     <button
-                                        onClick={() => handleInstall(plugin)}
-                                        disabled={isInstalled(plugin.id)}
-                                        className={`w-full py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 mt-auto ${isInstalled(plugin.id)
-                                            ? "bg-green-500/20 text-green-500 cursor-default"
-                                            : "hover:opacity-90"
-                                            }`}
-                                        style={!isInstalled(plugin.id) ? { background: "var(--accent)", color: "var(--background)" } : {}}
+                                        onClick={() => handleSelectProject(plugin)}
+                                        className="w-full py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 mt-auto hover:opacity-90"
+                                        style={{ background: "var(--accent)", color: "var(--background)" }}
                                     >
-                                        {isInstalled(plugin.id) ? (
-                                            <>✓ Yüklendi</>
-                                        ) : (
-                                            <><Plus size={14} /> Projeme Ekle</>
-                                        )}
+                                        <Plus size={14} /> Projeye Ekle
                                     </button>
+
+                                    {/* Project Selector Popup */}
+                                    {selectingPluginId === plugin.id && (
+                                        <div
+                                            className="absolute bottom-0 left-0 right-0 rounded-xl shadow-2xl overflow-hidden z-20 animate-in fade-in slide-in-from-bottom-3 duration-200"
+                                            style={{
+                                                background: "var(--card)",
+                                                border: "1px solid var(--border)",
+                                                boxShadow: "0 -8px 32px rgba(0,0,0,0.4)"
+                                            }}
+                                        >
+                                            {/* Popup Header */}
+                                            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                                                <div className="flex items-center gap-2">
+                                                    <FolderOpen size={14} className="text-purple-400" />
+                                                    <span className="text-xs font-semibold">Proje Seç</span>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setSelectingPluginId(null); }}
+                                                    className="p-1 rounded-lg hover:bg-[var(--background)] transition-all"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                            {/* Project List */}
+                                            <div className="max-h-48 overflow-y-auto">
+                                                {projects.length === 0 ? (
+                                                    <div className="px-4 py-6 text-center text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                                        Henüz proje yok
+                                                    </div>
+                                                ) : (
+                                                    projects.map((project) => (
+                                                        <button
+                                                            key={project.id}
+                                                            onClick={(e) => { e.stopPropagation(); handleInstallToProject(project.id, project.name); }}
+                                                            disabled={installing}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all hover:bg-[var(--background)] disabled:opacity-50"
+                                                            style={{ borderBottom: "1px solid var(--border)" }}
+                                                        >
+                                                            <span className="text-lg">📁</span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-sm font-medium truncate">{project.name}</div>
+                                                                {project.active && (
+                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(74, 222, 128, 0.15)", color: "#4ade80" }}>
+                                                                        Aktif
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {installing && (
+                                                                <Loader2 size={14} className="animate-spin text-purple-400 flex-shrink-0" />
+                                                            )}
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

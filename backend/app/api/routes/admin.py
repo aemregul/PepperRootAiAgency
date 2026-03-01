@@ -863,27 +863,79 @@ async def publish_plugin(plugin_id: UUID, db: AsyncSession = Depends(get_db)):
     return {"success": True, "message": f"'{plugin.name}' marketplace'e yayınlandı!"}
 
 
+class InstallPluginRequest(BaseModel):
+    session_id: str  # Hedef proje ID'si
+
 @router.post("/marketplace/plugins/{plugin_id}/install")
-async def install_marketplace_plugin(plugin_id: str, db: AsyncSession = Depends(get_db)):
-    """Marketplace pluginini yükle — indirme sayacını artır."""
-    # Kullanıcı plugini mi kontrol et
+async def install_marketplace_plugin(
+    plugin_id: str, 
+    request: InstallPluginRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Marketplace pluginini belirli bir projeye yükle. Duplicate kontrolü yapar."""
+    target_session_id = request.session_id
+    
+    # Duplicate kontrolü — bu session'da aynı isimli/kaynaklı plugin var mı?
+    try:
+        target_uuid = UUID(target_session_id)
+        existing_result = await db.execute(
+            select(CreativePlugin).where(
+                CreativePlugin.session_id == target_uuid
+            )
+        )
+        existing_plugins = existing_result.scalars().all()
+    except (ValueError, AttributeError):
+        existing_plugins = []
+    
+    # Kaynak plugin bilgisini al
+    source_plugin = None
+    source_name = None
+    source_config = {}
+    
     try:
         uid = UUID(plugin_id)
         result = await db.execute(select(CreativePlugin).where(CreativePlugin.id == uid))
-        plugin = result.scalar_one_or_none()
-        if plugin:
-            plugin.usage_count += 1
-            await db.commit()
-            return {"success": True, "plugin_id": plugin_id, "downloads": plugin.usage_count}
+        source_plugin = result.scalar_one_or_none()
+        if source_plugin:
+            source_name = source_plugin.name
+            source_config = source_plugin.config or {}
     except (ValueError, AttributeError):
         pass
     
-    # Resmi plugin ise sadece başarılı dön (seed pluginlerin sayacı statik)
-    seed_ids = {sp["id"] for sp in MARKETPLACE_SEED_PLUGINS}
-    if plugin_id in seed_ids:
-        return {"success": True, "plugin_id": plugin_id}
+    # Seed plugin mi?
+    if not source_plugin:
+        seed_match = next((sp for sp in MARKETPLACE_SEED_PLUGINS if sp["id"] == plugin_id), None)
+        if seed_match:
+            source_name = seed_match["name"]
+            source_config = seed_match.get("config", {})
+        else:
+            raise HTTPException(status_code=404, detail="Plugin bulunamadı")
     
-    raise HTTPException(status_code=404, detail="Plugin bulunamadı")
+    # Duplicate check by name
+    if any(p.name == source_name for p in existing_plugins):
+        return {"success": False, "error": "already_installed", "message": f"'{source_name}' bu projede zaten ekli."}
+    
+    # İndirme sayacını artır (community plugins)
+    if source_plugin:
+        source_plugin.usage_count += 1
+    
+    # Plugin'i hedef session'a kopyala
+    installed_plugin = CreativePlugin(
+        session_id=target_uuid,
+        user_id=source_plugin.user_id if source_plugin else None,
+        name=source_name,
+        description=source_plugin.description if source_plugin else (next((sp.get("description", "") for sp in MARKETPLACE_SEED_PLUGINS if sp["id"] == plugin_id), "")),
+        icon=source_plugin.icon if source_plugin else "🧩",
+        color=source_plugin.color if source_plugin else "#22c55e",
+        system_prompt=source_plugin.system_prompt if source_plugin else source_config.get("promptTemplate", ""),
+        is_public=False,  # Yüklenen kopya public değil
+        config=source_config
+    )
+    db.add(installed_plugin)
+    await db.commit()
+    await db.refresh(installed_plugin)
+    
+    return {"success": True, "plugin_id": str(installed_plugin.id), "installed_name": source_name}
 
 @router.get("/trash", response_model=list[TrashItemResponse])
 async def list_trash_items(db: AsyncSession = Depends(get_db)):
