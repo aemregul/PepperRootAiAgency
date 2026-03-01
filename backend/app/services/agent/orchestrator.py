@@ -784,12 +784,27 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
         video_already_called = False
         
         # ── Plugin + generation guard: manage_plugin ile birlikte generation tool çağrılmasını engelle ──
+        ENTITY_TOOLS = {"create_character", "create_location", "create_brand"}
         tool_names_in_batch = [tc.function.name for tc in message.tool_calls]
         has_plugin_call = "manage_plugin" in tool_names_in_batch
+        has_generation_call = bool(GENERATION_TOOLS & set(tool_names_in_batch))
         
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments)
+            
+            # ── GUARD: generate_image ile birlikte entity oluşturulmasını engelle ──
+            # GPT-4o görsel üretirken prompttaki karakterleri otomatik entity yapıyor, bu istenmeyen bir davranış
+            if has_generation_call and tool_name in ENTITY_TOOLS:
+                print(f"⚠️ ENTITY GUARD: {tool_name} skip edildi (generate_image ile birlikte entity oluşturulmaz)")
+                tool_call_dict = {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {"name": tool_name, "arguments": tool_call.function.arguments}
+                }
+                messages.append({"role": "assistant", "content": None, "tool_calls": [tool_call_dict]})
+                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Görsel üretimi sırasında otomatik entity oluşturma atlandı. Kullanıcı açıkça isterse entity oluşturulabilir."})})
+                continue
             
             # ── GUARD: manage_plugin ile birlikte generation çağrılmasını engelle ──
             if has_plugin_call and tool_name in GENERATION_TOOLS:
