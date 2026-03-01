@@ -154,12 +154,19 @@ Kurallar:
 5. **Arka plan:** "arka planı sahil yap" → "Change the background to a beautiful tropical beach with clear blue water and golden sand. Keep the person, their pose, clothing, and all foreground elements exactly the same."
 6. **ASLA** sadece "remove sunglasses" gibi çıplak bir prompt gönderme — her zaman koruma konteksti ekle.
 
+## BAĞLAMSAL ZEKA (ÇOK ÖNEMLİ — TÜM CEVAPLAR İÇİN GEÇERLİ)
+Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve bağlamsız/tekrarlayan davranışlardan kaçın:
+- Kullanıcı daha önce YAPILMlŞ bir işlemi tekrar istiyorsa (örn: aynı sohbette 2. kez "plugin oluştur"), "Bu sohbette zaten bir plugin oluşturduk. Yeni bilgi ekleyip farklı bir plugin mi istiyorsun?" gibi AKILLI bir cevap ver.
+- Araç sonuçları başarısız dönerse kullanıcıya ne olduğunu AÇIKÇA anlat, genel cevap verme.
+- ASLA robotic/generic "Merhaba! Sana nasıl yardımcı olabilirim?" yanıtları verme — her cevap bağlamsal ve anlamlı olmalı.
+- Yapılan işlemin sonucunu her zaman kullanıcıya bildir (başarılı/başarısız, ne oluşturuldu, nerede görülebilir).
+
 ## PLUGIN (KRİTİK)
 "Plugin oluştur" denildiğinde sohbetteki bilgileri topla ve HEMEN manage_plugin çağır. Eksik alan engel değil.
-⛔ ASLA "Sana nasıl yardımcı olabilirim?" gibi genel bir cevap verme! MUTLAKA manage_plugin aracını çağır!
+⛔ ASLA genel bir cevap verme! MUTLAKA manage_plugin aracını çağır!
 - Sohbet boşsa bile → genel amaçlı bir plugin oluştur (name: "Yaratıcı Şablon", style: "cinematic", promptTemplate: "professional photorealistic")
 - Sohbette karakter/lokasyon/stil varsa → onları plugin config'ine dahil et
-- Kullanıcıya "Eklenti oluşturuldu!" mesajı göster
+- Plugin başarıyla oluşturulursa: "Eklenti oluşturuldu ve marketplace'te topluluk bölümünde yayınlandı!" mesajı göster
 
 ## YANITLAR
 - Doğal konuş, kısa tut. Hangi model/yöntem kullandığını bir cümleyle belirt.
@@ -4211,6 +4218,30 @@ Konuşma:
             if action == "create":
                 if not name:
                     return {"success": False, "error": "Plugin adı gerekli."}
+                
+                # Duplicate kontrolü — aynı session'da benzer plugin var mı?
+                existing_result = await db.execute(
+                    select(CreativePlugin).where(
+                        CreativePlugin.session_id == session_id
+                    )
+                )
+                existing_plugins = existing_result.scalars().all()
+                if existing_plugins:
+                    existing_names = [p.name for p in existing_plugins]
+                    # Aynı isimde plugin varsa uyar
+                    if name in existing_names:
+                        return {
+                            "success": False, 
+                            "already_exists": True,
+                            "message": f"Bu sohbette zaten '{name}' adlı bir plugin oluşturulmuş. Yeni bilgi ekleyip farklı bir plugin oluşturmak ister misin? Mevcut pluginler: {', '.join(existing_names)}"
+                        }
+                    # Farklı isimde ama yeni bilgi yoksa da uyar (max 3 plugin per session)
+                    if len(existing_plugins) >= 3:
+                        return {
+                            "success": False,
+                            "already_exists": True,  
+                            "message": f"Bu sohbette zaten {len(existing_plugins)} plugin oluşturulmuş ({', '.join(existing_names)}). Sohbete yeni bilgi ekleyip sonra tekrar dene."
+                        }
                 
                 # Prompt template oluştur
                 prompt_parts = []
