@@ -77,6 +77,15 @@ PepperRootAiAgency/
 
 Agent, GPT-4o tabanlıdır. Kullanıcının mesajını alır, hangi araçları kullanacağına karar verir ve çalıştırır. Tüm araç tanımları `tools.py`, handler'lar `orchestrator.py` dosyasındadır.
 
+### Tool Call Guard'ları (Otomatik Koruma)
+| Guard | Engellenen | Tetikleyici | Açıklama |
+|---|---|---|---|
+| **Entity Guard** | `create_character`, `create_location`, `create_brand` | `generate_image` aynı batch'te | GPT-4o görsel üretirken prompttaki karakterleri otomatik entity yapmasını engeller |
+| **Plugin Guard** | `generate_image`, `edit_image` vb. | `manage_plugin` aynı batch'te | Plugin oluşturma isteğinde gereksiz görsel üretimini engeller |
+| **Video Duplicate Guard** | İkinci video çağrısı | Aynı batch'te 2x video | GPT-4o'nun aynı istek için duplikat video üretmesini engeller |
+
+Bu guard'lar `orchestrator.py`'de `_process_tool_calls_for_stream` içinde, tool call loop'unun başında çalışır.
+
 ### Görsel Üretim & Düzenleme
 | Araç | Ne Yapar | Nasıl Çalışır |
 |---|---|---|
@@ -172,32 +181,34 @@ Kullanıcıların hazır yaratıcı şablonları keşfedip projelerine ekleyebil
 
 ### Özellikler
 - **41 resmi (seed) plugin**: 8 kategori — Sanat & Yaratıcı, Sosyal Medya, İş & Ticaret, Fotoğrafçılık, Moda & Güzellik, Oyun & Entertainment, Eğitim, Diğer
-- **Topluluk pluginleri**: Kullanıcılar kendi plugin'lerini `is_public=True` yaparak marketplace'e yayınlayabilir
+- **Topluluk pluginleri**: Chat'ten `manage_plugin` ile oluşturulan pluginler otomatik `is_public=True` olarak marketplace'e yayınlanır
 - **3 sıralama modu**: Popüler (downloads), En İyi (rating), Yeni (recent)
 - **2 kategori filtresi**: Tümü (resmi + topluluk), Topluluk (sadece kullanıcı plugin'leri)
 - **Canlı arama**: İsim, açıklama, stil ve yazar üzerinde debounced arama (300ms)
 - **Plugin kartları**: İkon, isim, yazar, rating (⭐), indirme sayısı, stil etiketi, kamera açıları, kaynak rozeti (🏪 Resmi / 👤 Topluluk)
-- **"Projeme Ekle" butonu**: Plugin'i `CreativePlugin` formatına çevirip kullanıcının projesine yükler
+- **Proje seçici popup**: "Projeye Ekle" butonuna tıklayınca mini proje listesi açılır, istenen projeye yüklenir
+- **Duplicate kontrolü**: Aynı plugin aynı projede zaten varsa "Bu plugin zaten ekli" uyarısı
+- **Plugin kopyalama**: Marketplace'ten yüklenen plugin, hedef projeye bağımsız bir kopya olarak kaydedilir
 
 ### API Endpoints
 | Endpoint | Metod | Açıklama |
 |---|---|---|
 | `/admin/marketplace/plugins` | GET | Tüm plugin'leri getir (sort, category, search params) |
-| `/admin/marketplace/plugins/{id}/install` | POST | İndirme sayacını artır |
+| `/admin/marketplace/plugins/{id}/install` | POST | Plugin'i belirtilen session'a kopyala (body: `session_id`). Duplicate kontrolü yapar |
 | `/admin/creative-plugins/{id}/publish` | PATCH | Kullanıcı plugin'ini marketplace'e yayınla |
 
 ### Akış
 ```
-Kullanıcı plugin oluşturur → DB'ye kaydedilir (is_public=False)
-                           → "Markete Yayınla" → is_public=True
-                           → Marketplace'te "Topluluk" filtresinde görünür
-                           → Diğer kullanıcılar "Projeme Ekle" ile yükler
+Chat'te "plugin oluştur" → manage_plugin tool → DB (is_public=True, user_id atanır)
+                         → Marketplace'te "Topluluk" filtresinde otomatik görünür
+                         → Diğer kullanıcılar "Projeye Ekle" → Proje seçici popup
+                         → Plugin hedef projeye kopyalanır (duplicate varsa hata)
 ```
 
 ### Dosyalar
 - `backend/app/api/routes/admin.py` — Marketplace endpoints + `MARKETPLACE_SEED_PLUGINS` (41 plugin)
-- `frontend/src/components/PluginMarketplaceModal.tsx` — Marketplace UI
-- `frontend/src/lib/api.ts` — `getMarketplacePlugins()`, `publishPlugin()`, `installMarketplacePlugin()`
+- `frontend/src/components/PluginMarketplaceModal.tsx` — Marketplace UI (proje seçici popup dahil)
+- `frontend/src/lib/api.ts` — `getMarketplacePlugins()`, `publishPlugin()`, `installMarketplacePlugin(pluginId, sessionId)`
 
 ---
 
@@ -232,8 +243,9 @@ Tüm modeller `fal_models.py`'de tanımlı, `fal_plugin_v2.py` ile çağrılır.
 
 ### Sidebar (Sol)
 - **Proje yönetimi**: Oluştur, sil, geçiş yap
-- **Entity listesi**: Karakterler, Markalar, Mekanlar
-- **Plugin/stil dropdown**: 10 hazır stil + kullanıcı plugin'leri
+- **Entity listesi**: Karakterler, Markalar, Mekanlar (hover'da çöp kutusu ile hızlı silme)
+- **Yaratıcı Eklentiler**: Proje bazlı plugin listesi, hover'da çöp kutusu ile hızlı silme
+- **Eklenti Mağazası**: Rail'deki butonla açılır
 - **Daraltılabilir**: 48px rail ↔ 200px genişleme
 
 ### Auth
@@ -290,6 +302,7 @@ npm run dev
 | **24** | **27 Şubat** | **Audio-Visual Synchronization** — `audio_sync_service.py` |
 | **25** | **27 Şubat** | **Admin Panel** — Model toggle sistemi, disabled model warning, AI Servisleri kaldırıldı |
 | **26** | **1 Mart** | **Plugin Marketplace** — 41 resmi plugin, API-driven filtre/sıralama, topluluk yayınlama |
+| **27** | **1 Mart** | **Plugin & Entity Guards** — Proje seçici popup, duplicate kontrolü, auto-publish, Entity Guard (generate sırasında entity skip), Plugin Guard (plugin sırasında generation skip), sidebar hızlı silme |
 
 ---
 
@@ -299,7 +312,7 @@ npm run dev
 |---|---|
 | Agent Araç Sayısı | 36 |
 | AI Model Sayısı | 31 (admin toggle ile yönetilebilir) |
-| Toplam Faz | 26 (tümü tamamlandı) |
+| Toplam Faz | 27 (tümü tamamlandı) |
 | Backend Satır | ~15.000+ |
 | Frontend Satır | ~5.000+ |
 | Python | 3.14 |
