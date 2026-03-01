@@ -1302,7 +1302,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                                 <div
                                                     key={plugin.id}
                                                     onClick={() => { setSelectedPlugin(plugin); setPluginDetailOpen(true); }}
-                                                    className="entity-item"
+                                                    className="entity-item group"
                                                     style={{ paddingLeft: 16 }}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
@@ -1312,6 +1312,21 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                                         }} />
                                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plugin.name}</span>
                                                     </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            deleteEntity(plugin.id).then(success => {
+                                                                if (success) {
+                                                                    setCreativePlugins(creativePlugins.filter(p => p.id !== plugin.id));
+                                                                }
+                                                            });
+                                                        }}
+                                                        className="p-1 rounded hover:bg-red-500/20 opacity-0 group-hover:!opacity-100 transition-opacity"
+                                                        style={{ flexShrink: 0 }}
+                                                        title="Sil"
+                                                    >
+                                                        <Trash2 size={12} style={{ color: '#ef4444' }} />
+                                                    </button>
                                                 </div>
                                             ))}
                                         </div>
