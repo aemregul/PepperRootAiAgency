@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn, Palette, Download } from "lucide-react";
+import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn, Palette, Download, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useToast } from "./ToastProvider";
-import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory } from "@/lib/api";
+import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory, sendFeedback } from "@/lib/api";
 import { GenerationProgressCard } from "./GenerationProgressCard";
 
 interface Message {
@@ -297,6 +297,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const toast = useToast();
     const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
     const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
+    const [feedbackState, setFeedbackState] = useState<Record<string, 'up' | 'down' | null>>({});
 
     // === PROJE BAZLI CHAT STATE SAKLA/GERİ YÜKLE ===
     const projectStateRef = useRef<Record<string, {
@@ -1453,6 +1454,44 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                                 <div className="absolute bottom-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center group-hover/vid:bg-white/20 transition-colors">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* 👍/👎 Feedback buttons */}
+                                        {msg.id && (
+                                            <div className="flex items-center gap-1 mt-1 pl-1 group/feedback">
+                                                {feedbackState[msg.id] !== 'down' && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            setFeedbackState(prev => ({ ...prev, [msg.id]: 'up' }));
+                                                            try { await sendFeedback(msg.id, 1); } catch (e) { console.error(e); }
+                                                        }}
+                                                        className={`p-1 rounded-md transition-all ${feedbackState[msg.id] === 'up'
+                                                                ? 'text-green-500 bg-green-500/10'
+                                                                : 'text-white/30 hover:text-green-400 hover:bg-green-500/10 opacity-0 group-hover/feedback:opacity-100'
+                                                            }`}
+                                                        title="Beğen"
+                                                        disabled={feedbackState[msg.id] === 'up'}
+                                                    >
+                                                        <ThumbsUp className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                                {feedbackState[msg.id] !== 'up' && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            setFeedbackState(prev => ({ ...prev, [msg.id]: 'down' }));
+                                                            try { await sendFeedback(msg.id, -1, 'other'); } catch (e) { console.error(e); }
+                                                        }}
+                                                        className={`p-1 rounded-md transition-all ${feedbackState[msg.id] === 'down'
+                                                                ? 'text-red-400 bg-red-500/10'
+                                                                : 'text-white/30 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/feedback:opacity-100'
+                                                            }`}
+                                                        title="Beğenme"
+                                                        disabled={feedbackState[msg.id] === 'down'}
+                                                    >
+                                                        <ThumbsDown className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </div>

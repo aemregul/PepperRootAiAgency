@@ -605,3 +605,242 @@ async def progress_websocket(websocket: WebSocket, session_id: str):
     except (WebSocketDisconnect, Exception):
         progress_service.unregister(session_id, websocket)
         print(f"🔌 Progress WS disconnected: {session_id[:8]}...")
+
+
+# ============== GERİ BİLDİRİM SİSTEMİ ==============
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class FeedbackRequest(PydanticBaseModel):
+    message_id: str  # Asistan mesajının ID'si
+    score: int  # 1 = 👍, -1 = 👎
+    reason: Optional[str] = None  # 👎 nedeni: "wrong_style", "bad_quality", "wrong_prompt", "other"
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    request: FeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
+):
+    """Asistan yanıtına geri bildirim gönder (👍/👎). Agent bu veriyi öğrenme için kullanır."""
+    from uuid import UUID as UUIDType
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.services.episodic_memory_service import episodic_memory
+    
+    # Mesajı bul
+    try:
+        msg_uuid = UUIDType(request.message_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Geçersiz message_id")
+    
+    result = await db.execute(
+        select(Message).where(Message.id == msg_uuid, Message.role == "assistant")
+    )
+    message = result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(status_code=404, detail="Asistan mesajı bulunamadı")
+    
+    # Session sahipliği doğrula
+    sess_result = await db.execute(
+        select(Session).where(Session.id == message.session_id, Session.user_id == current_user.id)
+    )
+    if not sess_result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Bu mesaja erişim yetkiniz yok")
+    
+    # Metadata'ya feedback kaydet
+    meta = message.metadata_ or {}
+    meta["feedback"] = {
+        "score": request.score,
+        "reason": request.reason,
+        "timestamp": datetime.utcnow().isoformat() if 'datetime' in dir() else __import__('datetime').datetime.utcnow().isoformat()
+    }
+    message.metadata_ = meta
+    flag_modified(message, "metadata_")
+    await db.commit()
+    
+    # === ÖĞRENME: Episodic Memory'ye kaydet ===
+    user_id_str = str(current_user.id)
+    
+    if request.score > 0:
+        # 👍 — Başarılı yanıt
+        await episodic_memory.remember(
+            user_id=user_id_str,
+            event_type="feedback",
+            content=f"Kullanıcı bu yanıtı beğendi: '{message.content[:80]}...'",
+            metadata={"message_id": request.message_id, "score": 1}
+        )
+        
+        # Başarılı prompt'u kaydet (görsel/video varsa)
+        images = meta.get("images", [])
+        videos = meta.get("videos", [])
+        if images or videos:
+            try:
+                from app.services.conversation_memory_service import conversation_memory
+                
+                # Prompt'u önceki user mesajından al
+                prev_result = await db.execute(
+                    select(Message).where(
+                        Message.session_id == message.session_id,
+                        Message.role == "user",
+                        Message.created_at < message.created_at
+                    ).order_by(Message.created_at.desc()).limit(1)
+                )
+                prev_msg = prev_result.scalar_one_or_none()
+                
+                if prev_msg:
+                    asset_url = images[0].get("url", "") if images else videos[0].get("url", "") if videos else ""
+                    asset_type = "image" if images else "video"
+                    model_name = (images[0].get("model") if images else videos[0].get("model") if videos else "") or "unknown"
+                    
+                    await conversation_memory.save_successful_prompt(
+                        user_id=current_user.id,
+                        prompt=prev_msg.content,
+                        result_url=asset_url,
+                        score=request.score,
+                        asset_type=asset_type
+                    )
+                    
+                    # Model başarısını da kaydet
+                    await episodic_memory.remember(
+                        user_id=user_id_str,
+                        event_type="model_success",
+                        content=f"'{model_name}' modeli ile '{prev_msg.content[:50]}...' başarılı oldu",
+                        metadata={"model": model_name, "asset_type": asset_type, "score": 1}
+                    )
+            except Exception as e:
+                print(f"⚠️ Prompt learning hatası: {e}")
+    else:
+        # 👎 — Olumsuz feedback
+        reason_text = {
+            "wrong_style": "Yanlış stil kullanıldı",
+            "bad_quality": "Görsel kalitesi kötü",
+            "wrong_prompt": "Prompt yanlış anlaşıldı",
+            "other": request.reason or "Belirtilmedi"
+        }.get(request.reason, request.reason or "Belirtilmedi")
+        
+        await episodic_memory.remember(
+            user_id=user_id_str,
+            event_type="feedback",
+            content=f"Kullanıcı memnun değil: {reason_text}. Yanıt: '{message.content[:60]}...'",
+            metadata={"message_id": request.message_id, "score": -1, "reason": request.reason}
+        )
+    
+    emoji = "👍" if request.score > 0 else "👎"
+    print(f"{emoji} Feedback alındı: message={request.message_id[:8]}... score={request.score}")
+    
+    return {"success": True, "message": f"Geri bildirim kaydedildi {emoji}"}
+
+
+# ============== PROMPT TEMPLATE KÜTÜPHANESİ ==============
+
+PROMPT_TEMPLATES = [
+    {
+        "id": "film_poster",
+        "name": "Film Afişi",
+        "icon": "🎬",
+        "category": "creative",
+        "template": "Bir film afişi oluştur: {konu}. Sinematik ışıklandırma, dramatik kompozisyon, film afişi tipografisi.",
+        "variables": ["konu"],
+        "example": "Bir bilim kurgu film afişi: uzay istasyonunda geçen gerilim filmi"
+    },
+    {
+        "id": "product_photo",
+        "name": "Ürün Fotoğrafı",
+        "icon": "📸",
+        "category": "commercial",
+        "template": "{ürün} ürünü için profesyonel stüdyo fotoğrafı. Temiz beyaz arka plan, yumuşak stüdyo ışığı, ürün odaklı.",
+        "variables": ["ürün"],
+        "example": "Lüks saat için profesyonel stüdyo fotoğrafı"
+    },
+    {
+        "id": "social_media",
+        "name": "Sosyal Medya Post",
+        "icon": "📱",
+        "category": "social",
+        "template": "{platform} için {konu} hakkında dikkat çekici bir görsel. Modern tasarım, canlı renkler, metin alanı bırak.",
+        "variables": ["platform", "konu"],
+        "example": "Instagram için kahve dükkanı açılışı hakkında dikkat çekici bir görsel"
+    },
+    {
+        "id": "portrait",
+        "name": "Profesyonel Portre",
+        "icon": "🧑‍💼",
+        "category": "portrait",
+        "template": "{kişi} için profesyonel portre fotoğrafı. Stüdyo ışığı, bokeh arka plan, {stil} stil.",
+        "variables": ["kişi", "stil"],
+        "example": "Genç bir iş kadını için profesyonel portre, corporate stil"
+    },
+    {
+        "id": "anime_character",
+        "name": "Anime Karakter",
+        "icon": "🎌",
+        "category": "creative",
+        "template": "{karakter} anime karakteri. {ortam} ortamında, {stil} anime stili, yüksek detay.",
+        "variables": ["karakter", "ortam", "stil"],
+        "example": "Kılıçlı savaşçı anime karakteri, şato ortamında, shonen anime stili"
+    },
+    {
+        "id": "logo_design",
+        "name": "Logo Tasarımı",
+        "icon": "✏️",
+        "category": "commercial",
+        "template": "{marka} adlı {sektör} markası için modern minimalist logo. Temiz çizgiler, {renk} renk paleti.",
+        "variables": ["marka", "sektör", "renk"],
+        "example": "EcoTech adlı teknoloji markası için modern minimalist logo, yeşil-mavi renk paleti"
+    },
+    {
+        "id": "food_photo",
+        "name": "Yemek Fotoğrafı",
+        "icon": "🍽️",
+        "category": "commercial",
+        "template": "{yemek} yemeğinin profesyonel fotoğrafı. Food photography stili, doğal ışık, iştah açıcı sunum.",
+        "variables": ["yemek"],
+        "example": "Ev yapımı İtalyan pizzasının profesyonel fotoğrafı"
+    },
+    {
+        "id": "landscape",
+        "name": "Manzara",
+        "icon": "🏔️",
+        "category": "creative",
+        "template": "{lokasyon} manzarası. {zaman} zamanında, {hava} hava durumu, sinematik geniş açı, 8K detay.",
+        "variables": ["lokasyon", "zaman", "hava"],
+        "example": "Norveç fiyortları manzarası, gün batımında, puslu hava"
+    },
+    {
+        "id": "fashion",
+        "name": "Moda Fotoğrafı",
+        "icon": "👗",
+        "category": "commercial",
+        "template": "{kıyafet} giyen model. {lokasyon} lokasyonunda, {stil} moda fotoğrafı stili, editorial look.",
+        "variables": ["kıyafet", "lokasyon", "stil"],
+        "example": "Siyah elbise giyen model, Paris sokaklarında, haute couture moda fotoğrafı stili"
+    },
+    {
+        "id": "music_video",
+        "name": "Müzik Videosu Karesi",
+        "icon": "🎵",
+        "category": "creative",
+        "template": "{tür} müzik türünde bir müzik videosu karesi. {sahne} sahnesi, {atmosfer} atmosfer, sinematik renk grading.",
+        "variables": ["tür", "sahne", "atmosfer"],
+        "example": "Lo-fi hip hop türünde bir müzik videosu karesi. Yağmurlu gece sahnesi, nostaljik atmosfer"
+    }
+]
+
+
+@router.get("/templates")
+async def get_prompt_templates(
+    category: Optional[str] = None,
+    current_user: User = Depends(get_current_user_required)
+):
+    """Prompt template kütüphanesini döndür."""
+    templates = PROMPT_TEMPLATES
+    if category:
+        templates = [t for t in templates if t["category"] == category]
+    
+    categories = list(set(t["category"] for t in PROMPT_TEMPLATES))
+    return {
+        "templates": templates,
+        "categories": categories,
+        "total": len(templates)
+    }

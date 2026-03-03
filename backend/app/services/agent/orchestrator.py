@@ -979,6 +979,44 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
         except Exception as e:
             print(f"⚠️ Plugin context hatası: {e}")
         
+        # 9. Prompt öğrenme (geçmiş başarılı prompt'lar)
+        try:
+            from app.services.conversation_memory_service import conversation_memory
+            similar = await conversation_memory.find_similar_prompts(user_id, user_message, limit=3)
+            if similar:
+                prompt_ctx = "\n\n--- 💡 GEÇMİŞ BAŞARILI PROMPT'LAR ---\n"
+                prompt_ctx += "Bu kullanıcı benzer istekler için daha önce bu prompt'larla güzel sonuçlar aldı. İlham al:\n"
+                for idx, p in enumerate(similar, 1):
+                    prompt_ctx += f"{idx}. \"{p['prompt'][:100]}\" (skor: {p.get('score', '?')}, tip: {p.get('asset_type', '?')})\n"
+                extra_context += prompt_ctx
+                print(f"💡 Prompt learning eklendi: {len(similar)} referans")
+        except Exception as e:
+            print(f"⚠️ Prompt learning hatası: {e}")
+        
+        # 10. Model başarı istatistikleri (hangi model en iyi sonuç veriyor)
+        try:
+            model_events = await episodic_memory.recall(str(user_id), event_type="model_success", limit=50)
+            if model_events:
+                # Model başarı sayılarını hesapla
+                model_counts = {}
+                for event in model_events:
+                    meta = event.metadata or {}
+                    model = meta.get("model", "unknown")
+                    if model != "unknown":
+                        model_counts[model] = model_counts.get(model, 0) + 1
+                
+                if model_counts:
+                    # En başarılı 5 model
+                    top_models = sorted(model_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                    model_ctx = "\n\n--- 🏆 MODEL BAŞARI GEÇMİŞİ ---\n"
+                    model_ctx += "Bu kullanıcı bu modellerle en iyi sonuçları aldı (👍 sayısına göre):\n"
+                    for model, count in top_models:
+                        model_ctx += f"- {model}: {count} başarılı üretim\n"
+                    extra_context += model_ctx
+                    print(f"🏆 Model başarı istatistikleri eklendi: {len(top_models)} model")
+        except Exception as e:
+            print(f"⚠️ Model stats hatası: {e}")
+        
         return extra_context
     
     async def _process_response(

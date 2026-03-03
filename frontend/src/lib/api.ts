@@ -186,7 +186,7 @@ export async function sendMessage(
     // Dosya yoksa normal JSON gönder
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
             session_id: sessionId,
             message: message,
@@ -301,7 +301,9 @@ export async function sendMessageStream(
 }
 
 export async function getSessionHistory(sessionId: string): Promise<MessageResponse[]> {
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/messages`);
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/messages`, {
+        headers: getAuthHeaders(),
+    });
 
     if (!response.ok) {
         throw new Error('Failed to fetch session history');
@@ -314,7 +316,9 @@ export async function getSessionHistory(sessionId: string): Promise<MessageRespo
 // Uses user-based endpoint - entities are GLOBAL across all projects for a user
 export async function getEntities(sessionId: string): Promise<Entity[]> {
     // Use /entities/ endpoint which returns ALL user entities (not session-specific)
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/entities/?session_id=${sessionId}`);
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/entities/?session_id=${sessionId}`, {
+        headers: getAuthHeaders(),
+    });
 
     if (!response.ok) {
         throw new Error('Failed to fetch entities');
@@ -357,7 +361,9 @@ export async function createEntity(
 
 // Asset APIs
 export async function getAssets(sessionId: string): Promise<GeneratedAsset[]> {
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/assets`);
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/sessions/${sessionId}/assets`, {
+        headers: getAuthHeaders(),
+    });
 
     if (!response.ok) {
         throw new Error('Failed to fetch assets');
@@ -783,5 +789,38 @@ export async function generateGrid(request: GridGenerateRequest): Promise<GridGe
         const error = await response.json();
         throw new Error(error.detail || 'Grid generation failed');
     }
+    return response.json();
+}
+
+// ============== GERİ BİLDİRİM ==============
+
+export async function sendFeedback(messageId: string, score: number, reason?: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/feedback`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ message_id: messageId, score, reason }),
+    });
+    if (!response.ok) throw new Error('Failed to send feedback');
+    return response.json();
+}
+
+// ============== PROMPT TEMPLATE ==============
+
+export interface PromptTemplate {
+    id: string;
+    name: string;
+    icon: string;
+    category: string;
+    template: string;
+    variables: string[];
+    example: string;
+}
+
+export async function getPromptTemplates(category?: string): Promise<{ templates: PromptTemplate[]; categories: string[]; total: number }> {
+    const params = category ? `?category=${category}` : '';
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/templates${params}`, {
+        headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch prompt templates');
     return response.json();
 }
