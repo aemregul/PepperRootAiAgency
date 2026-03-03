@@ -1,6 +1,6 @@
 # Pepper Root AI Agency — Proje Dokümantasyonu
 
-> **Son Güncelleme:** 1 Mart 2026
+> **Son Güncelleme:** 3 Mart 2026
 > **Repo:** [github.com/aemregul/PepperRootAiAgency](https://github.com/aemregul/PepperRootAiAgency)
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
@@ -304,6 +304,7 @@ npm run dev
 | **25** | **27 Şubat** | **Admin Panel** — Model toggle sistemi, disabled model warning, AI Servisleri kaldırıldı |
 | **26** | **1 Mart** | **Plugin Marketplace** — 41 resmi plugin, API-driven filtre/sıralama, topluluk yayınlama |
 | **27** | **1 Mart** | **Plugin & Entity Guards, UX Temizliği** — Proje seçici popup, duplicate kontrolü, auto-publish, Entity Guard, Plugin Guard, sidebar hızlı silme, Assets Panel çoklu seçim & indirme |
+| **28** | **3 Mart** | **Agent Intelligence Upgrade** — Hafıza/tercih/episodic memory entegrasyonu, stream auth fix, unified context builder (`_build_enriched_context`), entity list & plugin context enjeksiyonu, auto-summary stream desteği |
 
 ---
 
@@ -313,7 +314,7 @@ npm run dev
 |---|---|
 | Agent Araç Sayısı | 36 |
 | AI Model Sayısı | 31 (admin toggle ile yönetilebilir) |
-| Toplam Faz | 27 (tümü tamamlandı) |
+| Toplam Faz | 28 (tümü tamamlandı) |
 | Backend Satır | ~15.000+ |
 | Frontend Satır | ~5.000+ |
 | Python | 3.14 |
@@ -327,3 +328,23 @@ npm run dev
 - [ ] Canlı ortam testleri
 - [ ] Redis production kurulumu
 - [ ] Rate limiting production ayarları
+- [ ] Sohbet içi geri bildirim mekanizması (👍/👎)
+- [ ] Model kullanım geçmişi tracking
+- [ ] System prompt sadeleştirme (guard'lara güvenme)
+
+---
+
+## 🧠 Agent Context Sistemi (Phase 28)
+
+`orchestrator.py` → `_build_enriched_context()` metodu hem `process_message` hem `process_message_stream` tarafından çağrılır.
+
+| # | Bileşen | Ne Enjekte Eder |
+|---|---|---|
+| 1 | Entity @tag çözümleme | Mesajdaki @tag'lerin detayları (fotoğraf URL dahil) |
+| 2 | Proje bağlamı | Aktif proje adı, kategori, açıklama |
+| 3 | Working Memory | Son 5 asset'in URL ve prompt'u |
+| 4 | Kullanıcı tercihleri | Aspect ratio, model, stil, auto-upscale |
+| 5 | Episodic memory | Önemli olaylar (tercih, oluşturma, geri bildirim) |
+| 6 | Core memory | Projeler arası uzun vadeli hafıza |
+| 7 | Entity listesi | Kullanıcının TÜM entity'leri (@tag ile eşleştirme) |
+| 8 | Plugin listesi | Projede yüklü eklentilerin stil bilgisi |

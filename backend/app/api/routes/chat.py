@@ -404,10 +404,11 @@ async def chat_with_files(
 @router.post("/stream")
 async def chat_stream(
     request: ChatRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Kullanıcı mesajını işle ve SSE ile stream et (ChatGPT tarzı)."""
-    print(f"🔴 STREAM ENDPOINT HIT! message={request.message[:50]}")
+    print(f"🔴 STREAM ENDPOINT HIT! message={request.message[:50]} user={current_user.id}")
     from sqlalchemy import asc
     import json
     
@@ -498,7 +499,8 @@ async def chat_stream(
                 user_message=actual_message,
                 session_id=session.id,
                 db=db,
-                conversation_history=conversation_history
+                conversation_history=conversation_history,
+                user_id=current_user.id
             ):
                 yield event
                 
@@ -544,6 +546,25 @@ async def chat_stream(
                 )
                 db.add(assistant_msg)
                 await db.commit()
+                
+                # === AUTO SUMMARY: Projeler arası hafıza (stream) ===
+                total_messages = len(conversation_history) + 2
+                if total_messages >= 10 and total_messages % 5 == 0 and session.user_id:
+                    try:
+                        from app.services.conversation_memory_service import conversation_memory
+                        summary_messages = conversation_history[-10:] + [
+                            {"role": "user", "content": actual_message},
+                            {"role": "assistant", "content": full_response}
+                        ]
+                        await conversation_memory.save_conversation_summary(
+                            user_id=session.user_id,
+                            session_id=session.id,
+                            messages=summary_messages,
+                            project_name=session.title
+                        )
+                        print(f"💾 Stream auto-summary kaydedildi (proje: {session.title}, mesaj: {total_messages})")
+                    except Exception as sum_err:
+                        print(f"⚠️ Stream auto-summary hatası: {sum_err}")
             else:
                 print("ℹ️ Stream yanıtı boş — arka plan görevi çalışıyor olabilir, DB'ye kayıt atlanıyor")
         except Exception as e:

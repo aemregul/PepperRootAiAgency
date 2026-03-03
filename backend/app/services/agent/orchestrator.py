@@ -20,7 +20,7 @@ from app.services.prompt_translator import translate_to_english, enhance_charact
 from app.services.context7.context7_service import context7_service
 from app.services.preferences_service import preferences_service
 from app.services.episodic_memory_service import episodic_memory
-from app.models.models import Session as SessionModel
+from app.models.models import Session as SessionModel, CreativePlugin
 
 # Global referans tutucu (FastAPI arka plan görevlerinin Garbage Collector tarafından silinmesini önler)
 _GLOBAL_BG_TASKS = set()
@@ -210,79 +210,14 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
         if len(conversation_history) > 15:
             conversation_history = await self._summarize_conversation(conversation_history)
         
-        # @tag'leri çözümle ve context oluştur
-        entity_context = await self._build_entity_context(db, session_id, user_message)
+        # user_id'yi session'dan al (tüm context bileşenleri için gerekli)
+        user_id = await get_user_id_from_session(db, session_id)
         
-        # System prompt'a entity context ekle
+        # Tüm context bileşenlerini tek seferde oluştur
         full_system_prompt = self.system_prompt
-        if entity_context:
-            full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
-        
-        # 📂 AKTİF PROJE BAĞLAMI
-        try:
-            session_result = await db.execute(
-                select(SessionModel).where(SessionModel.id == session_id)
-            )
-            active_session = session_result.scalar_one_or_none()
-            if active_session:
-                project_context = f"\n\n--- 📂 AKTİF PROJE ---\nProje Adı: {active_session.title}"
-                if active_session.description:
-                    project_context += f"\nAçıklama: {active_session.description}"
-                if active_session.category:
-                    project_context += f"\nKategori: {active_session.category}"
-                if active_session.project_data:
-                    project_context += f"\nProje Verileri: {active_session.project_data}"
-                full_system_prompt += project_context
-        except Exception as proj_error:
-            print(f"⚠️ Proje context hatası: {proj_error}")
-        
-        # 🧠 AKTİF OTURUM BAĞLAMI (Working Memory)
-        # Son üretilen assetleri context'e ekle, böylece "bunu düzenle" denildiğinde ne olduğu belli olur.
-        try:
-            recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
-            if recent_assets:
-                memory_context = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
-                memory_context += "Kullanıcı 'bunu düzenle', 'son görseli değiştir', 'videoyu farklı yap' derse BURADAKİ URL'leri kullan:\n"
-                
-                for idx, asset in enumerate(recent_assets, 1):
-                    asset_type_icon = "🎬" if asset.asset_type == "video" else "🖼️"
-                    thumb_info = f" (Thumbnail: {asset.thumbnail_url})" if asset.thumbnail_url else ""
-                    memory_context += f"{idx}. [{asset.asset_type.upper()}] {asset_type_icon} '{asset.prompt[:50]}...' \n   👉 URL: {asset.url}{thumb_info}\n"
-                
-                full_system_prompt += memory_context
-                print(f"🧠 Working Memory eklendi: {len(recent_assets)} asset")
-        except Exception as wm_error:
-            print(f"⚠️ Working memory hatası: {wm_error}")
-
-        # 🧠 KULLANICI TERCİHLERİNİ EKLE (Memory - Faz 2)
-        try:
-            user_id = await get_user_id_from_session(db, session_id)
-            if user_id:
-                prefs_prompt = await preferences_service.get_preferences_for_prompt(db, user_id)
-                if prefs_prompt:
-                    full_system_prompt += prefs_prompt
-        except Exception as pref_error:
-            print(f"⚠️ Tercih yükleme hatası: {pref_error}")
-        
-        # 🧠 EPİSODİC MEMORY EKLE (Faz 2 - Uzun vadeli hafıza)
-        try:
-            if user_id:
-                memory_prompt = await episodic_memory.get_context_for_prompt(str(user_id))
-                if memory_prompt:
-                    full_system_prompt += memory_prompt
-        except Exception as mem_error:
-            print(f"⚠️ Episodic memory hatası: {mem_error}")
-        
-        # 🧠 KULLANICI SEVİYESİ HAFIZA (Cross-Project Memory)
-        try:
-            if user_id:
-                from app.services.conversation_memory_service import conversation_memory
-                memory_context = await conversation_memory.build_memory_context(user_id)
-                if memory_context:
-                    full_system_prompt += f"\n\n--- 🧠 KULLANICI HAFIZASI (Projeler Arası) ---\nBu kullanıcıyı tanıyorsun. Geçmiş projelerden bildiklerin:\n{memory_context}"
-                    print(f"🧠 Cross-project memory eklendi")
-        except Exception as cmem_error:
-            print(f"⚠️ Conversation memory hatası: {cmem_error}")
+        enriched_context = await self._build_enriched_context(db, session_id, user_id, user_message)
+        if enriched_context:
+            full_system_prompt += enriched_context
         
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         uploaded_image_url = None
@@ -423,7 +358,8 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
         session_id: uuid.UUID,
         db: AsyncSession,
         conversation_history: list = None,
-        reference_image: str = None
+        reference_image: str = None,
+        user_id: uuid.UUID = None
     ):
         """
         Streaming versiyonu — SSE event'leri yield eder.
@@ -434,60 +370,24 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
         if conversation_history is None:
             conversation_history = []
         
-        # Aynı ön işleme adımları (process_message ile aynı)
+        # Conversation summarization
         if len(conversation_history) > 15:
             conversation_history = await self._summarize_conversation(conversation_history)
         
-        entity_context = await self._build_entity_context(db, session_id, user_message)
+        # user_id yoksa session'dan al (backward compat)
+        if not user_id:
+            try:
+                user_id = await get_user_id_from_session(db, session_id)
+            except Exception:
+                pass
+        
+        # Tüm context bileşenlerini tek seferde oluştur
         full_system_prompt = self.system_prompt
-        if entity_context:
-            full_system_prompt += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
+        if user_id:
+            enriched_context = await self._build_enriched_context(db, session_id, user_id, user_message)
+            if enriched_context:
+                full_system_prompt += enriched_context
         
-        # Proje bağlamı
-        try:
-            session_result = await db.execute(
-                select(SessionModel).where(SessionModel.id == session_id)
-            )
-            active_session = session_result.scalar_one_or_none()
-            if active_session:
-                project_context = f"\n\n--- 📂 AKTİF PROJE ---\nProje Adı: {active_session.title}"
-                if active_session.description:
-                    project_context += f"\nAçıklama: {active_session.description}"
-                if active_session.category:
-                    project_context += f"\nKategori: {active_session.category}"
-                if active_session.project_data:
-                    project_context += f"\nProje Verileri: {active_session.project_data}"
-                full_system_prompt += project_context
-        except Exception:
-            pass
-        
-        # Working memory
-        try:
-            recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
-            if recent_assets:
-                memory_context = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
-                memory_context += "Kullanıcı 'bunu düzenle', 'son görseli değiştir' derse BURADAKİ URL'leri kullan:\n"
-                for idx, asset in enumerate(recent_assets, 1):
-                    asset_type_icon = "🎬" if asset.asset_type == "video" else "🖼️"
-                    memory_context += f"{idx}. {asset_type_icon} {asset.asset_type}: {asset.url}\n"
-                    if asset.prompt:
-                        memory_context += f"   Prompt: {asset.prompt[:100]}\n"
-                full_system_prompt += memory_context
-        except Exception:
-            pass
-        
-        # Kullanıcı tercihlerini ekle
-        try:
-            user_id = await get_user_id_from_session(db, session_id)
-            if user_id:
-                user_prefs = await preferences_service.get_all_preferences(str(user_id))
-                if user_prefs:
-                    prefs_context = "\n\n--- 🎨 KULLANICI TERCİHLERİ ---\n"
-                    for key, value in user_prefs.items():
-                        prefs_context += f"- {key}: {value}\n"
-                    full_system_prompt += prefs_context
-        except Exception:
-            pass
         
         # Referans görsel
         uploaded_image_url = None
@@ -957,6 +857,129 @@ Sen akıllı bir asistansın. Conversation history'yi HER ZAMAN kontrol et ve ba
             )
         
         return "\n".join(context_parts)
+    
+    async def _build_enriched_context(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+        user_message: str
+    ) -> str:
+        """
+        Tüm bağlam bileşenlerini tek seferde oluştur.
+        Hem process_message hem process_message_stream tarafından çağrılır.
+        
+        Bileşenler:
+        1. Entity @tag çözümleme (mesajdaki @tag'ler)
+        2. Proje bağlamı (aktif proje adı, kategori)
+        3. Working Memory (son 5 asset)
+        4. Kullanıcı tercihleri (aspect ratio, model, stil)
+        5. Episodic memory (önemli olaylar)
+        6. Core memory (projeler arası hafıza)
+        7. Tüm entity listesi (karakter, lokasyon, marka)
+        8. Plugin listesi (projede yüklü eklentiler)
+        """
+        extra_context = ""
+        
+        # 1. @tag çözümleme (mevcut _build_entity_context)
+        entity_context = await self._build_entity_context(db, session_id, user_message)
+        if entity_context:
+            extra_context += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
+        
+        # 2. Proje bağlamı
+        try:
+            session_result = await db.execute(
+                select(SessionModel).where(SessionModel.id == session_id)
+            )
+            active_session = session_result.scalar_one_or_none()
+            if active_session:
+                project_context = f"\n\n--- 📂 AKTİF PROJE ---\nProje Adı: {active_session.title}"
+                if active_session.description:
+                    project_context += f"\nAçıklama: {active_session.description}"
+                if active_session.category:
+                    project_context += f"\nKategori: {active_session.category}"
+                if active_session.project_data:
+                    project_context += f"\nProje Verileri: {active_session.project_data}"
+                extra_context += project_context
+        except Exception as e:
+            print(f"⚠️ Proje context hatası: {e}")
+        
+        # 3. Working Memory (son üretilen asset'ler)
+        try:
+            recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
+            if recent_assets:
+                memory_ctx = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
+                memory_ctx += "Kullanıcı 'bunu düzenle', 'son görseli değiştir', 'videoyu farklı yap' derse BURADAKİ URL'leri kullan:\n"
+                for idx, asset in enumerate(recent_assets, 1):
+                    icon = "🎬" if asset.asset_type == "video" else "🖼️"
+                    thumb = f" (Thumbnail: {asset.thumbnail_url})" if asset.thumbnail_url else ""
+                    prompt_text = f"'{asset.prompt[:50]}...'" if asset.prompt else "'—'"
+                    memory_ctx += f"{idx}. [{asset.asset_type.upper()}] {icon} {prompt_text}\n   👉 URL: {asset.url}{thumb}\n"
+                extra_context += memory_ctx
+                print(f"🧠 Working Memory eklendi: {len(recent_assets)} asset")
+        except Exception as e:
+            print(f"⚠️ Working memory hatası: {e}")
+        
+        # 4. Kullanıcı tercihleri
+        try:
+            prefs_prompt = await preferences_service.get_preferences_for_prompt(db, user_id)
+            if prefs_prompt:
+                extra_context += prefs_prompt
+                print(f"📋 Kullanıcı tercihleri eklendi")
+        except Exception as e:
+            print(f"⚠️ Tercih yükleme hatası: {e}")
+        
+        # 5. Episodic memory
+        try:
+            memory_prompt = await episodic_memory.get_context_for_prompt(str(user_id))
+            if memory_prompt:
+                extra_context += memory_prompt
+                print(f"🧠 Episodic memory eklendi")
+        except Exception as e:
+            print(f"⚠️ Episodic memory hatası: {e}")
+        
+        # 6. Core memory (projeler arası hafıza)
+        try:
+            from app.services.conversation_memory_service import conversation_memory
+            core_memory = await conversation_memory.build_memory_context(user_id)
+            if core_memory:
+                extra_context += f"\n\n--- 🧠 KULLANICI HAFIZASI (Projeler Arası) ---\nBu kullanıcıyı tanıyorsun. Geçmiş projelerden bildiklerin:\n{core_memory}"
+                print(f"🧠 Cross-project memory eklendi")
+        except Exception as e:
+            print(f"⚠️ Conversation memory hatası: {e}")
+        
+        # 7. Tüm entity listesi (projeler arası — kullanıcının tüm entity'leri)
+        try:
+            all_entities = await entity_service.list_entities(db, user_id)
+            if all_entities:
+                entity_list_ctx = "\n\n--- 🎭 KULLANICININ ENTITY'LERİ ---\n"
+                entity_list_ctx += "Bu kullanıcının kayıtlı karakterleri, lokasyonları ve markaları. @tag kullanmadan da isimle eşleştir:\n"
+                for e in all_entities[:15]:  # Max 15 entity
+                    ref_info = " 📸" if e.reference_image_url else ""
+                    entity_list_ctx += f"- @{e.tag}: {e.name} ({e.entity_type}){ref_info}\n"
+                extra_context += entity_list_ctx
+                print(f"🎭 Entity context eklendi: {len(all_entities)} entity")
+        except Exception as e:
+            print(f"⚠️ Entity list hatası: {e}")
+        
+        # 8. Plugin listesi (aktif projedeki eklentiler)
+        try:
+            plugin_result = await db.execute(
+                select(CreativePlugin).where(CreativePlugin.session_id == session_id)
+            )
+            plugins = list(plugin_result.scalars().all())
+            if plugins:
+                plugin_ctx = "\n\n--- 🔌 PROJEDEKİ EKLENTİLER ---\n"
+                plugin_ctx += "Bu projede yüklü yaratıcı eklentiler. Kullanıcının isteğiyle eşleşen bir eklenti varsa stilini uygula:\n"
+                for p in plugins[:10]:  # Max 10 plugin
+                    style = p.config.get("style", "—") if p.config else "—"
+                    plugin_ctx += f"- {p.icon} {p.name}: {p.description or '—'} (stil: {style})\n"
+                extra_context += plugin_ctx
+                print(f"🔌 Plugin context eklendi: {len(plugins)} plugin")
+        except Exception as e:
+            print(f"⚠️ Plugin context hatası: {e}")
+        
+        return extra_context
     
     async def _process_response(
         self, 
