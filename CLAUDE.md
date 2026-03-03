@@ -305,6 +305,7 @@ npm run dev
 | **26** | **1 Mart** | **Plugin Marketplace** — 41 resmi plugin, API-driven filtre/sıralama, topluluk yayınlama |
 | **27** | **1 Mart** | **Plugin & Entity Guards, UX Temizliği** — Proje seçici popup, duplicate kontrolü, auto-publish, Entity Guard, Plugin Guard, sidebar hızlı silme, Assets Panel çoklu seçim & indirme |
 | **28** | **3 Mart** | **Agent Intelligence Upgrade** — Hafıza/tercih/episodic memory entegrasyonu, stream auth fix, unified context builder (`_build_enriched_context`), entity list & plugin context enjeksiyonu, auto-summary stream desteği |
+| **29** | **3 Mart** | **Security & Deploy Readiness** — Tüm endpoint'lere auth + ownership validation, CORS/FRONTEND_URL/BACKEND_URL env variable'lara taşındı, SECRET_KEY güvenlik uyarısı, 3 kullanılmayan servis silindi, `_process_chat` user izolasyonu |
 
 ---
 
@@ -314,7 +315,7 @@ npm run dev
 |---|---|
 | Agent Araç Sayısı | 36 |
 | AI Model Sayısı | 31 (admin toggle ile yönetilebilir) |
-| Toplam Faz | 28 (tümü tamamlandı) |
+| Toplam Faz | 29 (tümü tamamlandı) |
 | Backend Satır | ~15.000+ |
 | Frontend Satır | ~5.000+ |
 | Python | 3.14 |

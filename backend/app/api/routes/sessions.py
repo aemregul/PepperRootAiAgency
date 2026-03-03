@@ -20,12 +20,12 @@ router = APIRouter(prefix="/sessions", tags=["Oturumlar"])
 async def create_session(
     session_data: SessionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_required)
 ):
     """Yeni oturum oluştur."""
     try:
         new_session = Session(
-            user_id=current_user.id if current_user else None,
+            user_id=current_user.id,
             title=session_data.title or "Yeni Proje",
             description=session_data.description,
             category=session_data.category
@@ -47,17 +47,13 @@ async def list_sessions(
     skip: int = 0,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_required)
 ):
     """Oturumları listele (kullanıcıya özel)."""
-    query = select(Session).where(Session.is_active == True)
-    
-    # Kullanıcı giriş yapmışsa sadece onun session'larını göster
-    if current_user:
-        query = query.where(Session.user_id == current_user.id)
-    else:
-        # Giriş yapmamışsa sadece user_id=None olanları göster
-        query = query.where(Session.user_id == None)
+    query = select(Session).where(
+        Session.is_active == True,
+        Session.user_id == current_user.id
+    )
     
     result = await db.execute(
         query.order_by(Session.updated_at.desc())
@@ -70,11 +66,12 @@ async def list_sessions(
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(
     session_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Oturum detayı."""
     result = await db.execute(
-        select(Session).where(Session.id == session_id)
+        select(Session).where(Session.id == session_id, Session.user_id == current_user.id)
     )
     session = result.scalar_one_or_none()
     if not session:
@@ -85,9 +82,14 @@ async def get_session(
 @router.get("/{session_id}/messages", response_model=list[MessageResponse])
 async def get_session_messages(
     session_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Oturumdaki mesajları getir."""
+    # Session sahipliği doğrula
+    sess = await db.execute(select(Session).where(Session.id == session_id, Session.user_id == current_user.id))
+    if not sess.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Oturum bulunamadı")
     result = await db.execute(
         select(Message)
         .where(Message.session_id == session_id)
@@ -99,9 +101,13 @@ async def get_session_messages(
 @router.get("/{session_id}/entities", response_model=list[EntityResponse])
 async def get_session_entities(
     session_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Oturumdaki varlıkları getir."""
+    sess = await db.execute(select(Session).where(Session.id == session_id, Session.user_id == current_user.id))
+    if not sess.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Oturum bulunamadı")
     result = await db.execute(
         select(Entity)
         .where(Entity.session_id == session_id)
@@ -113,9 +119,13 @@ async def get_session_entities(
 @router.get("/{session_id}/assets", response_model=list[AssetResponse])
 async def get_session_assets(
     session_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Oturumdaki asset'leri getir."""
+    sess = await db.execute(select(Session).where(Session.id == session_id, Session.user_id == current_user.id))
+    if not sess.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Oturum bulunamadı")
     result = await db.execute(
         select(GeneratedAsset)
         .where(GeneratedAsset.session_id == session_id)
@@ -128,11 +138,12 @@ async def get_session_assets(
 async def update_session(
     session_id: UUID,
     session_data: SessionCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Proje bilgilerini güncelle (rename, description, category)."""
     result = await db.execute(
-        select(Session).where(Session.id == session_id)
+        select(Session).where(Session.id == session_id, Session.user_id == current_user.id)
     )
     session = result.scalar_one_or_none()
     if not session:
@@ -153,13 +164,14 @@ async def update_session(
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Oturumu çöp kutusuna taşı (soft delete)."""
     from datetime import datetime, timedelta
     
     result = await db.execute(
-        select(Session).where(Session.id == session_id)
+        select(Session).where(Session.id == session_id, Session.user_id == current_user.id)
     )
     session = result.scalar_one_or_none()
     if not session:
@@ -198,7 +210,8 @@ async def delete_session(
 @router.delete("/assets/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_asset(
     asset_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Asset sil (soft delete - çöp kutusuna taşı)."""
     from datetime import timedelta
@@ -257,7 +270,8 @@ class AssetRenameRequest(PydanticBaseModel):
 async def rename_asset(
     asset_id: UUID,
     data: AssetRenameRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Asset adını değiştir."""
     result = await db.execute(

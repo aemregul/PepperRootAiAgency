@@ -18,11 +18,16 @@ class Settings(BaseSettings):
     # API
     API_PREFIX: str = "/api/v1"
     
+    # URL'ler
+    FRONTEND_URL: str = "http://localhost:3000"
+    BACKEND_URL: str = "http://localhost:8000"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+    
     # Veritabanı
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/pepperroot"
     
     # Güvenlik
-    SECRET_KEY: str = "gizli-anahtar-production-da-degistir"
+    SECRET_KEY: str = "CHANGE-ME-IN-PRODUCTION"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     

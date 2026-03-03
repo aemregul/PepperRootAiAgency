@@ -9,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.models import Session as SessionModel
+from app.core.auth import get_current_user_required
+from app.models.models import Session as SessionModel, User
 from app.schemas.schemas import EntityCreate, EntityResponse
 from app.services.entity_service import entity_service
 
@@ -32,24 +33,23 @@ async def get_user_id_from_session(db: AsyncSession, session_id: UUID) -> UUID:
 async def create_entity(
     session_id: UUID,
     data: EntityCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """
     Yeni bir entity (karakter/mekan/nesne) oluşturur.
     
     Entity kullanıcıya bağlıdır - proje silinse bile entity kalır!
     """
-    user_id = await get_user_id_from_session(db, session_id)
-    
     entity = await entity_service.create_entity(
         db=db,
-        user_id=user_id,
+        user_id=current_user.id,
         entity_type=data.entity_type,
         name=data.name,
         description=data.description,
         attributes=data.attributes,
         reference_image_url=data.reference_image_url,
-        session_id=session_id  # Opsiyonel - hangi projede oluşturulduğu
+        session_id=session_id
     )
     return entity
 
@@ -60,19 +60,15 @@ async def list_entities(
     entity_type: Optional[str] = Query(None, description="Filtre: character, location, vb."),
     skip: int = Query(0, ge=0, description="Atlanacak kayıt sayısı (pagination)"),
     limit: int = Query(50, ge=1, le=100, description="Sayfa başına kayıt (max 100)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """
     Kullanıcının entity'lerini listeler (pagination destekli).
-    
-    - **skip**: Kaç kayıt atlanacak (offset)
-    - **limit**: Sayfa başına max kayıt (varsayılan 50, max 100)
     """
-    user_id = await get_user_id_from_session(db, session_id)
-    
     entities, total = await entity_service.list_entities_paginated(
         db=db,
-        user_id=user_id,
+        user_id=current_user.id,
         entity_type=entity_type,
         skip=skip,
         limit=limit
@@ -91,16 +87,13 @@ async def list_entities(
 async def get_entity_by_tag(
     session_id: UUID,
     tag: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """
     Tag ile entity arar (kullanıcının tüm entity'leri arasında).
-    
-    Tag formatı: @emre veya emre (@ opsiyonel)
     """
-    user_id = await get_user_id_from_session(db, session_id)
-    
-    entity = await entity_service.get_by_tag(db, user_id, tag)
+    entity = await entity_service.get_by_tag(db, current_user.id, tag)
     
     if not entity:
         raise HTTPException(status_code=404, detail=f"'{tag}' tag'i ile entity bulunamadı")
@@ -111,7 +104,8 @@ async def get_entity_by_tag(
 @router.delete("/{entity_id}", summary="Entity Sil")
 async def delete_entity(
     entity_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Entity siler."""
     success = await entity_service.delete_entity(db, entity_id)
@@ -126,7 +120,8 @@ async def delete_entity(
 async def update_entity(
     entity_id: UUID,
     name: str = Query(..., description="Yeni isim"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Entity ismini günceller."""
     entity = await entity_service.update_entity(db, entity_id, name=name)

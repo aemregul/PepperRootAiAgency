@@ -77,6 +77,10 @@ async def lifespan(app: FastAPI):
     
     print(f"✅ {settings.APP_NAME} hazır!")
     
+    # ⚠️ SECRET_KEY güvenlik uyarısı
+    if settings.SECRET_KEY == "CHANGE-ME-IN-PRODUCTION":
+        print(f"   ⚠️ UYARI: SECRET_KEY varsayılan değerde! .env dosyasında güvenli bir anahtar belirleyin.")
+    
     yield
     
     # Cleanup
@@ -92,14 +96,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS — origins from env
+allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

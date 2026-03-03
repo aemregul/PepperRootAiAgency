@@ -65,6 +65,7 @@ async def _process_chat(
     actual_message: str,
     reference_images_base64: Optional[List[str]],
     db: AsyncSession,
+    user_id,
     active_project_id: Optional[str] = None
 ) -> ChatResponse:
     """Chat işleme ortak logic. Per-project chat — session_id = proje."""
@@ -77,11 +78,11 @@ async def _process_chat(
             raise HTTPException(status_code=400, detail=f"Geçersiz session ID formatı: {actual_session_id}")
         
         result = await db.execute(
-            select(Session).where(Session.id == session_uuid)
+            select(Session).where(Session.id == session_uuid, Session.user_id == user_id)
         )
         session = result.scalar_one_or_none()
         if not session:
-            raise HTTPException(status_code=404, detail="Oturum bulunamadı")
+            raise HTTPException(status_code=404, detail="Oturum bulunamadı veya erişim yetkiniz yok")
     else:
         # Yeni anonim session oluştur
         session = Session(title="Yeni Sohbet")
@@ -308,7 +309,8 @@ async def _process_chat(
 @router.post("/", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Kullanıcı mesajını işle ve yanıt ver (JSON)."""
     return await _process_chat(
@@ -316,6 +318,7 @@ async def chat(
         actual_message=request.message,
         reference_images_base64=None,
         db=db,
+        user_id=current_user.id,
         active_project_id=str(request.active_project_id) if request.active_project_id else None
     )
 
@@ -327,7 +330,8 @@ async def chat_with_image(
     message: str = Form(...),
     reference_image: UploadFile = File(...),
     active_project_id: Optional[str] = Form(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Kullanıcı mesajını tek referans görsel ile işle (backward compat)."""
     image_content = await reference_image.read()
@@ -338,6 +342,7 @@ async def chat_with_image(
         actual_message=message,
         reference_images_base64=[reference_image_base64],
         db=db,
+        user_id=current_user.id,
         active_project_id=active_project_id
     )
 
@@ -349,7 +354,8 @@ async def chat_with_files(
     message: str = Form(...),
     reference_files: List[UploadFile] = File(...),
     active_project_id: Optional[str] = Form(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_required)
 ):
     """Kullanıcı mesajını birden fazla referans görsel ile işle (max 10)."""
     if len(reference_files) > 10:
@@ -396,6 +402,7 @@ async def chat_with_files(
         actual_message=message,
         reference_images_base64=images_base64,
         db=db,
+        user_id=current_user.id,
         active_project_id=active_project_id
     )
 
