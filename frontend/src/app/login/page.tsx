@@ -88,7 +88,7 @@ export default function LoginPage() {
                     className="flex items-center justify-center gap-3 mb-8 hover:opacity-80 transition-opacity"
                 >
                     <div className="relative">
-                        <span className="text-5xl">🫑</span>
+                        <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain" />
                         <div className="absolute -inset-1 bg-emerald-500/20 rounded-full blur-md -z-10" />
                     </div>
                     <div className="text-center">
@@ -150,8 +150,8 @@ export default function LoginPage() {
                                 type="button"
                                 onClick={() => setRememberMe(!rememberMe)}
                                 className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${rememberMe
-                                        ? 'bg-emerald-500 border-emerald-500'
-                                        : 'bg-gray-800/50 border-gray-600 hover:border-gray-500'
+                                    ? 'bg-emerald-500 border-emerald-500'
+                                    : 'bg-gray-800/50 border-gray-600 hover:border-gray-500'
                                     }`}
                             >
                                 {rememberMe && (
