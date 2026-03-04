@@ -319,6 +319,8 @@ npm run dev
 | **29** | **3 Mart** | **Security & Deploy Readiness** — Tüm endpoint'lere auth + ownership validation, CORS/FRONTEND_URL/BACKEND_URL env variable'lara taşındı, SECRET_KEY güvenlik uyarısı, 3 kullanılmayan servis silindi, `_process_chat` user izolasyonu |
 | **30** | **3 Mart** | **Smart Agent Features** — 👍/👎 Geri bildirim sistemi (episodic memory + prompt learning), benzer başarılı prompt referansları, model başarı istatistikleri, 10 prompt template, frontend feedback UI, tüm API çağrılarına auth header |
 | **31** | **4 Mart** | **Long Video Production Fix & Stability** — Aşağıdaki başlıkta detaylandırılmıştır |
+| **32** | **4 Mart** | **Grok Imagine Entegrasyonu** — `fal_plugin_v2.py` / `tools.py` Grok entegre edildi, admin panel dahil 33 model oldu |
+| **33** | **5 Mart** | **Autonomous Agency Features** — Long-Term RAG Persistence, Self-Reflection Auto-Correction (Vision), Brand Book Constraints, Multi-Agent Swarm (Copywriter Agent), Graceful Degradation / Task Queue |
 
 ---
 
