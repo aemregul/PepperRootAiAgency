@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   description: "AI ile görsel, video ve içerik üretimi",
   icons: {
     icon: "/favicon.ico",
+    apple: "/apple-icon.png",
   },
 };
 
