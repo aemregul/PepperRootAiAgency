@@ -1,6 +1,6 @@
 # Pepper Root AI Agency — Proje Dokümantasyonu
 
-> **Son Güncelleme:** 4 Mart 2026
+> **Son Güncelleme:** 5 Mart 2026
 > **Repo:** [github.com/aemregul/PepperRootAiAgency](https://github.com/aemregul/PepperRootAiAgency)
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
@@ -28,7 +28,7 @@ Pepper Root AI Agency, **agent-first** (ajantik) bir AI yaratıcı stüdyodur. K
 |---|---|
 | **Backend** | Python 3.14, FastAPI, SQLAlchemy, Alembic |
 | **Frontend** | Next.js 16.1.6, TypeScript, React |
-| **Veritabanı** | PostgreSQL (Docker container: `pepperroot-db`) |
+| **Veritabanı** | PostgreSQL (Lokal: Docker `pepperroot-db` / Canlı: Railway Postgres) |
 | **Cache** | Redis (opsiyonel — yoksa DB fallback) |
 | **Primary LLM** | OpenAI GPT-4o |
 | **Vision** | GPT-4o Vision, Claude Sonnet 4 |
@@ -283,17 +283,56 @@ cd /Users/emre/PepperRootAiAgency/frontend
 npm run dev
 ```
 
-### URL'ler
+### URL'ler (Lokal)
 | Servis | URL |
 |---|---|
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:8000 |
 | Swagger Docs | http://localhost:8000/docs |
 
-### Veritabanı
+### URL'ler (Canlı / Production)
+| Servis | URL |
+|---|---|
+| Frontend (Vercel) | https://pepper-root-ai-agency.vercel.app |
+| Frontend (.com.tr) | https://pepperrootaiagency.com.tr (DNS yayılması bekleniyor) |
+| Backend (Railway) | https://pepperrootaiagency-production.up.railway.app |
+| Backend Docs | https://pepperrootaiagency-production.up.railway.app/docs |
+
+### Veritabanı (Lokal)
 - Container: `pepperroot-db`
 - User/Password: `postgres/postgres`
 - Database: `pepperroot`, Port: `5432`
+
+### Veritabanı (Canlı — Railway Postgres)
+- Railway panelinden **Postgres kutucuğu → Data** sekmesinde tablolar görüntülenebilir
+- Railway panelinden **Postgres → Query** sekmesinde SQL sorguları çalıştırılabilir
+- Bağlantı bilgileri: **Postgres → Connect** sekmesinde
+
+### Canlı Deploy Komutları
+```bash
+# Vercel'e frontend deploy (kök dizinden)
+cd /Users/emre/PepperRootAiAgency
+npx vercel --prod --yes
+npx vercel alias <deployment-url> pepper-root-ai-agency.vercel.app
+
+# Railway backend otomatik deploy: GitHub'a push yapınca Railway otomatik algılar
+cd /Users/emre/PepperRootAiAgency/backend
+git add . && git commit -m "mesaj" && git push
+```
+
+### Railway Environment Variables
+| Değişken | Açıklama |
+|---|---|
+| `DATABASE_URL` | `${Postgres.DATABASE_URL}` — Railway referans değişkeni (kod otomatik `postgresql+asyncpg://` formatına çevirir) |
+| `OPENAI_API_KEY` | OpenAI API anahtarı |
+| `FAL_KEY` | fal.ai API anahtarı |
+| `GOOGLE_CLIENT_ID` | Google OAuth Client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret |
+| `GOOGLE_REDIRECT_URI` | `https://pepperrootaiagency-production.up.railway.app/api/v1/auth/google/callback` |
+| `FRONTEND_URL` | `https://pepper-root-ai-agency.vercel.app` |
+| `BACKEND_URL` | `https://pepperrootaiagency-production.up.railway.app` |
+| `ALLOWED_ORIGINS` | `https://pepper-root-ai-agency.vercel.app,https://pepperrootaiagency.com.tr` |
+| `USE_REDIS` | `false` (Railway'de Redis kurulmadı) |
 
 ---
 
@@ -321,6 +360,7 @@ npm run dev
 | **31** | **4 Mart** | **Long Video Production Fix & Stability** — Aşağıdaki başlıkta detaylandırılmıştır |
 | **32** | **4 Mart** | **Grok Imagine Entegrasyonu** — `fal_plugin_v2.py` / `tools.py` Grok entegre edildi, admin panel dahil 33 model oldu |
 | **33** | **5 Mart** | **Autonomous Agency Features** — Long-Term RAG Persistence, Self-Reflection Auto-Correction (Vision), Brand Book Constraints, Multi-Agent Swarm (Copywriter Agent), Graceful Degradation / Task Queue |
+| **34** | **5 Mart** | **Production Deploy** — Railway backend deploy (Nixpacks + Procfile), Vercel frontend deploy (CLI), PostgreSQL Railway Postgres bağlantısı, DATABASE_URL auto-convert (`postgresql://` → `postgresql+asyncpg://`), Alembic migration startup entegrasyonu, PORT `sh -c` wrapper, Google OAuth canlı ortam yapılandırması, `email-validator` dependency fix, CORS/ALLOWED_ORIGINS ayarları, Vercel alias yönetimi, logo → 🫑 emoji geri dönüşü |
 
 ---
 
@@ -329,10 +369,12 @@ npm run dev
 | Metrik | Değer |
 |---|---|
 | Agent Araç Sayısı | 36 |
-| AI Model Sayısı | 31 (admin toggle ile yönetilebilir) |
-| Toplam Faz | 31 (tümü tamamlandı) |
+| AI Model Sayısı | 33 (admin toggle ile yönetilebilir) |
+| Toplam Faz | 34 (tümü tamamlandı) |
 | Backend Satır | ~15.000+ |
 | Frontend Satır | ~5.000+ |
+| Canlı Backend | Railway (pepperrootaiagency-production.up.railway.app) |
+| Canlı Frontend | Vercel (pepper-root-ai-agency.vercel.app) |
 | Python | 3.14 |
 | Next.js | 16.1.6 |
 
@@ -340,14 +382,17 @@ npm run dev
 
 ## 📌 Eksikler / Yapılacaklar
 
-- [ ] **Deploy**: Railway (Backend) + Vercel (Frontend)
-- [ ] Canlı ortam testleri
-- [ ] Redis production kurulumu
-- [ ] Rate limiting production ayarları
+- [x] ~~**Deploy**: Railway (Backend) + Vercel (Frontend)~~ ✅ Phase 34
+- [x] ~~Canlı ortam testleri~~ ✅ Phase 34 — Google OAuth, DB migration, CORS doğrulandı
 - [x] ~~Sohbet içi geri bildirim mekanizması (👍/👎)~~ ✅ Phase 30
+- [ ] Redis production kurulumu (şu an `USE_REDIS=false`)
+- [ ] Rate limiting production ayarları
+- [ ] `.com.tr` domain DNS yayılması tamamlanması
 - [ ] Model kullanım geçmişi tracking
 - [ ] System prompt sadeleştirme (guard'lara güvenme)
 - [ ] Uzun video paralel üretim (karakter yoksa)
+- [ ] HTTPS SSL sertifikaları (Vercel otomatik yönetiyor)
+- [ ] Monitoring / Hata takip (Sentry vb.)
 
 ---
 
