@@ -392,12 +392,12 @@ git add . && git commit -m "mesaj" && git push
 - [x] ~~Sidebar biber ikonu ortalama~~ ✅ Genişlediğinde ortaya gelmesi
 - [x] ~~`.com.tr` domain DNS yayılması~~ ✅ A/CNAME kayıtları yapılandırıldı
 - [x] ~~HTTPS SSL sertifikaları~~ ✅ Vercel otomatik yönetiyor
-- [ ] Redis production kurulumu (şu an `USE_REDIS=false`)
-- [ ] Rate limiting production ayarları
-- [ ] Model kullanım geçmişi tracking
-- [ ] System prompt sadeleştirme (guard'lara güvenme)
+- [x] ~~Rate limiting~~ ✅ `rate_limit.py` (60/10/20 req/min)
+- [x] ~~Model kullanım geçmişi~~ ✅ `usage_tracker.py` (asset save otomatik log)
+- [x] ~~System prompt sadeleştirme~~ ✅ 132→66 satır, 15K→3.6K char (%76 azalma)
+- [x] ~~Monitoring / Hata takip~~ ✅ `monitoring.py` (istek süresi, hata log, yavaş uyarı)
+- [ ] Redis production kurulumu (kod hazır, Railway'de aktif edilecek)
 - [ ] Uzun video paralel üretim (karakter yoksa)
-- [ ] Monitoring / Hata takip (Sentry vb.)
 
 ---
 
