@@ -385,13 +385,18 @@ git add . && git commit -m "mesaj" && git push
 - [x] ~~**Deploy**: Railway (Backend) + Vercel (Frontend)~~ ✅ Phase 34
 - [x] ~~Canlı ortam testleri~~ ✅ Phase 34 — Google OAuth, DB migration, CORS doğrulandı
 - [x] ~~Sohbet içi geri bildirim mekanizması (👍/👎)~~ ✅ Phase 30
+- [x] ~~Beni hatırla butonu~~ ✅ Token süresi 30 güne uzatıldı
+- [x] ~~Soru vs üretim ayırımı~~ ✅ System prompt'a guard eklendi
+- [x] ~~Görsel duplikasyonu~~ ✅ ChatPanel'de markdown link/URL image stripping
+- [x] ~~Favicon biber ikonu~~ ✅ PNG favicon (Chrome çalışıyor, Safari cache sorunu)
+- [x] ~~Sidebar biber ikonu ortalama~~ ✅ Genişlediğinde ortaya gelmesi
+- [x] ~~`.com.tr` domain DNS yayılması~~ ✅ A/CNAME kayıtları yapılandırıldı
+- [x] ~~HTTPS SSL sertifikaları~~ ✅ Vercel otomatik yönetiyor
 - [ ] Redis production kurulumu (şu an `USE_REDIS=false`)
 - [ ] Rate limiting production ayarları
-- [ ] `.com.tr` domain DNS yayılması tamamlanması
 - [ ] Model kullanım geçmişi tracking
 - [ ] System prompt sadeleştirme (guard'lara güvenme)
 - [ ] Uzun video paralel üretim (karakter yoksa)
-- [ ] HTTPS SSL sertifikaları (Vercel otomatik yönetiyor)
 - [ ] Monitoring / Hata takip (Sentry vb.)
 
 ---
