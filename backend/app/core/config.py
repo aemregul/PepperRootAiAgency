@@ -47,9 +47,14 @@ class Settings(BaseSettings):
     STORAGE_TYPE: str = "local"
     STORAGE_PATH: str = "./uploads"
     
-    # Redis (Faz 2)
+    # Redis — REDIS_URL varsa otomatik aktif olur
     REDIS_URL: Optional[str] = None
-    USE_REDIS: bool = False
+    USE_REDIS: bool = False  # REDIS_URL set edilirse otomatik True olur
+    
+    @property
+    def redis_enabled(self) -> bool:
+        """Redis aktif mi? REDIS_URL varsa veya USE_REDIS=true ise aktif."""
+        return self.USE_REDIS or bool(self.REDIS_URL)
     
     # Pinecone Semantic Search
     PINECONE_API_KEY: Optional[str] = None

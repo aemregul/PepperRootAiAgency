@@ -19,8 +19,8 @@ async def lifespan(app: FastAPI):
     # Pluginleri yükle
     initialize_plugins()
     
-    # Redis bağlantısı
-    if settings.USE_REDIS:
+    # Redis bağlantısı (REDIS_URL varsa otomatik aktif)
+    if settings.redis_enabled:
         redis_connected = await cache.connect()
         if redis_connected:
             print("   ✅ Redis cache aktif")

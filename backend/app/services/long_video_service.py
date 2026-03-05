@@ -61,7 +61,7 @@ class LongVideoService:
     
     MAX_SEGMENT_DURATION = 10  # Saniye (API max 10s)
     MIN_SEGMENT_DURATION = 5   # Saniye
-    MAX_PARALLEL = 1           # Sıralı üretim (karakter tutarlılığı için zincirleme i2v)
+    MAX_PARALLEL = 3           # Paralel üretim (karakter referansı yoksa)
     MAX_RETRIES = 2            # Max retry per segment üretimi
     CROSSFADE_DURATION = 0.5   # Sahne geçiş süresi (saniye)
     
@@ -220,7 +220,7 @@ class LongVideoService:
                     roadmap_text += f"  {model_icon} Sahne {s.order + 1}: {s.prompt[:60]}... ({s.duration}s, {s.model})\n"
                 await progress_callback(5, roadmap_text)
             
-            # 1. Segment'leri paralel üret
+            # 1. Segment'leri üret (paralel veya sıralı)
             job.status = "processing"
             await self._generate_segments(job, progress_callback)
             
@@ -269,42 +269,83 @@ class LongVideoService:
             return {"success": False, "error": str(e)}
     
     async def _generate_segments(self, job: LongVideoJob, progress_callback=None):
-        """Segment'leri SIRALI üret — her sahne bir öncekinin son frame'inden başlar (karakter tutarlılığı)."""
+        """
+        Segment üretimi — akıllı paralel/sıralı seçim:
+        - Referans görseli olan segment'ler: SIRALI (karakter tutarlılığı, zincirleme i2v)
+        - Referans görseli olmayan segment'ler: PARALEL (3x hız)
+        """
         from app.services.plugins.fal_plugin_v2 import FalPluginV2
         fal = FalPluginV2()
         
         total_segments = len(job.segments)
-        last_frame_url = None  # Bir önceki sahnenin son karesi
         
-        for i, segment in enumerate(job.segments):
-            # Zincirleme i2v: önceki sahnenin son frame'ini referans olarak ver
-            if last_frame_url and not segment.reference_image_url:
-                segment.reference_image_url = last_frame_url
-                print(f"   🔗 Sahne {i+1}: Önceki sahnenin son karesi referans olarak verildi (i2v)")
+        # Herhangi bir segment'te referans görsel var mı kontrol et
+        has_reference = any(s.reference_image_url for s in job.segments)
+        
+        if has_reference:
+            # SIRALI üretim — karakter tutarlılığı için zincirleme i2v
+            print(f"   🔗 Sıralı üretim (karakter referansı mevcut)")
+            last_frame_url = None
             
-            await self._generate_single_segment(fal, segment, job.aspect_ratio)
+            for i, segment in enumerate(job.segments):
+                # Zincirleme i2v: önceki sahnenin son frame'ini referans olarak ver
+                if last_frame_url and not segment.reference_image_url:
+                    segment.reference_image_url = last_frame_url
+                    print(f"   🔗 Sahne {i+1}: Önceki sahnenin son karesi referans olarak verildi (i2v)")
+                
+                await self._generate_single_segment(fal, segment, job.aspect_ratio)
+                
+                # Başarılıysa son frame'ı çıkar
+                if segment.status == "completed" and segment.video_url:
+                    try:
+                        extracted = await self._extract_last_frame(segment.video_url)
+                        if extracted:
+                            last_frame_url = extracted
+                            print(f"   📸 Sahne {i+1} son frame çıkarıldı: {extracted[:50]}...")
+                    except Exception as e:
+                        print(f"   ⚠️ Son frame çıkarılamadı: {e}")
+                
+                # Progress güncelle
+                completed = sum(1 for s in job.segments if s.status == "completed")
+                job.progress = int((completed / total_segments) * 80)
+                
+                if progress_callback:
+                    await progress_callback(
+                        job.progress, 
+                        f"Sahne {completed}/{total_segments} tamamlandı"
+                    )
+                
+                print(f"📊 Long Video Progress: {completed}/{total_segments} segment")
+        else:
+            # PARALEL üretim — karakter yok, bağımsız sahneler
+            print(f"   ⚡ Paralel üretim ({self.MAX_PARALLEL} eşzamanlı, {total_segments} segment)")
             
-            # Başarılıysa son frame'ı çıkar
-            if segment.status == "completed" and segment.video_url:
-                try:
-                    extracted = await self._extract_last_frame(segment.video_url)
-                    if extracted:
-                        last_frame_url = extracted
-                        print(f"   📸 Sahne {i+1} son frame çıkarıldı: {extracted[:50]}...")
-                except Exception as e:
-                    print(f"   ⚠️ Son frame çıkarılamadı: {e}")
-            
-            # Progress güncelle
-            completed = sum(1 for s in job.segments if s.status == "completed")
-            job.progress = int((completed / total_segments) * 80)
-            
-            if progress_callback:
-                await progress_callback(
-                    job.progress, 
-                    f"Sahne {completed}/{total_segments} tamamlandı"
-                )
-            
-            print(f"📊 Long Video Progress: {completed}/{total_segments} segment")
+            # Batch'ler halinde paralel üret
+            for batch_start in range(0, total_segments, self.MAX_PARALLEL):
+                batch = job.segments[batch_start:batch_start + self.MAX_PARALLEL]
+                batch_num = batch_start // self.MAX_PARALLEL + 1
+                total_batches = (total_segments + self.MAX_PARALLEL - 1) // self.MAX_PARALLEL
+                
+                print(f"   🚀 Batch {batch_num}/{total_batches}: {len(batch)} segment paralel üretiliyor...")
+                
+                # Paralel üret
+                tasks = [
+                    self._generate_single_segment(fal, segment, job.aspect_ratio)
+                    for segment in batch
+                ]
+                await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Progress güncelle
+                completed = sum(1 for s in job.segments if s.status == "completed")
+                job.progress = int((completed / total_segments) * 80)
+                
+                if progress_callback:
+                    await progress_callback(
+                        job.progress, 
+                        f"Sahne {completed}/{total_segments} tamamlandı (paralel)"
+                    )
+                
+                print(f"📊 Long Video Progress: {completed}/{total_segments} segment")
     
     async def _extract_last_frame(self, video_url: str) -> str:
         """Video'nun son karesini çıkar, fal storage'a yükle, URL döndür."""
