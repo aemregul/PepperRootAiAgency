@@ -396,8 +396,8 @@ git add . && git commit -m "mesaj" && git push
 - [x] ~~Model kullanım geçmişi~~ ✅ `usage_tracker.py` (asset save otomatik log)
 - [x] ~~System prompt sadeleştirme~~ ✅ 132→66 satır, 15K→3.6K char (%76 azalma)
 - [x] ~~Monitoring / Hata takip~~ ✅ `monitoring.py` (istek süresi, hata log, yavaş uyarı)
-- [ ] Redis production kurulumu (kod hazır, Railway'de aktif edilecek)
-- [ ] Uzun video paralel üretim (karakter yoksa)
+- [x] ~~Redis production kurulumu~~ ✅ `redis_enabled` auto-detect, Railway'de REDIS_URL verilince aktif
+- [x] ~~Uzun video paralel üretim~~ ✅ Karakter yoksa 3x paralel, varsa sıralı (i2v zincirleme)
 
 ---
 
