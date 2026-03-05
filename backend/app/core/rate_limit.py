@@ -54,8 +54,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path in ("/health", "/", "/docs", "/openapi.json") or path.startswith("/_next"):
             return await call_next(request)
 
-        # WebSocket limitlenmez
-        if path.startswith("/ws/"):
+        # WebSocket ve SSE streaming limitlenmez (uzun bağlantılar)
+        if path.startswith("/ws/") or path.endswith("/stream"):
             return await call_next(request)
 
         ip = self._get_client_ip(request)
