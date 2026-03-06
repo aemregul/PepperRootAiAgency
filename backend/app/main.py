@@ -134,19 +134,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate Limiting
-from app.core.rate_limit import RateLimitMiddleware
-app.add_middleware(
-    RateLimitMiddleware,
-    general_limit=60,   # 60 istek/dakika genel
-    ai_limit=10,        # 10 istek/dakika AI üretim
-    auth_limit=20,      # 20 istek/dakika auth
-)
+# Rate Limiting — DEVRE DIŞI (production sorunlarına neden oldu)
+# from app.core.rate_limit import RateLimitMiddleware
+# app.add_middleware(RateLimitMiddleware, general_limit=60, ai_limit=10, auth_limit=20)
 
-# Monitoring & Error Tracking
-from app.core.monitoring import MonitoringMiddleware
-_monitoring = MonitoringMiddleware(app, slow_threshold_ms=5000)
-app.add_middleware(MonitoringMiddleware, slow_threshold_ms=5000)
+# Monitoring — DEVRE DIŞI (production sorunlarına neden oldu)
+# from app.core.monitoring import MonitoringMiddleware
+# app.add_middleware(MonitoringMiddleware, slow_threshold_ms=5000)
 
 # API Route'ları
 app.include_router(auth.router, prefix=settings.API_PREFIX)  # Auth first
