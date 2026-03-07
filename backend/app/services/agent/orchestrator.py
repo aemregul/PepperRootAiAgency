@@ -2227,6 +2227,16 @@ Konuşma:
         except Exception as e:
             print(f"❌ Background video error: {e}")
             try:
+                from app.services.progress_service import progress_service
+                await progress_service.send_error(
+                    session_id=session_id,
+                    task_type="video",
+                    error=str(e)
+                )
+            except Exception as ws_err:
+                print(f"⚠️ Background video WS error bildirimi başarısız: {ws_err}")
+
+            try:
                 from app.core.database import async_session_maker
                 async with async_session_maker() as db:
                     from app.models.models import Message
@@ -2247,7 +2257,8 @@ Konuşma:
             image_url = params.get("image_url")
             duration = params.get("duration", "5")
             aspect_ratio = params.get("aspect_ratio", "16:9")
-            model = params.get("model", "veo")
+            # Stabilite önceliği: model verilmezse daha güvenilir kısa video hattı olan Kling'i kullan.
+            model = params.get("model") or "kling"
             
             # ⛔ 10s üstü videolar için plan zorunlu — generate_long_video'ya yönlendir
             if int(duration) > 10:
@@ -2424,6 +2435,16 @@ Konuşma:
                     await db.commit()
         except Exception as e:
             print(f"❌ Background long video error: {e}")
+            try:
+                from app.services.progress_service import progress_service
+                await progress_service.send_error(
+                    session_id=session_id,
+                    task_type="long_video",
+                    error=str(e)
+                )
+            except Exception as ws_err:
+                print(f"⚠️ Background long video WS error bildirimi başarısız: {ws_err}")
+
             try:
                 from app.core.database import async_session_maker
                 async with async_session_maker() as db:
@@ -5767,4 +5788,3 @@ SADECE JSON döndür, başka açıklama yazma."""
 
 # Singleton instance
 agent = AgentOrchestrator()
-

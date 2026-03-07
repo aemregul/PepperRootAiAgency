@@ -11,6 +11,47 @@ from app.models.models import UserPreferences
 
 class PreferencesService:
     """Kullanıcı tercihlerini yönetir."""
+
+    def _format_learned_preferences_for_prompt(self, learned: dict) -> list[str]:
+        """Öğrenilmiş tercihleri prompt'a uygun maddelere dönüştür."""
+        if not learned:
+            return []
+
+        category_labels = {
+            "style": "Kalıcı stil tercihleri",
+            "identity": "Kullanıcı kimliği / bağlam",
+            "brand": "Marka kuralları",
+            "general": "Genel notlar",
+            "workflow": "Çalışma biçimi",
+            "preferred_colors": "Tercih edilen renkler",
+        }
+
+        prompt_lines = []
+
+        for category, raw_values in learned.items():
+            if raw_values is None:
+                continue
+
+            values = raw_values if isinstance(raw_values, list) else [raw_values]
+            cleaned_values = []
+
+            for value in values:
+                if isinstance(value, str):
+                    text = value.strip()
+                else:
+                    text = str(value).strip()
+
+                if text:
+                    cleaned_values.append(text)
+
+            if not cleaned_values:
+                continue
+
+            label = category_labels.get(category, category.replace("_", " ").title())
+            for value in cleaned_values[:5]:
+                prompt_lines.append(f"- {label}: {value}")
+
+        return prompt_lines
     
     async def get_preferences(self, db: AsyncSession, user_id: uuid.UUID) -> dict:
         """
@@ -150,8 +191,10 @@ class PreferencesService:
             prompt_parts.append(f"- Favori karakterler/mekanlar: {favs}")
         
         learned = prefs.get('learned', {})
-        if learned.get('preferred_colors'):
-            prompt_parts.append(f"- Tercih edilen renkler: {', '.join(learned['preferred_colors'][:3])}")
+        learned_lines = self._format_learned_preferences_for_prompt(learned)
+        if learned_lines:
+            prompt_parts.append("## 🧠 ÖĞRENİLMİŞ TERCİHLER VE KURALLAR")
+            prompt_parts.extend(learned_lines)
         
         return "\n".join(prompt_parts)
 

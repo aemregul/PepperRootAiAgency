@@ -1022,8 +1022,9 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                 // 🔥 SSE Streaming — ChatGPT tarzı token token yanıt
                 const messageId = (Date.now() + 1).toString();
                 let messageCreated = false;
-                let charQueue: string[] = [];
+                const charQueue: string[] = [];
                 let isProcessingQueue = false;
+                let streamErrorText: string | null = null;
 
                 // Karakter kuyruğunu ChatGPT hızında işle (harf harf)
                 const processCharQueue = () => {
@@ -1124,6 +1125,31 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     },
                     onError: (error: string) => {
                         console.error('Stream error:', error);
+                        streamErrorText = error || "Mesaj işlenirken bir hata oluştu.";
+                        cleanupTimers();
+                        setIsLoading(false);
+                        setLoadingStatus("");
+                        setError(streamErrorText);
+
+                        if (!messageCreated) {
+                            messageCreated = true;
+                            const assistantMessage: Message = {
+                                id: messageId,
+                                role: "assistant",
+                                content: `Üzgünüm, işlem sırasında hata oluştu: ${streamErrorText}`,
+                                timestamp: new Date(),
+                            };
+                            setMessages((prev) => [...prev, assistantMessage]);
+                            return;
+                        }
+
+                        setMessages((prev) =>
+                            prev.map((msg) =>
+                                msg.id === messageId && !msg.content.trim()
+                                    ? { ...msg, content: `Üzgünüm, işlem sırasında hata oluştu: ${streamErrorText}` }
+                                    : msg
+                            )
+                        );
                     },
                 }, abortControllerRef.current.signal);
 

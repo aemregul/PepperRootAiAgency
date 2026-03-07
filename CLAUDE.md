@@ -1,6 +1,6 @@
 # Pepper Root AI Agency — Proje Dokümantasyonu
 
-> **Son Güncelleme:** 6 Mart 2026
+> **Son Güncelleme:** 7 Mart 2026
 > **Repo:** [github.com/aemregul/PepperRootAiAgency](https://github.com/aemregul/PepperRootAiAgency)
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
@@ -38,6 +38,58 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 - Kullanıcının istediği değişikliği yap, ekstra "iyileştirme" ekleme.
 - Çalışan sisteme müdahale etme — "daha iyi olur" diye değişiklik yapma.
 - Bir sorun çözülmüyorsa zorlamadan kullanıcıyla konuş, birlikte karar verin.
+
+### 6. Öncelik: Stabilite
+- Yeni özellik eklemeden önce mevcut sistemin **chat yanıtı**, **kısa video üretimi**, **uzun video üretimi** ve **gerçek zamanlı hata bildirimi** uçtan uca çalışıyor olmalı.
+- Demo / sunum öncesi özellikle şu akışlar yerelde doğrulanmalı:
+  - Düz metin sohbeti
+  - SSE streaming yanıtı
+  - 5 saniyelik kısa video üretimi
+  - Uzun video başlatma + WebSocket progress/error/complete bildirimi
+- Kullanıcı tarafında "yanıt vermedi" veya "asılı kaldı" hissi oluşturan sessiz hatalar kritik bug olarak ele alınmalı.
+
+---
+
+## 🔧 Son Stabilizasyon Çalışması (7 Mart 2026)
+
+### Amaç
+- Yeni özellik değil, mevcut demoda bozulan akışları tekrar güvenilir hale getirmek
+- Özellikle:
+  - Chat bazen yanıt vermiyor gibi görünüyordu
+  - Video üretimi başarısız olduğunda kullanıcıya net hata dönmüyordu
+  - Kısa video üretiminde sistem gereksiz şekilde kırılgan servis yoluna düşebiliyordu
+
+### Yapılan Düzeltmeler
+- **Frontend SSE hata görünürlüğü düzeltildi**
+  - Dosya: `frontend/src/components/ChatPanel.tsx`
+  - Sorun: Backend `event: error` gönderse bile frontend bunu sadece console'a yazıyordu, kullanıcı chat içinde hata görmüyordu.
+  - Düzeltme: SSE hata event'i artık UI'da görünür hata mesajına çevriliyor.
+
+- **Arka plan video crash'lerinde WebSocket hata bildirimi eklendi**
+  - Dosya: `backend/app/services/agent/orchestrator.py`
+  - Sorun: `_run_video_bg` ve `_run_long_video_bg` exception aldığında DB'ye hata mesajı yazılsa da canlı progress kanalına hata gitmiyordu.
+  - Düzeltme: Crash durumunda `progress_service.send_error(...)` çağrılıyor.
+
+- **Kısa video varsayılan modeli daha güvenilir hatta alındı**
+  - Dosya: `backend/app/services/agent/orchestrator.py`
+  - Sorun: Kısa video tool çağrısında model gelmezse varsayılan olarak `veo` kullanılıyordu; bu da sistemi gereksiz şekilde Google/Gemini hattına bağımlı yapıyordu.
+  - Düzeltme: Varsayılan model `kling` yapıldı.
+
+- **Agent prompt hafızasında DB öğrenilmiş tercihler görünür hale getirildi**
+  - Dosya: `backend/app/services/preferences_service.py`
+  - Not: Bu değişiklik stabilite dışı ama kaybolmaması için kayıt altına alındı. `manage_core_memory` ile kaydedilen `learned_preferences` verileri artık prompt context'e açık şekilde ekleniyor.
+
+### Yapılan Doğrulamalar
+- `backend/venv/bin/python -m py_compile backend/app/services/agent/orchestrator.py`
+- `backend/venv/bin/python -m py_compile backend/app/services/preferences_service.py`
+- `backend/venv/bin/pytest backend/tests/test_preferences_service.py`
+- `frontend`: `ChatPanel.tsx` için lint çalıştırıldı, yeni error yok; dosyada mevcut eski warning'ler devam ediyor.
+
+### Halen Doğrulanması Gerekenler
+- Lokal canlı akışta düz metin chat isteği
+- Lokal canlı akışta kısa video üretimi
+- Lokal canlı akışta uzun video başlatma + progress / complete bildirimi
+- Branch deploy sonrası Vercel/Railway üzerinde yeniden test
 
 ---
 
