@@ -9,8 +9,11 @@ from typing import List
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
+import asyncio
 import base64
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +22,21 @@ from app.core.auth import get_current_user, get_current_user_required
 from app.models.models import Session, Message, User
 from app.schemas.schemas import ChatRequest, ChatResponse, MessageResponse, AssetResponse, EntityResponse
 from app.services.agent.orchestrator import agent
+from app.services.user_error_formatter import format_user_error_message
 
 router = APIRouter(prefix="/chat", tags=["Sohbet"])
+
+
+def _extract_inline_reference_media(message: str) -> tuple[str, Optional[str], Optional[str]]:
+    """Frontend'in eklediği markdown referans linklerini ayrıştır."""
+    if not message:
+        return message, None, None
+
+    video_match = re.search(r"\[Referans Video\]\((https?://[^)]+)\)", message, flags=re.IGNORECASE)
+    audio_match = re.search(r"\[Referans Ses\]\((https?://[^)]+)\)", message, flags=re.IGNORECASE)
+
+    cleaned = re.sub(r"\n?\n?\[Referans (?:Video|Ses)\]\((https?://[^)]+)\)", "", message, flags=re.IGNORECASE).strip()
+    return cleaned, video_match.group(1) if video_match else None, audio_match.group(1) if audio_match else None
 
 
 @router.get("/main-session")
@@ -65,12 +81,16 @@ async def _process_chat(
     actual_message: str,
     reference_images_base64: Optional[List[str]],
     preuploaded_reference_urls: Optional[List[str]],
+    reference_video_url: Optional[str],
     db: AsyncSession,
     user_id,
     active_project_id: Optional[str] = None
 ) -> ChatResponse:
     """Chat işleme ortak logic. Per-project chat — session_id = proje."""
     
+    actual_message, inline_reference_video_url, inline_reference_audio_url = _extract_inline_reference_media(actual_message)
+    effective_reference_video_url = reference_video_url or inline_reference_video_url
+
     # Session al veya oluştur
     if actual_session_id:
         try:
@@ -97,7 +117,11 @@ async def _process_chat(
         session_id=session.id,
         role="user",
         content=actual_message,
-        metadata_={"has_reference_image": bool(reference_image_count), "image_count": reference_image_count} if reference_image_count else {}
+        metadata_={
+            **({"has_reference_image": bool(reference_image_count), "image_count": reference_image_count} if reference_image_count else {}),
+            **({"reference_video_url": effective_reference_video_url} if effective_reference_video_url else {}),
+            **({"reference_audio_url": inline_reference_audio_url} if inline_reference_audio_url else {}),
+        }
     )
     db.add(user_message)
     await db.flush()
@@ -186,6 +210,7 @@ async def _process_chat(
             reference_images=reference_images_base64,
             uploaded_reference_urls=preuploaded_reference_urls,
             last_reference_urls=last_reference_urls_from_history,
+            reference_video_url=effective_reference_video_url,
         )
     except Exception as e:
         import traceback
@@ -326,6 +351,7 @@ async def chat(
         actual_message=request.message,
         reference_images_base64=None,
         preuploaded_reference_urls=None,
+        reference_video_url=request.reference_video_url,
         db=db,
         user_id=current_user.id,
         active_project_id=str(request.active_project_id) if request.active_project_id else None
@@ -351,6 +377,7 @@ async def chat_with_image(
         actual_message=message,
         reference_images_base64=[reference_image_base64],
         preuploaded_reference_urls=None,
+        reference_video_url=None,
         db=db,
         user_id=current_user.id,
         active_project_id=active_project_id
@@ -412,6 +439,7 @@ async def chat_with_files(
         actual_message=message,
         reference_images_base64=images_base64,
         preuploaded_reference_urls=[url for url, _ in uploaded_urls] if uploaded_urls else None,
+        reference_video_url=None,
         db=db,
         user_id=current_user.id,
         active_project_id=active_project_id
@@ -432,7 +460,8 @@ async def chat_stream(
     
     actual_session_id = str(request.session_id) if request.session_id else None
     active_project_id = str(request.active_project_id) if request.active_project_id else None
-    actual_message = request.message
+    actual_message, inline_reference_video_url, inline_reference_audio_url = _extract_inline_reference_media(request.message)
+    effective_reference_video_url = request.reference_video_url or inline_reference_video_url
     
     # Session al
     if actual_session_id:
@@ -455,10 +484,14 @@ async def chat_stream(
         session_id=session.id,
         role="user",
         content=actual_message,
-        metadata_={"has_reference_image": True} if actual_message and "[REFERANS GÖRSEL URL:" in actual_message else {}
+        metadata_={
+            **({"has_reference_image": True} if actual_message and "[REFERANS GÖRSEL URL:" in actual_message else {}),
+            **({"reference_video_url": effective_reference_video_url} if effective_reference_video_url else {}),
+            **({"reference_audio_url": inline_reference_audio_url} if inline_reference_audio_url else {}),
+        }
     )
     db.add(user_msg)
-    await db.flush()
+    await db.commit()
     await db.refresh(user_msg)
     
     # Geçmiş mesajları çek
@@ -505,12 +538,70 @@ async def chat_stream(
     
     if len(conversation_history) > 20:
         conversation_history = conversation_history[-20:]
+
+    # Stream kesilse bile chat mesajı tamamen kaybolmasın diye
+    # assistant mesajını baştan placeholder olarak oluştur.
+    assistant_msg = Message(
+        session_id=session.id,
+        role="assistant",
+        content="",
+        metadata_={"streamed": True, "pending": True}
+    )
+    db.add(assistant_msg)
+    await db.commit()
+    await db.refresh(assistant_msg)
     
     async def event_generator():
         full_response = ""
         all_images = []
         all_videos = []
         all_entities = []
+        stream_error_text = None
+        last_persisted_len = 0
+        last_image_count = 0
+        last_video_count = 0
+
+        async def persist_stream_message(force: bool = False):
+            nonlocal last_persisted_len, last_image_count, last_video_count
+
+            should_persist_text = bool(full_response) and (
+                force or last_persisted_len == 0 or len(full_response) - last_persisted_len >= 80
+            )
+            should_persist_media = (
+                force or len(all_images) != last_image_count or len(all_videos) != last_video_count
+            )
+            should_persist_error = force and bool(stream_error_text)
+
+            if not (should_persist_text or should_persist_media or should_persist_error):
+                return
+
+            assistant_msg.content = full_response or stream_error_text or assistant_msg.content or ""
+            assistant_meta = dict(assistant_msg.metadata_ or {})
+            assistant_meta["streamed"] = True
+            assistant_meta["pending"] = not force and not stream_error_text
+
+            if all_images:
+                assistant_meta["images"] = all_images
+            else:
+                assistant_meta.pop("images", None)
+
+            if all_videos:
+                assistant_meta["videos"] = all_videos
+            else:
+                assistant_meta.pop("videos", None)
+
+            if stream_error_text:
+                assistant_meta["stream_error"] = True
+            else:
+                assistant_meta.pop("stream_error", None)
+
+            assistant_msg.metadata_ = assistant_meta
+            flag_modified(assistant_msg, "metadata_")
+            await db.commit()
+
+            last_persisted_len = len(full_response)
+            last_image_count = len(all_images)
+            last_video_count = len(all_videos)
         
         try:
             async for event in agent.process_message_stream(
@@ -518,7 +609,8 @@ async def chat_stream(
                 session_id=session.id,
                 db=db,
                 conversation_history=conversation_history,
-                user_id=current_user.id
+                user_id=current_user.id,
+                reference_video_url=effective_reference_video_url,
             ):
                 yield event
                 
@@ -528,43 +620,45 @@ async def chat_stream(
                     try:
                         token = json.loads(data_line)
                         full_response += token
+                        if not last_persisted_len or len(full_response) - last_persisted_len >= 80:
+                            await persist_stream_message()
                     except:
                         pass
                 elif event.startswith("event: assets"):
                     data_line = event.split("data: ", 1)[1].strip()
                     try:
                         all_images = json.loads(data_line)
+                        await persist_stream_message()
                     except:
                         pass
                 elif event.startswith("event: videos"):
                     data_line = event.split("data: ", 1)[1].strip()
                     try:
                         all_videos = json.loads(data_line)
+                        await persist_stream_message()
                     except:
                         pass
+        except asyncio.CancelledError:
+            print("⚠️ Stream client tarafından kapatıldı")
+            try:
+                if full_response or all_images or all_videos:
+                    await persist_stream_message(force=True)
+                else:
+                    await db.delete(assistant_msg)
+                    await db.commit()
+                    print("ℹ️ Boş placeholder mesaj client disconnect nedeniyle silindi")
+            except Exception as cancel_err:
+                print(f"⚠️ Stream disconnect cleanup hatası: {cancel_err}")
+            raise
         except Exception as e:
-            yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
+            stream_error_text = str(e)
+            yield f"event: error\ndata: {json.dumps(format_user_error_message(stream_error_text, 'chat'))}\n\n"
         
-        # Yanıtı DB'ye kaydet — üretilen görsellerin URL'lerini de mesaja ekle
+        # Yanıtı finalize et — placeholder zaten başta açıldı, burada update ediyoruz.
         try:
-            # Boş yanıt durumunda: video/görsel arka planda üretiliyorsa placeholder koyma
-            # Sadece gerçekten content veya media varsa kaydet
-            if full_response or all_images or all_videos:
-                enriched_response = full_response or ""
-                
-                assistant_msg = Message(
-                    session_id=session.id,
-                    role="assistant",
-                    content=enriched_response,
-                    metadata_={
-                        "images": all_images,
-                        "videos": all_videos,
-                        "streamed": True
-                    } if all_images or all_videos else {"streamed": True}
-                )
-                db.add(assistant_msg)
-                await db.commit()
-                
+            if full_response or all_images or all_videos or stream_error_text:
+                await persist_stream_message(force=True)
+
                 # === AUTO SUMMARY: Projeler arası hafıza (stream) ===
                 total_messages = len(conversation_history) + 2
                 if total_messages >= 10 and total_messages % 5 == 0 and session.user_id:
@@ -589,7 +683,9 @@ async def chat_stream(
                     except Exception as sum_err:
                         print(f"⚠️ Stream auto-summary hatası: {sum_err}")
             else:
-                print("ℹ️ Stream yanıtı boş — arka plan görevi çalışıyor olabilir, DB'ye kayıt atlanıyor")
+                await db.delete(assistant_msg)
+                await db.commit()
+                print("ℹ️ Stream yanıtı boş — placeholder mesaj silindi")
         except Exception as e:
             print(f"⚠️ Stream DB kayıt hatası: {e}")
     

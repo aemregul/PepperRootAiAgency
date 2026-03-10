@@ -633,7 +633,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     role: string;
                     content: string;
                     created_at: string;
-                    metadata_?: { images?: { url: string }[]; has_reference_image?: boolean; reference_url?: string; reference_urls?: string[] };
+                    metadata_?: { images?: { url: string }[]; has_reference_image?: boolean; reference_url?: string; reference_urls?: string[]; reference_video_url?: string; reference_audio_url?: string };
                 }) => {
                     // Image URL: önce metadata'dan, yoksa content'teki [ÜRETİLEN GÖRSELLER: url] tag'inden
                     let imageUrl = msg.metadata_?.images?.[0]?.url;
@@ -655,6 +655,9 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     }
                     // Video URL: metadata'dan
                     const videoUrl = (() => {
+                        if (msg.role === 'user' && msg.metadata_?.reference_video_url) {
+                            return msg.metadata_.reference_video_url;
+                        }
                         if (msg.role !== 'assistant' || !msg.metadata_) return undefined;
                         const meta = msg.metadata_ as Record<string, unknown>;
                         const videos = meta.videos as { url: string }[] | undefined;
@@ -956,11 +959,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
         setMessages((prev) => [...prev, userMessage]);
 
-        // Append video/audio URL to content for backend if exists
+        // Audio URL'yi content içine ekle — backend henüz bunu structured alan olarak almıyor
         let contentToSend = input;
-        if (attachedVideoUrl) {
-            contentToSend += `\n\n[Referans Video](${attachedVideoUrl})`;
-        }
         if (attachedAudioUrl) {
             contentToSend += `\n\n[Referans Ses](${attachedAudioUrl})`;
         }
@@ -1172,10 +1172,14 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         setLoadingStatus(status);
                     },
                     onGenerationStart: (generations) => {
-                        if (generations.length > 0) {
+                        const videoGenerations = generations.filter(
+                            (generation) => generation.type === "video" || generation.type === "long_video"
+                        );
+
+                        if (videoGenerations.length > 0) {
                             setVideoProgress(0);
                             setVideoGenStatus("generating");
-                            setActiveGenerations(generations);
+                            setActiveGenerations(videoGenerations);
                         }
                     },
                     onGenerationComplete: () => {
@@ -1195,7 +1199,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                             const assistantMessage: Message = {
                                 id: messageId,
                                 role: "assistant",
-                                content: `Üzgünüm, işlem sırasında hata oluştu: ${streamErrorText}`,
+                                content: streamErrorText,
                                 timestamp: new Date(),
                             };
                             setMessages((prev) => [...prev, assistantMessage]);
@@ -1205,12 +1209,14 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         setMessages((prev) =>
                             prev.map((msg) =>
                                 msg.id === messageId && !msg.content.trim()
-                                    ? { ...msg, content: `Üzgünüm, işlem sırasında hata oluştu: ${streamErrorText}` }
+                                    ? { ...msg, content: streamErrorText }
                                     : msg
                             )
                         );
                     },
-                }, abortControllerRef.current.signal);
+                }, abortControllerRef.current.signal, {
+                    referenceVideoUrl: attachedVideoUrl || undefined,
+                });
 
                 // Kuyruktaki kalan tokenları flush et
                 await new Promise<void>((resolve) => {

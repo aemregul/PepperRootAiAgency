@@ -8,6 +8,7 @@ import json
 import asyncio
 from typing import Optional, Dict, Any
 from datetime import datetime
+from app.services.user_error_formatter import format_user_error_message
 
 
 class ProgressService:
@@ -133,7 +134,7 @@ class ProgressService:
             "type": "error",
             "task_type": task_type,
             "progress": 0,
-            "message": f"Hata: {error}",
+            "message": format_user_error_message(error, task_type),
             "timestamp": datetime.utcnow().isoformat()
         }
         

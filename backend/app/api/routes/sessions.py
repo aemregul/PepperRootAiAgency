@@ -95,7 +95,23 @@ async def get_session_messages(
         .where(Message.session_id == session_id)
         .order_by(Message.created_at.asc())
     )
-    return result.scalars().all()
+    messages = result.scalars().all()
+
+    filtered_messages = []
+    for msg in messages:
+        meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+        has_media = bool(meta.get("images") or meta.get("videos") or meta.get("audio_url"))
+        is_blank_pending_assistant = (
+            msg.role == "assistant"
+            and not (msg.content or "").strip()
+            and not has_media
+            and meta.get("pending")
+        )
+        if is_blank_pending_assistant:
+            continue
+        filtered_messages.append(msg)
+
+    return filtered_messages
 
 
 @router.get("/{session_id}/entities", response_model=list[EntityResponse])

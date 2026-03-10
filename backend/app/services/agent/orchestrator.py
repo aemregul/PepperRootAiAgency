@@ -3,6 +3,7 @@ Agent Orchestrator - Agent'ın beyni.
 Kullanıcı mesajını alır, LLM'e gönderir, araç çağrılarını yönetir.
 """
 import json
+import re
 import uuid
 from typing import Optional
 from openai import OpenAI, AsyncOpenAI
@@ -21,6 +22,7 @@ from app.services.context7.context7_service import context7_service
 from app.services.preferences_service import preferences_service
 from app.services.episodic_memory_service import episodic_memory
 from app.services.memory_hygiene import is_stable_memory_fact
+from app.services.user_error_formatter import format_user_error_message
 from app.models.models import Session as SessionModel, CreativePlugin
 
 # Global referans tutucu (FastAPI arka plan görevlerinin Garbage Collector tarafından silinmesini önler)
@@ -150,6 +152,321 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             and any(keyword in lower_msg for keyword in transform_keywords)
             and not any(keyword in lower_msg for keyword in question_keywords)
         )
+
+    def _is_explicit_session_asset_request(self, user_message: str) -> bool:
+        """Kullanıcı mevcut oturumdaki bir asset'i açıkça hedefliyor mu?"""
+        lower_msg = (user_message or "").lower()
+        reference_cues = (
+            "ilk oluşturdu",
+            "ilk yapt",
+            "ilk ürett",
+            "son oluşturdu",
+            "son yapt",
+            "son ürett",
+            "önceki görsel",
+            "önceki resmi",
+            "ilk görsel",
+            "son görsel",
+            "bu görsel",
+            "bu resmi",
+            "bu image",
+            "bunu videoya",
+            "bunu video",
+            "bunu dönüştür",
+            "oluşturduğumuz",
+            "oluşturduğum",
+            "ürettiğimiz",
+            "ürettiğim",
+        )
+        return any(cue in lower_msg for cue in reference_cues)
+
+    def _is_explicit_session_video_request(self, user_message: str) -> bool:
+        """Kullanıcı mevcut oturumdaki bir video asset'ini açıkça hedefliyor mu?"""
+        lower_msg = (user_message or "").lower()
+        if "video" in lower_msg and any(token in lower_msg for token in ("ilk", "son", "önceki", "az önce", "bu ")):
+            return True
+        reference_cues = (
+            "ilk video",
+            "son video",
+            "önceki video",
+            "bu video",
+            "bu videoyu",
+            "videoyu düzenle",
+            "videoyu değiştir",
+            "videoyu hareketlendir",
+            "videoyu canlandır",
+            "oluşturduğumuz video",
+            "ürettiğimiz video",
+            "az önceki video",
+        )
+        return any(cue in lower_msg for cue in reference_cues)
+
+    async def _resolve_session_image_reference(self, db: AsyncSession, session_id: uuid.UUID, user_message: str) -> Optional[str]:
+        """Mesajdaki açık tariften oturumdaki doğru görsel asset'ini seç."""
+        if not self._is_explicit_session_asset_request(user_message):
+            return None
+
+        assets = await asset_service.get_session_assets(
+            db=db,
+            session_id=session_id,
+            asset_type="image",
+            limit=30,
+        )
+        if not assets:
+            return None
+
+        lower_msg = (user_message or "").lower()
+        query_text = re.sub(
+            r"\b(ilk|son|oluşturduğumuz|oluşturduğum|ürettiğimiz|ürettiğim|görseli|görselini|görsel|resmi|resim|image|bunu|bu|videoya|video|çevir|çeviri|dönüştür|yap|oluştur)\b",
+            " ",
+            lower_msg,
+        )
+        query_tokens = {
+            token
+            for token in re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]+", query_text)
+            if len(token) > 2
+        }
+
+        oldest_first = any(token in lower_msg for token in ("ilk", "first", "baştaki", "en baştaki"))
+        newest_first = any(token in lower_msg for token in ("son", "last", "latest", "az önce", "en son", "bu "))
+
+        ordered_assets = list(reversed(assets)) if oldest_first else list(assets)
+        best_match_url = None
+        best_score = -1
+
+        for asset in ordered_assets:
+            prompt_text = (asset.prompt or "").lower()
+            prompt_tokens = {
+                token
+                for token in re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]+", prompt_text)
+                if len(token) > 2
+            }
+            overlap = len(query_tokens & prompt_tokens) if query_tokens else 0
+
+            if overlap > best_score:
+                best_score = overlap
+                best_match_url = asset.url
+                if oldest_first and overlap > 0:
+                    break
+                if newest_first and overlap > 0:
+                    break
+
+        if best_match_url and best_score > 0:
+            print(f"🎯 Session image reference resolved from prompt: {best_match_url[:80]}...")
+            return best_match_url
+
+        if self._is_explicit_session_asset_request(user_message):
+            fallback_asset = ordered_assets[0] if ordered_assets else None
+            if fallback_asset:
+                print(f"🎯 Session image reference fallback selected: {fallback_asset.url[:80]}...")
+                return fallback_asset.url
+
+        return None
+
+    async def _resolve_session_video_reference(self, db: AsyncSession, session_id: uuid.UUID, user_message: str) -> Optional[str]:
+        """Mesajdaki açık tariften oturumdaki doğru video asset'ini seç."""
+        asset = await self._resolve_session_video_asset(db, session_id, user_message)
+        return asset.url if asset else None
+
+    async def _resolve_session_video_asset(self, db: AsyncSession, session_id: uuid.UUID, user_message: str):
+        """Mesajdaki açık tariften oturumdaki doğru video asset nesnesini seç."""
+        if not self._is_explicit_session_video_request(user_message):
+            return None
+
+        assets = await asset_service.get_session_assets(
+            db=db,
+            session_id=session_id,
+            asset_type="video",
+            limit=30,
+        )
+        if not assets:
+            return None
+
+        lower_msg = (user_message or "").lower()
+        query_text = re.sub(
+            r"\b(ilk|son|önceki|az|az önceki|oluşturduğumuz|ürettiğimiz|videoyu|videoyu|video|bu|bunu|düzenle|değiştir|hareketlendir|canlandır|çevir|dönüştür|yap)\b",
+            " ",
+            lower_msg,
+        )
+        query_tokens = {
+            token
+            for token in re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]+", query_text)
+            if len(token) > 2
+        }
+
+        oldest_first = any(token in lower_msg for token in ("ilk", "first", "baştaki", "en baştaki"))
+        newest_first = any(token in lower_msg for token in ("son", "last", "latest", "az önce", "en son", "bu "))
+
+        ordered_assets = list(reversed(assets)) if oldest_first else list(assets)
+        best_match_asset = None
+        best_score = -1
+
+        for asset in ordered_assets:
+            prompt_text = (asset.prompt or "").lower()
+            prompt_tokens = {
+                token
+                for token in re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]+", prompt_text)
+                if len(token) > 2
+            }
+            overlap = len(query_tokens & prompt_tokens) if query_tokens else 0
+
+            if overlap > best_score:
+                best_score = overlap
+                best_match_asset = asset
+                if oldest_first and overlap > 0:
+                    break
+                if newest_first and overlap > 0:
+                    break
+
+        if best_match_asset and best_score > 0:
+            print(f"🎯 Session video reference resolved from prompt: {best_match_asset.url[:80]}...")
+            return best_match_asset
+
+        fallback_asset = ordered_assets[0] if ordered_assets else None
+        if fallback_asset:
+            print(f"🎯 Session video reference fallback selected: {fallback_asset.url[:80]}...")
+            return fallback_asset
+
+        return None
+
+    async def _get_session_video_asset_by_url(
+        self,
+        db: AsyncSession,
+        session_id: uuid.UUID,
+        video_url: str,
+    ):
+        """Oturumdaki video asset'ini URL eşleşmesi ile bul."""
+        if not video_url or db is None:
+            return None
+
+        assets = await asset_service.get_session_assets(
+            db=db,
+            session_id=session_id,
+            asset_type="video",
+            limit=50,
+        )
+        for asset in assets or []:
+            if getattr(asset, "url", None) == video_url:
+                return asset
+        return None
+
+    @staticmethod
+    def _get_video_asset_reference_image(asset) -> Optional[str]:
+        """Video asset'inden varsa tekrar kullanılabilir referans kare/görsel çıkar."""
+        if not asset:
+            return None
+
+        thumbnail_url = getattr(asset, "thumbnail_url", None)
+        if thumbnail_url:
+            return thumbnail_url
+
+        model_params = getattr(asset, "model_params", None) or {}
+        if isinstance(model_params, dict):
+            return model_params.get("reference_image") or model_params.get("source_image")
+
+        return None
+
+    async def _ensure_video_edit_reference_image(self, tool_input: dict) -> dict:
+        """
+        Video edit kuyruklanmadan önce referans kareyi doğrula.
+        Başarısızsa background job başlatılmaz.
+        """
+        if tool_input.get("image_url"):
+            return {"success": True, "tool_input": tool_input}
+
+        video_url = tool_input.get("video_url")
+        if not video_url:
+            return {"success": False, "error": "Video referansı bulunamadı."}
+
+        extract_result = await self.fal_plugin._extract_frame(video_url)
+        if extract_result.get("success") and extract_result.get("image_url"):
+            tool_input["image_url"] = extract_result["image_url"]
+            return {"success": True, "tool_input": tool_input}
+
+        return {
+            "success": False,
+            "error": "Referans kare çıkarılamadığı için video düzenleme başlatılamadı.",
+        }
+
+    def _is_direct_video_edit_request(self, user_message: str) -> bool:
+        """Aktif referans video ile doğrudan düzenleme/hareket talebi mi?"""
+        lower_msg = (user_message or "").lower()
+        if not lower_msg:
+            return False
+
+        question_keywords = ("?", "neden", "niye", "nasıl", "ne oldu", "problem", "hata")
+        if any(keyword in lower_msg for keyword in question_keywords):
+            return False
+
+        action_keywords = (
+            "videoyu düzenle",
+            "videoyu değiştir",
+            "videoyu hareketlendir",
+            "videoyu canlandır",
+            "videoyu anime yap",
+            "videoya efekt",
+            "bunu hareketlendir",
+            "bunu canlandır",
+            "animate this video",
+            "edit this video",
+            "stylize this video",
+            "transform this video",
+        )
+        new_generation_cues = (
+            "benzer yeni",
+            "yeni video",
+            "sıfırdan video",
+            "ilham al",
+            "inspired by",
+        )
+
+        return any(keyword in lower_msg for keyword in action_keywords) and not any(
+            cue in lower_msg for cue in new_generation_cues
+        )
+
+    @staticmethod
+    def _strip_asset_annotations_from_history(conversation_history: list) -> list:
+        """Asset URL anotasyonlarını history'den çıkar; metinsel bağlamı koru."""
+        if not conversation_history:
+            return []
+
+        cleaned_history = []
+        pattern = re.compile(
+            r"\n\n\[(?:ÜRETİLEN (?:GÖRSELLER|VİDEOLAR)|Bu mesajda üretilen (?:görseller|videolar)):\s*[^\]]+\]",
+            re.IGNORECASE,
+        )
+
+        for msg in conversation_history:
+            cleaned = dict(msg)
+            content = cleaned.get("content")
+            if isinstance(content, str):
+                cleaned["content"] = pattern.sub("", content).strip()
+            cleaned_history.append(cleaned)
+
+        return cleaned_history
+
+    @staticmethod
+    def _get_deterministic_media_message(tool_result: dict) -> Optional[str]:
+        """Başarılı medya üretimlerinde güvenli tool mesajını tercih et."""
+        if not tool_result or not tool_result.get("success"):
+            return None
+        if tool_result.get("is_background_task"):
+            return None
+
+        has_media_output = bool(
+            tool_result.get("image_url")
+            or tool_result.get("video_url")
+            or tool_result.get("audio_url")
+        )
+        if not has_media_output:
+            return None
+
+        message = tool_result.get("message")
+        if not isinstance(message, str):
+            return None
+
+        message = message.strip()
+        return message or None
     
     async def process_message(
         self, 
@@ -161,6 +478,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         reference_images: list = None,
         uploaded_reference_urls: list = None,
         last_reference_urls: list = None,
+        reference_video_url: str = None,
 
     ) -> dict:
         """
@@ -178,6 +496,9 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         """
         if conversation_history is None:
             conversation_history = []
+
+        if reference_video_url:
+            conversation_history = self._strip_asset_annotations_from_history(conversation_history)
         
         # 🧠 UZUN KONUŞMALARI ÖZETLE (Memory iyileştirmesi)
         if len(conversation_history) > 15:
@@ -188,7 +509,14 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         
         # Tüm context bileşenlerini tek seferde oluştur
         full_system_prompt = self.system_prompt
-        enriched_context = await self._build_enriched_context(db, session_id, user_id, user_message)
+        enriched_context = await self._build_enriched_context(
+            db,
+            session_id,
+            user_id,
+            user_message,
+            suppress_working_memory=bool(reference_video_url),
+            current_reference_video_url=reference_video_url,
+        )
         if enriched_context:
             full_system_prompt += enriched_context
         
@@ -230,20 +558,6 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     "base64": all_images[0]
                 }
                 print(f"💾 {len(uploaded_image_urls)} referans görsel session'a kaydedildi")
-        else:
-            # Yeni görsel yüklenmedi — session'dan veya history'den önceki referansı al
-            cached = self._session_reference_images.get(str(session_id))
-            if cached:
-                uploaded_image_url = cached["url"]
-                uploaded_image_urls = [uploaded_image_url]
-                print(f"🔄 Önceki referans görsel session cache'den alındı: {uploaded_image_url[:60]}...")
-            elif last_reference_urls:
-                uploaded_image_url = last_reference_urls[-1] if last_reference_urls else None
-                uploaded_image_urls = last_reference_urls
-                if uploaded_image_url:
-                    self._session_reference_images[str(session_id)] = {"url": uploaded_image_url, "base64": None}
-                print(f"🔄 {len(uploaded_image_urls)} referans görsel DB history'den alındı.")
-        
         # Mesajları hazırla
         direct_i2v_request = bool(all_images and uploaded_image_urls and self._is_direct_image_to_video_request(user_message))
 
@@ -291,11 +605,16 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             messages = conversation_history + [
                 {"role": "user", "content": user_content}
             ]
-        elif uploaded_image_urls:
-            # Yeni görsel yok ama session veya history'den referans(lar) var
-            url_info = ", ".join([f"Görsel{i+1}: {u}" for i, u in enumerate(uploaded_image_urls)])
+        elif reference_video_url:
             messages = conversation_history + [
-                {"role": "user", "content": user_message + f"\n\n[ÖNCEKİ REFERANS GÖRSELLERİN URL'LERİ: {url_info}\nBu URL'ler daha önce yüklenen referans görsellerin fal.ai adresleridir. Kullanıcı bu kişilerle ilgili bir istek yaparsa, generate_image aracı otomatik olarak bu görsellerin tümünü Gemini'ye iletecektir.]"}
+                {
+                    "role": "user",
+                    "content": user_message + (
+                        f"\n\n[REFERANS VİDEO URL: {reference_video_url}\n"
+                        f"Bu mesajdaki aktif referans bu videodur. Kullanıcı özellikle istemedikçe eski asset'leri kullanma. "
+                        f"Bu videoyu düzenlemek, hareketlendirmek veya stilini değiştirmek için `edit_video(video_url=\"{reference_video_url}\", prompt=\"...\")` kullan.]"
+                    )
+                }
             ]
         else:
             messages = conversation_history + [
@@ -325,7 +644,8 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             "_current_reference_image": reference_image,  # Mevcut referans görsel (base64)
             "_uploaded_image_url": uploaded_image_url,  # Fal.ai URL (edit/remove için)
             "_uploaded_image_urls": uploaded_image_urls,  # Tüm yüklenen URL'ler
-
+            "_uploaded_video_url": reference_video_url,
+            "_user_message": user_message,
         }
         
         print(f"\n🔍 DIAGNOSTIC: process_message result dict created")
@@ -356,7 +676,8 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         db: AsyncSession,
         conversation_history: list = None,
         reference_image: str = None,
-        user_id: uuid.UUID = None
+        user_id: uuid.UUID = None,
+        reference_video_url: str = None,
     ):
         """
         Streaming versiyonu — SSE event'leri yield eder.
@@ -366,6 +687,9 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         
         if conversation_history is None:
             conversation_history = []
+
+        if reference_video_url:
+            conversation_history = self._strip_asset_annotations_from_history(conversation_history)
         
         # Conversation summarization
         if len(conversation_history) > 15:
@@ -381,7 +705,14 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         # Tüm context bileşenlerini tek seferde oluştur
         full_system_prompt = self.system_prompt
         if user_id:
-            enriched_context = await self._build_enriched_context(db, session_id, user_id, user_message)
+            enriched_context = await self._build_enriched_context(
+                db,
+                session_id,
+                user_id,
+                user_message,
+                suppress_working_memory=bool(reference_video_url),
+                current_reference_video_url=reference_video_url,
+            )
             if enriched_context:
                 full_system_prompt += enriched_context
         
@@ -401,21 +732,22 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     print(f"💾 Referans görsel session'a kaydedildi (stream)")
             except Exception:
                 pass
-        else:
-            # Yeni görsel yüklenmedi — session'dan önceki referansı al
-            cached = self._session_reference_images.get(str(session_id))
-            if cached:
-                uploaded_image_url = cached["url"]
-                print(f"🔄 Önceki referans görsel session'dan alındı (stream): {uploaded_image_url[:60]}...")
-        
         # Mesajları hazırla
         if uploaded_image_url:
-            image_url_info = f" URL: {uploaded_image_url}]"
             user_content = [
                 {"type": "image_url", "image_url": {"url": uploaded_image_url}},
                 {"type": "text", "text": user_message + f"\n\n[REFERANS GÖRSEL URL: {uploaded_image_url}\nBu görseli işlemek için ilgili aracın image_url parametresine bu URL'i yaz. Örnekler: remove_background(image_url=\"{uploaded_image_url}\"), edit_image(image_url=\"{uploaded_image_url}\", ...), outpaint_image(image_url=\"{uploaded_image_url}\", ...), upscale_image(image_url=\"{uploaded_image_url}\"). Kaydetmek için create_character(use_current_reference=true).]"}
             ]
             messages = conversation_history + [{"role": "user", "content": user_content}]
+        elif reference_video_url:
+            messages = conversation_history + [{
+                "role": "user",
+                "content": user_message + (
+                    f"\n\n[REFERANS VİDEO URL: {reference_video_url}\n"
+                    f"Bu mesajdaki aktif referans bu videodur. Kullanıcı özellikle istemedikçe eski asset'leri kullanma. "
+                    f"Bu videoyu düzenlemek, hareketlendirmek veya stilini değiştirmek için `edit_video(video_url=\"{reference_video_url}\", prompt=\"...\")` kullan.]"
+                )
+            }]
         else:
             messages = conversation_history + [{"role": "user", "content": user_message}]
         
@@ -440,8 +772,10 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             "_resolved_entities": [],
             "_current_reference_image": reference_image,
             "_uploaded_image_url": uploaded_image_url,
+            "_uploaded_video_url": reference_video_url,
             "_last_generated_image_url": last_generated_image_url,
-            "_bg_generations": []
+            "_bg_generations": [],
+            "_user_message": user_message,
         }
         
         user_id = await get_user_id_from_session(db, session_id)
@@ -532,18 +866,32 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             )
             
             # Detect generation tools -> emit generation_start BEFORE execution
-            GENERATION_TOOLS = {"generate_image", "edit_image", "generate_video", "generate_long_video"}
+            GENERATION_TOOLS = {
+                "generate_image",
+                "edit_image",
+                "generate_video",
+                "generate_long_video",
+                "edit_video",
+                "advanced_edit_video",
+            }
             gen_detected = []
             for tc in tool_calls_acc.values():
                 if tc["name"] in GENERATION_TOOLS:
                     try:
                         args = json.loads(tc["arguments"])
-                        if tc["name"] in ("generate_video", "generate_long_video"):
-                            gen_detected.append({"type": "video", "prompt": args.get("prompt", "")[:80], "duration": args.get("duration") or args.get("total_duration")})
+                        if tc["name"] == "generate_long_video":
+                            gen_detected.append({"type": "long_video", "prompt": args.get("prompt", "")[:80], "duration": args.get("total_duration")})
+                        elif tc["name"] in ("generate_video", "edit_video", "advanced_edit_video"):
+                            gen_detected.append({"type": "video", "prompt": args.get("prompt", "")[:80], "duration": args.get("duration")})
                         else:
                             gen_detected.append({"type": "image", "prompt": args.get("prompt", "")[:80]})
                     except:
-                        gen_detected.append({"type": "video" if "video" in tc["name"] else "image", "prompt": ""})
+                        fallback_type = "image"
+                        if tc["name"] == "generate_long_video":
+                            fallback_type = "long_video"
+                        elif "video" in tc["name"]:
+                            fallback_type = "video"
+                        gen_detected.append({"type": fallback_type, "prompt": ""})
             
             if gen_detected:
                 yield f"event: generation_start\ndata: {json.dumps(gen_detected, ensure_ascii=False)}\n\n"
@@ -568,19 +916,24 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             # Tool call sonrası final yanıt — STREAM olarak
             # Tool call sonrası final yanıt — STREAM olarak
             if not result.get("is_background_task"):
-                final_stream = await self.async_client.chat.completions.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    messages=[{"role": "system", "content": full_system_prompt}] + messages,
-                    stream=True
-                )
-                
-                streamed_text = ""
-                async for chunk in final_stream:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        token = chunk.choices[0].delta.content
-                        streamed_text += token
-                        yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
+                if result.get("_skip_final_llm"):
+                    streamed_text = result.get("_final_text", "")
+                    if streamed_text:
+                        yield f"event: token\ndata: {json.dumps(streamed_text, ensure_ascii=False)}\n\n"
+                else:
+                    final_stream = await self.async_client.chat.completions.create(
+                        model=self.model,
+                        max_tokens=4096,
+                        messages=[{"role": "system", "content": full_system_prompt}] + messages,
+                        stream=True
+                    )
+                    
+                    streamed_text = ""
+                    async for chunk in final_stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            token = chunk.choices[0].delta.content
+                            streamed_text += token
+                            yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
             else:
                 streamed_text = result.get("message", "🎬 Video üretimi arka planda başladı! Hazır olduğunda bildirim gelecek.")
                 yield f"event: token\ndata: {json.dumps(streamed_text, ensure_ascii=False)}\n\n"
@@ -682,9 +1035,19 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         MAX_RETRIES = 2
         
         # ── Duplicate video guard ──
-        VIDEO_TOOLS = {"generate_video", "generate_long_video"}
-        GENERATION_TOOLS = {"generate_image", "edit_image", "generate_video", "generate_long_video", "apply_style"}
+        VIDEO_TOOLS = {"generate_video", "generate_long_video", "edit_video", "advanced_edit_video"}
+        GENERATION_TOOLS = {
+            "generate_image",
+            "edit_image",
+            "generate_video",
+            "generate_long_video",
+            "edit_video",
+            "advanced_edit_video",
+            "apply_style",
+        }
         video_already_called = False
+        deterministic_media_message = None
+        last_tool_name = None
         
         # ── Plugin + generation guard: manage_plugin ile birlikte generation tool çağrılmasını engelle ──
         ENTITY_TOOLS = {"create_character", "create_location", "create_brand"}
@@ -736,12 +1099,15 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 video_already_called = True
             
             print(f"🔧 STREAM TOOL: {tool_name} (retry={retry_count})")
+            last_tool_name = tool_name
             
             tool_result = await self._handle_tool_call(
                 tool_name, tool_args, session_id, db,
                 resolved_entities=result.get("_resolved_entities", []),
                 current_reference_image=result.get("_current_reference_image"),
-                uploaded_reference_url=result.get("_uploaded_image_url")
+                uploaded_reference_url=result.get("_uploaded_image_url"),
+                uploaded_reference_video_url=result.get("_uploaded_video_url"),
+                user_message=result.get("_user_message", ""),
             )
             
             if tool_result.get("success") and tool_result.get("image_url"):
@@ -766,6 +1132,10 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             # Track background generation tasks for progress card
             if tool_result.get("_bg_generation"):
                 result["_bg_generations"].append(tool_result["_bg_generation"])
+
+            media_message = self._get_deterministic_media_message(tool_result)
+            if media_message:
+                deterministic_media_message = media_message
             
             # SimpleNamespace veya Pydantic olabilir, her ikisi için de çalışır
             tool_call_dict = {
@@ -795,8 +1165,24 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         # Direkt tool result içindeki mesajı nihai cevap olarak döndür.
         if tool_result.get("is_background_task"):
             print("🔄 BACKGROUND TASK DETECTED: Skipping final LLM completion call.")
+            result["message"] = tool_result.get("message", "İşlem arka planda başlatıldı.")
             messages.append({"role": "assistant", "content": tool_result.get("message", "İşlem arka planda başlatıldı.")})
             result["is_background_task"] = True
+            return
+
+        if deterministic_media_message and has_any_success:
+            print("🧱 DETERMINISTIC MEDIA RESULT (stream): Skipping final LLM completion call.")
+            result["_skip_final_llm"] = True
+            result["_final_text"] = deterministic_media_message
+            messages.append({"role": "assistant", "content": deterministic_media_message})
+            return
+
+        if last_tool_failed and last_tool_name in {"edit_video", "advanced_edit_video"}:
+            error_message = f"Hata: {tool_result.get('error', 'Video düzenleme başarısız oldu.')}"
+            print("🛑 EDIT VIDEO FAILURE (stream): Alternative tool retry disabled.")
+            result["_skip_final_llm"] = True
+            result["_final_text"] = error_message
+            messages.append({"role": "assistant", "content": error_message})
             return
             
         # Retry logic: sadece son tool başarısızsa VE henüz başarılı sonuç yoksa VE limit aşılmamışsa
@@ -875,7 +1261,9 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         db: AsyncSession,
         session_id: uuid.UUID,
         user_id: uuid.UUID,
-        user_message: str
+        user_message: str,
+        suppress_working_memory: bool = False,
+        current_reference_video_url: str = None,
     ) -> str:
         """
         Tüm bağlam bileşenlerini tek seferde oluştur.
@@ -892,6 +1280,14 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         8. Plugin listesi (projede yüklü eklentiler)
         """
         extra_context = ""
+
+        if current_reference_video_url:
+            extra_context += (
+                "\n\n--- 🎬 AKTİF REFERANS VİDEO ---\n"
+                f"Bu mesajda kullanıcı şu videoyu referans verdi: {current_reference_video_url}\n"
+                "Bu istekte eski görsel/video asset'lerini varsayılan referans olarak kullanma. "
+                "Kullanıcı açıkça önceki bir asset'i istemedikçe aktif referans bu videodur.\n"
+            )
         
         # 0. Kullanıcı adı — agent kullanıcıyı ismiyle tanısın
         try:
@@ -939,20 +1335,23 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             print(f"⚠️ Proje context hatası: {e}")
         
         # 3. Working Memory (son üretilen asset'ler)
-        try:
-            recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
-            if recent_assets:
-                memory_ctx = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
-                memory_ctx += "Kullanıcı 'bunu düzenle', 'son görseli değiştir', 'videoyu farklı yap' derse BURADAKİ URL'leri kullan:\n"
-                for idx, asset in enumerate(recent_assets, 1):
-                    icon = "🎬" if asset.asset_type == "video" else "🖼️"
-                    thumb = f" (Thumbnail: {asset.thumbnail_url})" if asset.thumbnail_url else ""
-                    prompt_text = f"'{asset.prompt[:50]}...'" if asset.prompt else "'—'"
-                    memory_ctx += f"{idx}. [{asset.asset_type.upper()}] {icon} {prompt_text}\n   👉 URL: {asset.url}{thumb}\n"
-                extra_context += memory_ctx
-                print(f"🧠 Working Memory eklendi: {len(recent_assets)} asset")
-        except Exception as e:
-            print(f"⚠️ Working memory hatası: {e}")
+        if not suppress_working_memory:
+            try:
+                recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
+                if recent_assets:
+                    memory_ctx = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
+                    memory_ctx += "Kullanıcı 'bunu düzenle', 'son görseli değiştir', 'videoyu farklı yap' derse BURADAKİ URL'leri kullan:\n"
+                    for idx, asset in enumerate(recent_assets, 1):
+                        icon = "🎬" if asset.asset_type == "video" else "🖼️"
+                        thumb = f" (Thumbnail: {asset.thumbnail_url})" if asset.thumbnail_url else ""
+                        prompt_text = f"'{asset.prompt[:50]}...'" if asset.prompt else "'—'"
+                        memory_ctx += f"{idx}. [{asset.asset_type.upper()}] {icon} {prompt_text}\n   👉 URL: {asset.url}{thumb}\n"
+                    extra_context += memory_ctx
+                    print(f"🧠 Working Memory eklendi: {len(recent_assets)} asset")
+            except Exception as e:
+                print(f"⚠️ Working memory hatası: {e}")
+        else:
+            print("🧠 Working Memory bu istekte baskı kurmaması için atlandı")
         
         # 4. Kullanıcı tercihleri
         try:
@@ -1076,8 +1475,8 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             for tc in message.tool_calls:
                 print(f"   - Tool: {tc.function.name}")
         
-        # Normal metin yanıtı
-        if message.content:
+        # Tool call varsa initial planning text'i doğrudan kullanıcıya göstermeyiz.
+        if message.content and not message.tool_calls:
             result["response"] += message.content
         
         # Tool calls varsa işle
@@ -1085,6 +1484,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             # ── Duplicate video guard ──
             VIDEO_TOOLS = {"generate_video", "generate_long_video"}
             video_already_called = False
+            deterministic_media_message = None
             
             for tool_call in message.tool_calls:
                 tool_name = tool_call.function.name
@@ -1113,7 +1513,8 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     current_reference_image=result.get("_current_reference_image"),
                     uploaded_reference_url=result.get("_uploaded_image_url"),
                     uploaded_reference_urls=result.get("_uploaded_image_urls"),
-
+                    uploaded_reference_video_url=result.get("_uploaded_video_url"),
+                    user_message=result.get("_user_message", ""),
                 )
                 
                 # 🔍 DEBUG: Tool çağrısı bitti
@@ -1153,6 +1554,10 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 # Entity oluşturulduysa ekle
                 if tool_result.get("success") and tool_result.get("entity"):
                     result["entities_created"].append(tool_result["entity"])
+
+                media_message = self._get_deterministic_media_message(tool_result)
+                if media_message:
+                    deterministic_media_message = media_message
                 
                 # Tool sonucunu GPT-4o'ya gönder
                 # SimpleNamespace veya Pydantic olabilir, her ikisi için de çalışır
@@ -1184,6 +1589,16 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 print("🔄 BACKGROUND TASK DETECTED (non-stream): Skipping final LLM completion call.")
                 result["response"] += tool_result.get("message", "İşlem arka planda başlatıldı.")
                 result["is_background_task"] = True
+                return
+
+            if deterministic_media_message and has_any_success:
+                print("🧱 DETERMINISTIC MEDIA RESULT (non-stream): Skipping final LLM completion call.")
+                result["response"] += deterministic_media_message
+                return
+
+            if last_tool_failed and tool_name in {"edit_video", "advanced_edit_video"}:
+                print("🛑 EDIT VIDEO FAILURE (non-stream): Alternative tool retry disabled.")
+                result["response"] += f"Hata: {tool_result.get('error', 'Video düzenleme başarısız oldu.')}"
                 return
             
             retry_tool_choice = "auto"
@@ -1226,7 +1641,8 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         current_reference_image: str = None,
         uploaded_reference_url: str = None,
         uploaded_reference_urls: list = None,
-
+        uploaded_reference_video_url: str = None,
+        user_message: str = "",
     ) -> dict:
         """Araç çağrısını işle."""
         
@@ -1234,6 +1650,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         print(f"\n{'='*50}")
         print(f"🔧 _handle_tool_call: {tool_name}")
         print(f"   uploaded_reference_url: {uploaded_reference_url[:80] if uploaded_reference_url else 'None'}")
+        print(f"   uploaded_reference_video_url: {uploaded_reference_video_url[:80] if uploaded_reference_video_url else 'None'}")
         print(f"   tool_input keys: {list(tool_input.keys())}")
         print(f"   tool_input.image_url: {tool_input.get('image_url', 'NOT SET')}")
         print(f"{'='*50}")
@@ -1248,6 +1665,36 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 print(f"   ✅ image_url already set by GPT-4o: {tool_input['image_url'][:80]}")
         elif not uploaded_reference_url and tool_name in IMAGE_TOOLS:
             print(f"   ⚠️ NO uploaded_reference_url available for {tool_name}!")
+
+        VIDEO_TOOLS = {"edit_video", "advanced_edit_video"}
+        if uploaded_reference_video_url and tool_name in VIDEO_TOOLS:
+            if not tool_input.get("video_url"):
+                tool_input["video_url"] = uploaded_reference_video_url
+                print(f"   📎 AUTO-INJECTED uploaded video URL into {tool_name}")
+        elif tool_name in VIDEO_TOOLS and tool_input.get("video_url") and not tool_input.get("image_url"):
+            matched_video_asset = await self._get_session_video_asset_by_url(
+                db=db,
+                session_id=session_id,
+                video_url=tool_input.get("video_url"),
+            )
+            reference_image_url = self._get_video_asset_reference_image(matched_video_asset)
+            if reference_image_url:
+                tool_input["image_url"] = reference_image_url
+                print(f"   🖼️ REUSED matched asset reference image into {tool_name}")
+        elif tool_name in VIDEO_TOOLS and not tool_input.get("video_url"):
+            resolved_video_asset = await self._resolve_session_video_asset(
+                db=db,
+                session_id=session_id,
+                user_message=user_message or tool_input.get("prompt", ""),
+            )
+            if resolved_video_asset:
+                tool_input["video_url"] = resolved_video_asset.url
+                if not tool_input.get("image_url"):
+                    reference_image_url = self._get_video_asset_reference_image(resolved_video_asset)
+                    if reference_image_url:
+                        tool_input["image_url"] = reference_image_url
+                        print(f"   🖼️ REUSED stored video reference image into {tool_name}")
+                print(f"   📎 AUTO-RESOLVED session video reference into {tool_name}")
         
         if tool_name == "generate_image":
             return await self._generate_image(
@@ -1320,54 +1767,57 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         
         # YENİ ARAÇLAR
         elif tool_name == "generate_video":
-            # Referans görseli ek kaynaklardan da enjekte et (session cache)
+            if uploaded_reference_video_url and self._is_direct_video_edit_request(user_message or tool_input.get("prompt", "")):
+                print("   🔀 REROUTE: Attached reference video detected, generate_video -> edit_video")
+                edit_tool_input = {
+                    "video_url": uploaded_reference_video_url,
+                    "prompt": tool_input.get("prompt") or user_message,
+                    "image_url": tool_input.get("image_url"),
+                }
+                preflight = await self._ensure_video_edit_reference_image(edit_tool_input)
+                if not preflight.get("success"):
+                    return {"success": False, "error": preflight.get("error")}
+                return await self._queue_video_edit(
+                    db=db,
+                    session_id=session_id,
+                    params=preflight["tool_input"],
+                    message="🎬 Referans video düzenlemesi arka planda başladı! Hazır olduğunda otomatik bildirim gelecek.",
+                )
+
             if not tool_input.get("image_url"):
-                # Session cache'den referans görseli al
-                cached = self._session_reference_images.get(str(session_id)) if hasattr(self, '_session_reference_images') else None
-                if cached and cached.get("url"):
-                    tool_input["image_url"] = cached["url"]
-                    print(f"   📎 AUTO-INJECTED session-cached reference image into generate_video")
+                resolved_reference_url = await self._resolve_session_image_reference(
+                    db=db,
+                    session_id=session_id,
+                    user_message=user_message or tool_input.get("prompt", ""),
+                )
+                if resolved_reference_url:
+                    tool_input["image_url"] = resolved_reference_url
+                    print(f"   📎 AUTO-RESOLVED session image reference into generate_video")
             
             result = await self._generate_video(db, session_id, tool_input, resolved_entities or [])
             return result
         
         elif tool_name == "edit_video":
-            # Video düzenleme işlemi — PluginResult'ı dict'e dönüştür
-            plugin_result = await self.fal_plugin.execute("edit_video", tool_input)
-            result_data = plugin_result.data or {}
-            if plugin_result.success:
-                video_url = result_data.get("video_url")
-                # Asset olarak kaydet
-                if video_url:
-                    try:
-                        user_id = await get_user_id_from_session(db, session_id)
-                        await asset_service.save_asset(
-                            db=db,
-                            session_id=session_id,
-                            url=video_url,
-                            asset_type="video",
-                            prompt=tool_input.get("prompt", "Video edit"),
-                            model_name=result_data.get("model", "video-edit"),
-                            model_params={"source_video": tool_input.get("video_url")},
-                        )
-                    except Exception as save_err:
-                        print(f"⚠️ Video edit asset kaydetme hatası: {save_err}")
-                return {
-                    "success": True,
-                    "video_url": video_url,
-                    "model": result_data.get("model", "video-edit"),
-                    "method_used": result_data.get("method_used", "unknown"),
-                    "message": "Video başarıyla düzenlendi."
-                }
-            return {"success": False, "error": plugin_result.error or "Video düzenleme başarısız"}
+            preflight = await self._ensure_video_edit_reference_image(tool_input)
+            if not preflight.get("success"):
+                return {"success": False, "error": preflight.get("error")}
+            return await self._queue_video_edit(
+                db=db,
+                session_id=session_id,
+                params=preflight["tool_input"],
+                message="🎬 Video düzenleme arka planda başladı! Hazır olduğunda otomatik bildirim gelecek.",
+            )
         
         elif tool_name == "generate_long_video":
-            # Referans görseli ek kaynaklardan da enjekte et (session cache)
             if not tool_input.get("image_url"):
-                cached = self._session_reference_images.get(str(session_id)) if hasattr(self, '_session_reference_images') else None
-                if cached and cached.get("url"):
-                    tool_input["image_url"] = cached["url"]
-                    print(f"   📎 AUTO-INJECTED session-cached reference image into generate_long_video")
+                resolved_reference_url = await self._resolve_session_image_reference(
+                    db=db,
+                    session_id=session_id,
+                    user_message=user_message or tool_input.get("prompt", ""),
+                )
+                if resolved_reference_url:
+                    tool_input["image_url"] = resolved_reference_url
+                    print(f"   📎 AUTO-RESOLVED session image reference into generate_long_video")
             return await self._generate_long_video(db, session_id, tool_input)
         
         elif tool_name == "edit_image":
@@ -2134,6 +2584,187 @@ Konuşma:
         
         Entity referansı varsa, önce görsel üretilip image-to-video yapılır.
         """
+    async def _run_edit_video_bg(
+        self,
+        user_id: str,
+        session_id: str,
+        prompt: str,
+        video_url: str,
+        image_url: str = None,
+    ):
+        """Asenkron video düzenleme ve bildirimi."""
+        asset_sid = session_id
+        try:
+            from app.core.database import async_session_maker
+            from app.services.progress_service import progress_service
+            import asyncio
+
+            edit_payload = {
+                "video_url": video_url,
+                "prompt": prompt,
+                "image_url": image_url,
+            }
+
+            await progress_service.send_progress(session_id, "video", 0.10, "Video düzenleme başlatıldı")
+
+            progress_done = asyncio.Event()
+
+            async def _smooth_progress():
+                statuses = [
+                    (0.18, "🎞️ Referans video analiz ediliyor..."),
+                    (0.28, "🧠 Düzenleme talimatı uygulanıyor..."),
+                    (0.40, "🎨 Yeni stil işleniyor..."),
+                    (0.52, "🎬 Kareler yeniden oluşturuluyor..."),
+                    (0.64, "✨ Geçişler ve hareket işleniyor..."),
+                    (0.76, "📹 Çıktı hazırlanıyor..."),
+                    (0.88, "💾 Kaydetme için son kontroller yapılıyor..."),
+                ]
+                for pct, msg in statuses:
+                    if progress_done.is_set():
+                        return
+                    await asyncio.sleep(8)
+                    if progress_done.is_set():
+                        return
+                    try:
+                        await progress_service.send_progress(session_id, "video", pct, msg)
+                    except Exception:
+                        pass
+
+            progress_task = asyncio.create_task(_smooth_progress())
+            try:
+                plugin_result = await self.fal_plugin.execute("edit_video", edit_payload)
+            finally:
+                progress_done.set()
+                progress_task.cancel()
+
+            result_data = plugin_result.data or {}
+
+            async with async_session_maker() as db:
+                if plugin_result.success:
+                    video_url_out = result_data.get("video_url")
+                    model_name = result_data.get("model", "video-edit")
+
+                    await progress_service.send_progress(session_id, "video", 0.92, "Kaydediliyor")
+
+                    if video_url_out:
+                        await asset_service.save_asset(
+                            db=db,
+                            session_id=uuid.UUID(asset_sid),
+                            url=video_url_out,
+                            asset_type="video",
+                            prompt=prompt or "Video edit",
+                            model_name=model_name,
+                            model_params={"source_video": video_url, "reference_image": image_url},
+                            thumbnail_url=result_data.get("thumbnail_url"),
+                        )
+
+                    try:
+                        await StatsService.track_video_generation(db, uuid.UUID(user_id), model_name)
+                    except Exception as stats_err:
+                        print(f"⚠️ Video edit istatistiği yazılamadı: {stats_err}")
+
+                    from app.models.models import Message
+
+                    new_msg_content = f"Videonuz hazır! (Model: {model_name})"
+                    bg_message = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=new_msg_content,
+                        metadata_={"videos": [{"url": video_url_out}]},
+                    )
+                    db.add(bg_message)
+                    await db.commit()
+
+                    await progress_service.send_complete(
+                        session_id=session_id,
+                        task_type="video",
+                        result={
+                            "video_url": video_url_out,
+                            "message": new_msg_content,
+                            "message_id": str(bg_message.id),
+                        },
+                    )
+                else:
+                    error_msg = plugin_result.error or "Video düzenleme başarısız oldu"
+                    await progress_service.send_error(
+                        session_id=session_id,
+                        task_type="video",
+                        error=error_msg,
+                    )
+
+                    from app.models.models import Message
+
+                    fail_msg = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=format_user_error_message(error_msg, "video"),
+                    )
+                    db.add(fail_msg)
+                    await db.commit()
+        except Exception as e:
+            print(f"❌ Background video edit error: {e}")
+            try:
+                from app.services.progress_service import progress_service
+                await progress_service.send_error(
+                    session_id=session_id,
+                    task_type="video",
+                    error=str(e),
+                )
+            except Exception as ws_err:
+                print(f"⚠️ Background video edit WS error bildirimi başarısız: {ws_err}")
+
+            try:
+                from app.core.database import async_session_maker
+                async with async_session_maker() as db:
+                    from app.models.models import Message
+
+                    fail_msg = Message(
+                        session_id=uuid.UUID(session_id),
+                        role="assistant",
+                        content=format_user_error_message(str(e), "video"),
+                    )
+                    db.add(fail_msg)
+                    await db.commit()
+            except Exception as inner_e:
+                print(f"❌ Could not save background video edit crash error to DB: {inner_e}")
+
+    async def _queue_video_edit(self, db: AsyncSession, session_id: uuid.UUID, params: dict, message: str) -> dict:
+        """Video düzenleme işini arka plana al."""
+        try:
+            import asyncio
+
+            prompt = params.get("prompt", "")
+            video_url = params.get("video_url")
+            image_url = params.get("image_url")
+
+            if not video_url:
+                return {"success": False, "error": "Video referansı bulunamadı."}
+
+            user_id = await get_user_id_from_session(db, session_id)
+
+            task = asyncio.create_task(
+                self._run_edit_video_bg(
+                    user_id=str(user_id),
+                    session_id=str(session_id),
+                    prompt=prompt,
+                    video_url=video_url,
+                    image_url=image_url,
+                )
+            )
+
+            global _GLOBAL_BG_TASKS
+            _GLOBAL_BG_TASKS.add(task)
+            task.add_done_callback(_GLOBAL_BG_TASKS.discard)
+
+            return {
+                "success": True,
+                "message": message,
+                "is_background_task": True,
+                "_bg_generation": {"type": "video", "prompt": (prompt or "")[:80], "duration": None},
+            }
+        except Exception as e:
+            return {"success": False, "error": format_user_error_message(str(e), "video")}
+
     async def _run_video_bg(self, user_id: str, session_id: str, prompt: str, image_url: str, duration: str, aspect_ratio: str, model: str, entity_ids: list = None):
         """Asenkron kısa video üretimi ve bildirimi. session_id = proje."""
         asset_sid = session_id
@@ -2279,7 +2910,7 @@ Konuşma:
                     fail_msg = Message(
                         session_id=uuid.UUID(session_id),
                         role="assistant",
-                        content=f"⚠️ Video üretimi başarısız oldu: {error_msg}. Lütfen ayarlarını veya promptu kontrol edip tekrar dene."
+                        content=format_user_error_message(error_msg, "video")
                     )
                     db.add(fail_msg)
                     await db.commit()
@@ -2302,7 +2933,7 @@ Konuşma:
                     fail_msg = Message(
                         session_id=uuid.UUID(session_id),
                         role="assistant",
-                        content=f"⚠️ Beklenmeyen Sistem Hatası: Video üretimi işlenirken bir sorun oluştu ({str(e)}). Lütfen daha sonra tekrar deneyin."
+                        content=format_user_error_message(str(e), "video")
                     )
                     db.add(fail_msg)
                     await db.commit()
@@ -2488,7 +3119,7 @@ Konuşma:
                     fail_msg = Message(
                         session_id=uuid.UUID(session_id),
                         role="assistant",
-                        content=f"⚠️ Uzun video üretimi başarısız oldu: {error_msg}. Lütfen ayarlarını veya promptu kontrol edip tekrar dene."
+                        content=format_user_error_message(error_msg, "long_video")
                     )
                     db.add(fail_msg)
                     await db.commit()
@@ -2511,7 +3142,7 @@ Konuşma:
                     fail_msg = Message(
                         session_id=uuid.UUID(session_id),
                         role="assistant",
-                        content=f"⚠️ Beklenmeyen Sistem Hatası: Uzun video üretimi işlenirken bir sorun oluştu ({str(e)}). Lütfen daha sonra tekrar deneyin."
+                        content=format_user_error_message(str(e), "long_video")
                     )
                     db.add(fail_msg)
                     await db.commit()

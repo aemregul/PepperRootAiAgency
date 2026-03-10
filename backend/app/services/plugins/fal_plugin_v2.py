@@ -354,6 +354,16 @@ class FalPluginV2(PluginBase):
         "hailuo": {"i2v": "fal-ai/minimax/hailuo-02/standard/image-to-video", "t2v": "fal-ai/minimax/hailuo-02/standard/text-to-video"},
         "grok_imagine_video": {"i2v": "xai/grok-imagine-video/image-to-video", "t2v": "xai/grok-imagine-video/text-to-video"},
     }
+
+    VIDEO_EDIT_MODEL_PRIORITY = [
+        "kling",
+        "veo_quality",
+        "veo",
+        "seedance",
+        "hailuo",
+        "sora2",
+        "grok_imagine_video",
+    ]
     
     async def _select_image_model(self, prompt: str, agent_model: str = "auto") -> tuple[str, str | None]:
         """
@@ -874,7 +884,113 @@ except Exception as e:
         except Exception as e:
             logger.error(f"⚠️ {model_family} ({selected_endpoint}) video üretimi başarısız: {e}")
             return {"success": False, "error": f"Video generation failed: {str(e)}"}
-    
+
+    @staticmethod
+    def _infer_video_edit_style(instruction: str) -> str:
+        """Style transfer için kaba stil tahmini."""
+        lowered = (instruction or "").lower()
+
+        style_keywords = {
+            "anime": ["anime", "manga", "ghibli"],
+            "cartoon": ["cartoon", "çizgi", "comic"],
+            "watercolor": ["watercolor", "sulu boya"],
+            "oil painting": ["oil painting", "yağlı boya"],
+            "sketch": ["sketch", "çizim", "pencil"],
+        }
+
+        for style_name, keywords in style_keywords.items():
+            if any(keyword in lowered for keyword in keywords):
+                return style_name
+
+        return "cinematic illustration"
+
+    async def _select_video_edit_model(self, instruction: str, preferred_model: str = "auto") -> str:
+        """
+        Video edit sonrası kullanılacak üretim modelini seç.
+        Sadece admin panelindeki yönetilen video modellerini kullanır.
+        """
+        prompt_lower = (instruction or "").lower()
+
+        if preferred_model and preferred_model != "auto" and preferred_model in self.VIDEO_MODEL_MAP:
+            if await self.is_model_enabled(preferred_model):
+                return preferred_model
+
+        candidate_shortcodes = []
+
+        if any(keyword in prompt_lower for keyword in ["anime", "cartoon", "manga", "ghibli", "style", "stil"]):
+            candidate_shortcodes.extend(["kling", "veo_quality", "veo"])
+        elif any(keyword in prompt_lower for keyword in ["sinematik", "cinematic", "realistic", "gerçekçi", "high quality", "yüksek kalite"]):
+            candidate_shortcodes.extend(["veo_quality", "veo", "kling"])
+        elif any(keyword in prompt_lower for keyword in ["quick", "fast", "hızlı", "social", "reel", "tiktok"]):
+            candidate_shortcodes.extend(["hailuo", "seedance", "kling"])
+        else:
+            candidate_shortcodes.extend(["kling", "veo_quality", "veo"])
+
+        for shortcode in self.VIDEO_EDIT_MODEL_PRIORITY:
+            if shortcode not in candidate_shortcodes:
+                candidate_shortcodes.append(shortcode)
+
+        for shortcode in candidate_shortcodes:
+            if await self.is_model_enabled(shortcode):
+                return shortcode
+
+        raise ValueError("Video edit için kullanılabilecek aktif video modeli yok. Admin panelden en az bir video modelini açın.")
+
+    async def _rebuild_video_from_frame(
+        self,
+        reference_image_url: str,
+        instruction: str,
+        preferred_video_model: str = "auto",
+        use_style_transfer: bool = False,
+    ) -> dict:
+        """
+        Frame tabanlı kontrollü video edit hattı.
+        Hidden/legacy video-to-video modelleri kullanmaz.
+        """
+        if not reference_image_url:
+            return {"success": False, "error": "Video edit için referans kare bulunamadı."}
+
+        edited_frame = None
+
+        if use_style_transfer:
+            style_result = await self._apply_style({
+                "image_url": reference_image_url,
+                "style": self._infer_video_edit_style(instruction),
+                "prompt": instruction,
+            })
+            if style_result.get("success"):
+                edited_frame = style_result
+            else:
+                logger.warning(f"⚠️ Style transfer başarısız, edit_image fallback kullanılacak: {style_result.get('error')}")
+
+        if not edited_frame:
+            edited_frame = await self._edit_image({
+                "image_url": reference_image_url,
+                "prompt": instruction,
+            })
+
+        if not edited_frame.get("success"):
+            return edited_frame
+
+        video_model = await self._select_video_edit_model(
+            instruction=instruction,
+            preferred_model=preferred_video_model,
+        )
+
+        video_result = await self._generate_video({
+            "prompt": instruction,
+            "image_url": edited_frame["image_url"],
+            "duration": "5",
+            "aspect_ratio": "16:9",
+            "model": video_model,
+        })
+
+        if video_result.get("success"):
+            base_method = edited_frame.get("method_used") or edited_frame.get("model") or "frame_edit"
+            video_result["method_used"] = f"{base_method}_plus_{video_model}"
+
+        return video_result
+
     async def _edit_image(self, params: dict) -> dict:
         """
         Akıllı Görsel Düzenleme — FLUX Kontext + Auto-Retry.
@@ -1077,6 +1193,9 @@ except Exception as e:
         image_url = params.get("image_url", "")
         style = params.get("style", "impressionism")  # Stil adı veya açıklaması
         prompt = params.get("prompt", "")
+
+        if not await self.is_model_enabled("style_transfer"):
+            return {"success": False, "error": "Style Transfer modeli admin panelinde devre dışı."}
         
         # Style prompt oluştur
         style_prompt = prompt if prompt else f"Apply {style} art style to this image"
@@ -1452,13 +1571,14 @@ except Exception as e:
         Akıllı Video Düzenleme (Smart Hybrid).
         
         Stratejiler:
-        1. Flux Inpainting + Kling (Nesne kaldırma/değiştirme)
-        2. Video-to-Video (Stil/Atmosfer değiştirme)
-        3. OmniGen + Kling (Talimatlı düzenleme)
+        1. Frame edit + kontrollü I2V (nesne kaldırma/değiştirme)
+        2. Style transfer + kontrollü I2V (stil/atmosfer değiştirme)
+        3. Genel frame edit + kontrollü I2V
         """
         video_url = params.get("video_url", "")
         instruction = params.get("prompt", "")  # Talimat
         reference_image_url = params.get("image_url")  # Thumbnail/Reference frame
+        preferred_video_model = params.get("model", "auto")
         
         # Eğer referans görsel YOKSA, video'dan çıkar!
         if not reference_image_url:
@@ -1468,82 +1588,47 @@ except Exception as e:
                 reference_image_url = extract_result["image_url"]
                 print(f"✅ Kare çıkarıldı: {reference_image_url[:60]}...")
             else:
-                print("❌ Kare çıkarma başarısız. Video-to-Video fallback yapılacak.")
+                print("❌ Kare çıkarma başarısız. Kontrollü video edit iptal edilecek.")
         
         instruction_lower = instruction.lower()
         
         # Strateji Belirleme
         if not reference_image_url:
-             # Görsel yoksa mecburen V2V kullanmalıyız (Inpainting görsel ister)
-             print("⚠️ Referans görsel yok, Strategy 2 (V2V) zorunlu seçiliyor.")
-             strategy = "strategy_2"
+             print("⚠️ Referans görsel yok, kontrollü frame edit uygulanamayacak.")
+             strategy = "strategy_unavailable"
         elif any(keyword in instruction_lower for keyword in ["stil", "style", "yap", "make", "filter", "convert", "transform", "anime", "cartoon"]):
-            strategy = "strategy_2"  # Global Dönüşüm
+            strategy = "style_transfer"  # Global Dönüşüm
         elif any(keyword in instruction_lower for keyword in ["kaldır", "remove", "sil", "delete", "yok et", "change", "değiştir", "replace"]):
-            strategy = "strategy_1"  # Inpainting (Görsel var ise)
+            strategy = "frame_edit"  # Inpainting (Görsel var ise)
         else:
-            strategy = "strategy_2"  # Varsayılan fallback
+            strategy = "general_edit"
 
             
         print(f"🎬 Video Edit Stratejisi: {strategy} ({instruction})")
         
         try:
-            # STRATEJİ 1: Hassas Nesne Kaldırma/Değiştirme (Inpainting Flow)
-            if strategy == "strategy_1" and reference_image_url:
-                # 1. Kareyi Düzenle (Smart Edit Image kullan - içinde translation ve keyword extraction var)
-                print("   1. Adım: Kare Düzenleniyor (_edit_image)...")
-                # _edit_image zaten "remove" keywordlerini algılayıp "Object Removal" modelini,
-                # aksi halde OmniGen'i kullanıyor. Bu çok daha güvenli.
-                edited_frame = await self._edit_image({
-                    "image_url": reference_image_url,
-                    "prompt": instruction
-                })
-                
-                if not edited_frame["success"]:
-                    print(f"❌ Kare düzenleme hatası: {edited_frame.get('error')}")
-                    return edited_frame
-                
-                print(f"   ✅ Kare düzenlendi: {edited_frame['image_url'][:50]}... (Model: {edited_frame.get('model')})")
-                
-                # 2. Videoyu Yeniden Üret (Kling I2V)
-                print("   2. Adım: Video Yeniden Üretiliyor (Kling)...")
-                video_result = await self._generate_video({
-                    "prompt": instruction, # Veya original prompt
-                    "image_url": edited_frame["image_url"],
-                    "duration": "5",
-                    "aspect_ratio": "16:9" # Videodan alınmalı aslında
-                })
-                
-                if video_result["success"]:
-                    video_result["method_used"] = f"edit_frame_{edited_frame.get('model')}_plus_kling"
-                return video_result
+            if strategy == "strategy_unavailable":
+                return {
+                    "success": False,
+                    "error": "Referans kare çıkarılamadığı için video düzenleme başlatılamadı.",
+                }
 
-            # STRATEJİ 2: Video-to-Video
-            elif strategy == "strategy_2":
-                return await self._video_to_video(video_url, instruction)
+            if strategy == "style_transfer":
+                print("   1. Adım: Kareye stil aktarılıyor (admin-managed style transfer)...")
+                return await self._rebuild_video_from_frame(
+                    reference_image_url=reference_image_url,
+                    instruction=instruction,
+                    preferred_video_model=preferred_video_model,
+                    use_style_transfer=True,
+                )
 
-            # STRATEJİ 3: OmniGen + Kling (Fallback)
-            else:
-                # Reference image varsa OmniGen, yoksa V2V fallback
-                if reference_image_url:
-                    print("   1. Adım: Kare Düzenleniyor (OmniGen)...")
-                    edited_frame = await self._edit_image({
-                        "image_url": reference_image_url,
-                        "prompt": instruction
-                    })
-                    if not edited_frame["success"]:
-                        return edited_frame
-                        
-                    print("   2. Adım: Video Yeniden Üretiliyor (Kling)...")
-                    video_result = await self._generate_video({
-                        "prompt": instruction,
-                        "image_url": edited_frame["image_url"]
-                    })
-                    if video_result["success"]:
-                        video_result["method_used"] = "omnigen_plus_kling"
-                    return video_result
-                else:
-                    return await self._video_to_video(video_url, instruction)
+            print("   1. Adım: Kare düzenleniyor (admin-managed frame edit)...")
+            return await self._rebuild_video_from_frame(
+                reference_image_url=reference_image_url,
+                instruction=instruction,
+                preferred_video_model=preferred_video_model,
+                use_style_transfer=False,
+            )
 
         except Exception as e:
             return {"success": False, "error": f"Video düzenleme hatası: {str(e)}"}
@@ -1578,56 +1663,13 @@ except Exception as e:
 
     async def _video_to_video(self, video_url: str, prompt: str) -> dict:
         """
-        Video-to-Video Fallback.
-        1. LTX-Video (Genel endpoint)
-        2. Başarısız olursa: İlk kareyi al -> Yeni video üret (Loop)
+        Legacy direct video-to-video devre dışı.
+        Hidden modeller yerine kontrollü frame→I2V hattı kullanılır.
         """
-        print(f"🔥🔥 LIVE DEBUG: _video_to_video called with url={video_url}, prompt={prompt}")
-        try:
-            # 1. LTX-Video (Genel Endpoint - subpath olmadan)
-            print("🎥 Video-to-Video: LTX deneniyor...")
-            try:
-                result = await fal_client.subscribe_async(
-                    "fal-ai/ltx-video", # Doğrudan model ID
-                    arguments={
-                        "video_url": video_url,
-                        "prompt": prompt,
-                        "resolution": "1280x720"
-                    },
-                    with_logs=True,
-                )
-                print(f"🔥🔥 LIVE DEBUG: LTX Result: {result}")
-                if result and "video" in result:
-                    return {
-                        "success": True,
-                        "video_url": result["video"]["url"],
-                        "model": "ltx-video",
-                        "method_used": "video_to_video_ltx"
-                    }
-            except Exception as e:
-                print(f"⚠️ LTX V2V başarısız ({e}), fallback yapılıyor...")
-                print(f"🔥🔥 LIVE DEBUG: LTX Exception: {e}")
-
-            # 2. ULTIMATE FALLBACK: Extract Frame + Generate Video
-            # Hiçbir V2V çalışmazsa, videonun ilk karesini alıp yeniden üretiriz.
-            # Bu işlem asla çökmemeli.
-            print("🔄 V2V Fallback: Kare yakala + Yeniden üret...")
-            extract_res = await self._extract_frame(video_url)
-            print(f"🔥🔥 LIVE DEBUG: Extract Frame Result: {extract_res}")
-            
-            if extract_res["success"]:
-                # Kling ile I2V yap
-                return await self._generate_video({
-                    "prompt": prompt,
-                    "image_url": extract_res["image_url"],
-                    "duration": "5",
-                    "aspect_ratio": "16:9"
-                })
-            else:
-                return {"success": False, "error": "Video karesi alınamadı, düzenleme iptal."}
-
-        except Exception as e:
-            return {"success": False, "error": f"Video edit kritik hata: {str(e)}"}
+        return {
+            "success": False,
+            "error": "Legacy direct video-to-video devre dışı. Kontrollü frame tabanlı video edit hattı kullanılmalı.",
+        }
 
     # ===============================
     # TEXT-TO-SPEECH (TTS)

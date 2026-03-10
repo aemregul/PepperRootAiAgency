@@ -116,6 +116,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[UUID] = None
     active_project_id: Optional[UUID] = None  # Asset'ler bu projeye kaydedilir
+    reference_video_url: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

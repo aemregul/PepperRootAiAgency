@@ -614,7 +614,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     };
 
     // Move to trash instead of deleting
-    const moveToTrash = (id: string, name: string, type: TrashItem["type"], originalData: any) => {
+    const moveToTrash = (id: string, name: string, type: TrashItem["type"], originalData: Record<string, unknown>) => {
         setTrashItems([...trashItems, {
             id,
             name,

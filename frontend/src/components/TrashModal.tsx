@@ -10,7 +10,7 @@ export interface TrashItem {
     deletedAt: Date;
     imageUrl?: string;
     assetType?: "image" | "video" | "audio"; // from original_data.type
-    originalData: any;
+    originalData: Record<string, unknown>;
 }
 
 interface TrashModalProps {

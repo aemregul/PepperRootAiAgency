@@ -1,6 +1,6 @@
 # Pepper Root AI Agency — Proje Dokümantasyonu
 
-> **Son Güncelleme:** 7 Mart 2026
+> **Son Güncelleme:** 10 Mart 2026
 > **Repo:** [github.com/aemregul/PepperRootAiAgency](https://github.com/aemregul/PepperRootAiAgency)
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
@@ -148,12 +148,28 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
     - `find_similar_prompts` artık mevcut istekle çelişen geçmiş prompt'ları eliyor ve prompt örneklerini sadece stil/ton ilhamı olarak veriyor
     - Agent system prompt'una "mevcut mesaj hafızadan üstündür" guardrail'i eklendi
 
+- **Video üretiminde stale referans görsel sızıntısı kapatıldı**
+  - Dosyalar:
+    - `backend/app/services/agent/orchestrator.py`
+    - `backend/tests/test_video_reference_resolution.py`
+  - Kök neden:
+    - Kullanıcı yeni referans seçmeden video istediğinde sistem bazen eski session cache / eski referans geçmişini `generate_video` aracına gizlice `image_url` olarak enjekte ediyordu.
+    - Bu da text-to-video isteğinin yanlışlıkla eski bir görselle image-to-video'ya dönmesine neden oluyordu.
+  - Düzeltme:
+    - `generate_video` ve `generate_long_video` için stale session-cache auto injection kaldırıldı
+    - Video aracı artık sadece:
+      - bu mesajda gerçekten attach edilen referansı kullanıyor
+      - veya kullanıcı açıkça "ilk görsel", "son görsel", "ilk oluşturduğumuz kedi görseli" gibi bir asset seçimi yaparsa oturum asset'lerinden doğru görseli çözüyor
+    - Eski referans artık sırf cache'de kaldı diye yeni video isteğine sızmıyor
+
 ### Yapılan Doğrulamalar
 - `backend/venv/bin/python -m py_compile backend/app/services/agent/orchestrator.py`
 - `backend/venv/bin/python -m py_compile backend/app/services/preferences_service.py`
 - `backend/venv/bin/pytest backend/tests/test_preferences_service.py`
 - `backend/venv/bin/python -m py_compile backend/app/services/memory_hygiene.py backend/app/services/preferences_service.py backend/app/services/conversation_memory_service.py backend/app/services/episodic_memory_service.py backend/app/services/agent/orchestrator.py backend/app/services/agent/tools.py`
 - `backend/venv/bin/pytest backend/tests/test_preferences_service.py backend/tests/test_memory_hygiene.py backend/tests/test_stats_service.py`
+- `backend/venv/bin/python -m py_compile backend/app/services/agent/orchestrator.py backend/tests/test_video_reference_resolution.py`
+- `backend/venv/bin/pytest backend/tests/test_video_reference_resolution.py backend/tests/test_memory_hygiene.py backend/tests/test_preferences_service.py backend/tests/test_stats_service.py`
 - `frontend`: `ChatPanel.tsx` için lint çalıştırıldı, yeni error yok; dosyada mevcut eski warning'ler devam ediyor.
 
 ### Halen Doğrulanması Gerekenler
@@ -403,3 +419,49 @@ npm run dev
 - [ ] Video subprocess hatası — "boş yanıt Exit: 1" debug edilecek
 - [ ] System prompt dengelenmesi — çok kısa veya çok uzun olmamalı
 - [ ] Chat SSE streaming güvenilirliği — mesaj kesilme sorunu
+
+---
+
+## 🛠️ Son Lokal Düzeltmeler
+
+- Video üretiminde stale referans görsel sızıntısı kapatıldı:
+  - Session cache'deki eski görsel artık yeni video isteğine otomatik enjekte edilmiyor
+  - `image_url` sadece kullanıcı bu turda görsel attach ettiyse veya mesajda açıkça mevcut asset'i hedeflediyse kullanılıyor
+- Medya üretiminde saçma/hallucinated kapanış metinleri kapatıldı:
+  - Başarılı `generate_image` / `edit_image` / medya araçlarında final LLM kapanış turu atlanıyor
+  - Kullanıcıya tool'un deterministik `message` alanı gösteriliyor
+  - Tool call ile birlikte gelen initial planning text artık non-stream akışta kullanıcıya direkt yazılmıyor
+- SSE chat mesaj kalıcılığı güçlendirildi:
+  - Stream assistant mesajı baştan placeholder olarak DB'ye yazılıyor
+  - Token ve asset geldikçe aynı mesaj incremental update ediliyor
+  - Backend restart/stream kopması olsa bile asset kaydı ile chat mesajı birbirinden kopmuyor
+- Referans video akışı yapılandırıldı:
+  - Frontend artık referans videoyu metin içine markdown link olarak gömmek yerine structured alanla backend'e iletiyor
+  - Aktif referans video varsa working memory asset listesi bu istekte baskılanıyor
+  - Eski asset anotasyonları history'den temizlenerek prompt sızıntısı azaltıldı
+  - Agent attached video varken yanlışlıkla `generate_video` seçerse akış `edit_video`ya reroute ediliyor
+  - Referans video yoksa ve kullanıcı `önceki/ilk/son video` diyorsa session asset'lerinden doğru video seçilmeye çalışılıyor
+- Video düzenleme (`edit_video`) akışı arka plana alındı:
+  - `önceki videoyu anime yap` gibi istekler artık SSE request'ine bağlı kalmıyor
+  - Sayfa yenilense bile iş iptal olmak yerine arka planda devam ediyor
+  - Video edit talepleri de `generation_start` + WebSocket progress ile progress card gösterecek
+- Boş pending assistant mesajları temizlendi:
+  - SSE bağlantısı client tarafından kapanırsa içerik üretmeden kalan placeholder mesaj siliniyor
+  - Session history endpoint'i legacy boş/pending assistant kayıtlarını geri döndürmüyor
+- Gizli `ltx-video` fallback'i sistemden çıkarıldı:
+  - `edit_video` akışı artık admin panelini bypass eden legacy `fal-ai/ltx-video` yolunu kullanmıyor
+  - Video edit sadece admin tarafından yönetilen ve açık olan modellerle çalışıyor
+  - Stil/anime video düzenleme akışında kare çıkarma + stil uygulama + yönetilen video modeli zinciri kullanılıyor
+- `edit_video` başarısız olunca yanlış tool fallback'i kapatıldı:
+  - Video düzenleme preflight veya tool seviyesinde hata alırsa sistem artık kafasına göre `generate_video` / `sora2` gibi alakasız bir t2v akışına düşmüyor
+  - Kullanıcı doğrudan video edit hatasını chat içinde görüyor
+- Doğrudan `video_url` ile gelen video edit isteklerinde kayıtlı referans kare tekrar kullanılıyor:
+  - Eğer video asset'in `thumbnail_url` veya `model_params.source_image` verisi varsa, yeniden frame extraction zorunlu olmadan edit akışına taşınıyor
+  - Bu sayede önceki videoyu düzenleme akışında gereksiz preflight hataları azaltıldı
+- Tüm kullanıcıya görünen hata mesajları Türkçe ve normalize hale getirildi:
+  - Yeni servis: `backend/app/services/user_error_formatter.py`
+  - SSE stream, WebSocket progress error ve arka plan video/video-edit/long-video hata mesajları artık tek merkezden formatlanıyor
+  - Teknik metinler (`stderr de boş`, `subprocess`, `quota`, `timeout` vb.) kullanıcı dostu Türkçe açıklamaya çevriliyor
+- Yerel video edit retest'inde başarılı çıktı alındı:
+  - Referanslı video üzerinden yeniden üretim akışında kullanıcı tarafından iyi kalite sonucu doğrulandı
+  - Kapsamlı uçtan uca regresyon testi bir sonraki gün yeni proje üzerinde tekrar yapılacak

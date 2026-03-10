@@ -39,6 +39,7 @@ export interface Entity {
 export interface ChatRequest {
     message: string;
     session_id?: string;
+    reference_video_url?: string;
 }
 
 export interface MessageResponse {
@@ -56,6 +57,12 @@ export interface AssetResponse {
     url: string;
     prompt?: string;
     thumbnail_url?: string;
+}
+
+export interface TrashOriginalData extends Record<string, unknown> {
+    url?: string;
+    type?: string;
+    prompt?: string;
 }
 
 export interface ChatResponse {
@@ -218,7 +225,10 @@ export async function sendMessageStream(
         onDone?: () => void;
         onError?: (error: string) => void;
     },
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    referenceMedia?: {
+        referenceVideoUrl?: string;
+    }
 ): Promise<void> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/chat/stream`, {
         method: 'POST',
@@ -227,6 +237,7 @@ export async function sendMessageStream(
             session_id: sessionId,
             message: message,
             active_project_id: activeProjectId || null,
+            reference_video_url: referenceMedia?.referenceVideoUrl || null,
         }),
         signal,
     });
@@ -704,7 +715,7 @@ export interface TrashItemData {
     item_type: string;
     item_id: string;
     item_name: string;
-    original_data?: { url?: string; type?: string; prompt?: string;[key: string]: any };
+    original_data?: TrashOriginalData;
     deleted_at: string;
     expires_at: string;
 }
