@@ -1901,7 +1901,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 if resolved_reference_url:
                     tool_input["image_url"] = resolved_reference_url
                     print(f"   📎 AUTO-RESOLVED session image reference into generate_long_video")
-            return await self._generate_long_video(db, session_id, tool_input)
+            return await self._generate_long_video(db, session_id, tool_input, resolved_entities or [])
         
         elif tool_name == "edit_image":
             # Orijinal yüz referansını ekle (face swap için)
@@ -3232,7 +3232,7 @@ Konuşma:
             except Exception as inner_e:
                 print(f"❌ Could not save background crash error to DB: {inner_e}")
 
-    async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+    async def _generate_long_video(self, db: AsyncSession, session_id: uuid.UUID, params: dict, resolved_entities: list = None) -> dict:
         """Uzun video üret (30s - 3 dakika) - Arka plana atar."""
         # ⛔ Guard 1: scene_descriptions zorunlu ve en az 2 sahne
         scene_descriptions = params.get("scene_descriptions")

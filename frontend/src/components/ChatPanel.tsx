@@ -1197,6 +1197,12 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                         // Dismiss image progress cards (synchronous tools)
                         setActiveGenerations((prev) => prev.filter((g) => g.type !== "image"));
                     },
+                    onDone: () => {
+                        // Stream tamamlandı — loading state'i temizle
+                        cleanupTimers();
+                        setIsLoading(false);
+                        setLoadingStatus("");
+                    },
                     onError: (error: string) => {
                         console.error('Stream error:', error);
                         streamErrorText = error || "Mesaj işlenirken bir hata oluştu.";
@@ -1229,10 +1235,15 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     referenceVideoUrl: attachedVideoUrl || undefined,
                 });
 
-                // Kuyruktaki kalan tokenları flush et
+                // Kuyruktaki kalan tokenları flush et (maks 10 saniye timeout)
                 await new Promise<void>((resolve) => {
+                    const startTime = Date.now();
                     const checkQueue = () => {
                         if (charQueue.length === 0 && !isProcessingQueue) {
+                            resolve();
+                        } else if (Date.now() - startTime > 10000) {
+                            // 10 saniye timeout — sonsuz beklemeyi engelle
+                            console.warn('[Chat] charQueue flush timeout — forcing resolve');
                             resolve();
                         } else {
                             setTimeout(checkQueue, 30);

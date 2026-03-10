@@ -436,8 +436,9 @@ async def chat_with_files(
             
             try:
                 import fal_client
+                import asyncio
                 content_type = f.content_type or "image/png"
-                url = fal_client.upload(content, content_type)
+                url = await asyncio.to_thread(fal_client.upload, content, content_type)
                 uploaded_urls.append((url, f.filename or "uploaded_file"))
             except Exception as e:
                 logger.warning(f"Dosya fal.ai'ye yüklenemedi: {e}")

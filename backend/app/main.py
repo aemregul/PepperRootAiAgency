@@ -57,12 +57,12 @@ async def lifespan(app: FastAPI):
     
     # Süresi dolan çöp öğelerini temizle
     try:
-        from app.core.database import AsyncSessionLocal
+        from app.core.database import async_session_maker
         from app.models.models import TrashItem
         from sqlalchemy import select, delete
         from datetime import datetime, timezone
         
-        async with AsyncSessionLocal() as db:
+        async with async_session_maker() as db:
             expired_count = await db.execute(
                 delete(TrashItem).where(TrashItem.expires_at < datetime.now(timezone.utc))
             )

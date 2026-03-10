@@ -433,12 +433,132 @@ npm run dev
 
 ---
 
-## 📌 Bilinen Sorunlar & Yapılacaklar
+## �️ ROADMAP — Öncelik Sıralı Geliştirme Planı
 
-- [ ] Rate limiting ve monitoring middleware sorunlu — devre dışı bırakıldı, stabil hale getirilecek
-- [ ] Video subprocess hatası — "boş yanıt Exit: 1" debug edilecek
-- [ ] System prompt dengelenmesi — çok kısa veya çok uzun olmamalı
-- [ ] Chat SSE streaming güvenilirliği — mesaj kesilme sorunu
+> **Oluşturulma:** 10 Mart 2026
+> **Kural:** Her madde branch'ta geliştirilecek, test edilecek, sonra main'e merge edilecek.
+
+---
+
+### 🔴 Faz 1 — Kritik Bug Fix'ler (Öncelik: EN YÜKSEK)
+
+Bu maddeler çözülmeden yeni özelliğe geçilmez.
+
+- [x] **1.1 — Chat Yavaşlık & Yanıtsızlık Sorunu** _(10 Mart 2026 — Düzeltildi)_
+  - ~~Sorun: Chat çok yavaş, bazen hiç geri dönüş yapmıyor~~
+  - Düzeltilen: SSE stream `onDone` callback eksikliği, `charQueue` flush sonsuz bekleme (10sn timeout eklendi)
+  - Düzeltilen: `_generate_long_video` fonksiyonunda `resolved_entities` NameError
+  - Düzeltilen: `with-files` endpoint'inde `fal_client.upload` senkron çağrısı greenlet çakışması (`asyncio.to_thread` ile çözüldü)
+  - Düzeltilen: `main.py` trash cleanup'ta `AsyncSessionLocal` import hatası (`async_session_maker` ile değiştirildi)
+  - Etki alanı: `backend/app/services/agent/orchestrator.py`, `backend/app/api/routes/chat.py`, `frontend/src/components/ChatPanel.tsx`, `backend/app/main.py`
+
+- [ ] **1.2 — "Beni Hatırla" Çalışmıyor**
+  - Sorun: Login'de "Hesabımı hatırla" toggle'ı aktif olsa bile oturum kayboluyor
+  - Araştırılacak: JWT token persist mantığı, localStorage/cookie süresi, token refresh akışı
+  - Etki alanı: `frontend/src/contexts/AuthContext.tsx`, `backend/app/api/routes/auth.py`
+
+- [ ] **1.3 — Görsel Silindiğinde Çöp Kutusuna Gitmiyor**
+  - Sorun: Kaydedilen görseller silindiğinde soft-delete (trash) çalışmıyor, direkt kayboluyor
+  - Araştırılacak: `trash_items` tablosuna kayıt yazılıp yazılmadığı, frontend delete handler'ı
+  - Etki alanı: `backend/app/api/routes/admin.py`, `frontend/src/components/AssetsPanel.tsx`, `backend/app/models/models.py`
+
+---
+
+### 🟡 Faz 2 — Stabilite & Performans (Öncelik: YÜKSEK)
+
+- [ ] **2.1 — Genel Performans İyileştirme**
+  - Chat yanıt süresi optimize edilecek
+  - Gereksiz API çağrıları azaltılacak
+  - Redis cache stratejisi gözden geçirilecek
+  - Frontend render optimizasyonu (gereksiz re-render'lar)
+  - Etki alanı: Backend geneli + Frontend geneli
+
+- [ ] **2.2 — Uzun Süreli Test (Stress Test)**
+  - Tüm akışlar uçtan uca test edilecek: chat, görsel üretim, video üretim, entity yönetimi
+  - Edge case'ler: eşzamanlı istekler, büyük dosyalar, uzun oturumlar
+  - Regresyon kontrolü: mevcut çalışan her şey test sonrası da çalışmalı
+  - Çıktı: Test raporu oluşturulacak
+
+- [ ] **2.3 — Marketplace Kaldırılacak**
+  - Plugin Marketplace UI ve backend endpoint'leri devre dışı bırakılacak
+  - Sidebar'daki marketplace butonu kaldırılacak
+  - Etki alanı: `frontend/src/components/Sidebar.tsx`, `backend/app/api/routes/admin.py`, ilgili marketplace componentleri
+
+---
+
+### 🟢 Faz 3 — Yeni Özellikler (Öncelik: ORTA)
+
+- [ ] **3.1 — Marka Objeleştirme & Genişletme**
+  - Marka entity'si tıklanabilir, genişletilebilir bir obje olacak
+  - Marka kartına tıklayınca: logo, renkler, font, ton of voice, hedef kitle gibi alanlar düzenlenebilecek
+  - Marka alt-elemanları eklenebilecek (alt-markalar, kampanyalar, ürün serileri)
+  - Etki alanı: `backend/app/models/models.py`, `backend/app/services/entity_service.py`, frontend entity card componentleri
+
+- [ ] **3.2 — Skill Sistemi (Marka Odaklı)**
+  - Agent'a kalıcı "skill" dosyaları eklenebilecek (marka kılavuzu, stil rehberi, ton of voice dokümanı vb.)
+  - Skill'ler bir kez yüklenip DB'de saklanacak — her seferinde API'ye gönderilmeyecek
+  - Agent ihtiyaç duyduğunda ilgili skill'i çekip context'e ekleyecek
+  - Avantaj: Token tasarrufu, tutarlı marka çıktısı, ölçeklenebilir bilgi tabanı
+  - Etki alanı: Yeni servis (`backend/app/services/skill_service.py`), `orchestrator.py`, yeni frontend UI
+
+- [ ] **3.3 — Marka Bazlı Reklam Afişi & Sosyal Medya Görseli Üretimi**
+  - Agent, kayıtlı marka entity'sinin kimliğini (logo, renkler, font, ton of voice) kullanarak markaya özel kreatif üretecek
+  - Desteklenecek formatlar: Instagram hikaye (1080x1920), Instagram post (1080x1080), Facebook kapak, banner vb.
+  - Örnek akış: "Sahibinden markamız adına Kurban Bayramı kutlama görseli oluştur, Instagram hikaye formatında" → Agent marka bilgilerini çeker → uygun format ve marka renkleriyle görsel üretir
+  - Mevsimsel/etkinlik bazlı şablonlar: Bayramlar, yılbaşı, kampanya dönemleri
+  - Bağımlılık: 3.1 (Marka Objeleştirme) ve 3.2 (Skill Sistemi) tamamlanmış olmalı
+  - Etki alanı: `backend/app/services/agent/orchestrator.py`, `backend/app/services/agent/tools.py`, entity context enjeksiyonu
+
+- [ ] **3.4 — Paralel Çoklu Görsel Üretimi (Batch Generation)**
+  - Kullanıcı "4 görsel oluştur" dediğinde agent tam olarak 4 görseli **eşzamanlı (parallel)** üretecek
+  - Agent mesajdaki sayıyı algılayıp her biri için farklı sahne/açıklama oluşturacak
+  - Örnek: "Bir adamın tüm gününü anlatan 4 görsel" → sabah/öğle/akşam/gece sahneleri paralel üretilir
+  - `asyncio.gather()` ile eşzamanlı fal.ai çağrıları — sıralı üretimden 3-4x daha hızlı
+  - Sayı limiti: kullanıcıya maliyet uyarısı (ör: 10+ görsel → "Bu X kredi harcayacak, onay veriyor musun?")
+  - Karakter/marka tutarlılığı: entity bağlamı tüm paralel üretim çağrılarına aynı şekilde enjekte edilecek
+  - **Fark yaratan özellik:** Diğer AI araçları tek tek üretir, PepperRoot paralel batch ile saniyeler içinde set üretir
+  - Etki alanı: `backend/app/services/agent/orchestrator.py`, `backend/app/services/agent/tools.py`, `backend/app/services/plugins/fal_plugin_v2.py`
+
+- [ ] **3.5 — Grid Generator'dan Chat'e Referans Görsel Gönderme**
+  - Grid Generator UI içinde panel upscale edildikten sonra "Chat'e Ekle" butonu
+  - Tıklanınca görsel chat'e referans görsel olarak düşecek (paperclip attach gibi)
+  - Kullanıcı bu referansla: "bunu düzenle", "bunu videoya çevir" gibi devam komutları verebilecek
+  - Etki alanı: `frontend/src/components/GridGenerator.tsx`, `frontend/src/components/ChatPanel.tsx`
+
+- [ ] **3.6 — Asistan İçi Grid Üretimi & Panel İşlemleri (Grid Generator'dan Bağımsız)**
+  - Grid Generator UI'sından bağımsız, **tamamen chat üzerinden** çalışan grid üretim yeteneği
+  - Kullanıcı chat'ten: "Bu 2 karakter ve bu lokasyonu kullanarak 3x3 grid oluştur" diyecek
+  - Dinamik boyut: 2x2, 3x3, 4x4 vb. — kullanıcı ne isterse o boyutta
+  - **Entity entegrasyonu:** @karakter ve @lokasyon tag'leri grid prompt'larına otomatik enjekte edilecek
+  - **Eşit kare zorunluluğu:** Varsayılan — her kare aynı boyutta. Kullanıcı açıkça "farklı boyutlarda" demediği sürece uniform grid
+  - **Panel çıkarma:** "Soldan 2. görseli çıkar" → agent grid'den o kareyi kesip ayrı asset olarak kaydetecek
+  - **Panel post-processing zinciri:** Çıkarılan kare üzerine doğrudan upscale, videoya çevirme, düzenleme
+  - Örnek tam akış:
+    1. "Bu iki karakteri kullanarak 3x3 grid oluştur" → 9 karelik eşit boyutlu grid üretilir
+    2. "Sağ üst köşedeki görseli çok beğendim, upscale et" → panel çıkarılır + upscale uygulanır
+    3. "Şimdi bunu videoya çevir" → upscale edilmiş görsel videoya dönüştürülür
+    4. Kullanıcıya: çıkarılmış görsel + upscale sonucu + video çıktısı döndürülür
+  - Mevcut `generate_grid` tool + `sharp` panel extraction altyapısı kullanılacak, chat akışına zincirleme entegrasyonu yapılacak
+  - Etki alanı: `backend/app/services/agent/orchestrator.py`, `backend/app/services/agent/tools.py`, grid backend servisleri
+
+- [ ] **3.7 — Agent Config'i DB'ye Kaydetme & Yükleme**
+  - Agent'ın system prompt'u, tool konfigürasyonu, aktif model seçimleri DB'ye kaydedilecek
+  - Farklı agent profilleri oluşturulabilecek (ör: "Marka Asistanı", "Video Uzmanı", "Genel Yaratıcı")
+  - İstenen profil seçilip anında yüklenebilecek
+  - Etki alanı: Yeni tablo + servis, `backend/app/services/agent/orchestrator.py`, admin UI
+
+---
+
+### 🔵 Faz 4 — Sunum Hazırlığı (Öncelik: FAZ 1-3 SONRASI)
+
+- [ ] **4.1 — Sunum Aşamaları Dokümanı**
+  - Demo senaryosu yazılacak: hangi özellikler hangi sırayla gösterilecek
+  - Her adım için hazır prompt'lar ve beklenen çıktılar belirlenecek
+  - Olası sorulara hazırlık notları
+
+- [ ] **4.2 — Demo Ortamı Hazırlığı**
+  - Canlıda temiz test verisi ile stabil bir demo ortamı
+  - Tüm Faz 1-3 maddeleri tamamlanmış ve doğrulanmış olacak
 
 ---
 
