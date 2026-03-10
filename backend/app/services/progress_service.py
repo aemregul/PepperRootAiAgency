@@ -16,11 +16,13 @@ class ProgressService:
     
     _instance: Optional["ProgressService"] = None
     _connections: Dict[str, list] = {}  # session_id → [websocket connections]
+    _latest_payloads: Dict[str, Dict[str, Any]] = {}  # session_id → son payload
     
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._connections = {}
+            cls._latest_payloads = {}
         return cls._instance
     
     def register(self, session_id: str, websocket):
@@ -66,6 +68,7 @@ class ProgressService:
             "details": details or {},
             "timestamp": datetime.utcnow().isoformat()
         }
+        self._latest_payloads[session_id] = payload
         
         # Redis pub/sub ile yayınla
         try:
@@ -91,6 +94,20 @@ class ProgressService:
             # Ölü bağlantıları temizle
             for ws in dead_connections:
                 self._connections[session_id].remove(ws)
+
+    async def get_cached_progress(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Son bilinen ilerleme bilgisini cache'den al."""
+        in_memory = self._latest_payloads.get(session_id)
+        if isinstance(in_memory, dict):
+            return in_memory
+        try:
+            from app.core.cache import cache
+            if not cache.is_connected:
+                return None
+            payload = await cache.get_json(f"progress:{session_id}")
+            return payload if isinstance(payload, dict) else None
+        except Exception:
+            return None
     
     async def send_complete(
         self,
@@ -107,6 +124,7 @@ class ProgressService:
             "result": result,
             "timestamp": datetime.utcnow().isoformat()
         }
+        self._latest_payloads.pop(session_id, None)
         
         if session_id in self._connections:
             for ws in self._connections[session_id]:
@@ -137,6 +155,7 @@ class ProgressService:
             "message": format_user_error_message(error, task_type),
             "timestamp": datetime.utcnow().isoformat()
         }
+        self._latest_payloads.pop(session_id, None)
         
         if session_id in self._connections:
             for ws in self._connections[session_id]:

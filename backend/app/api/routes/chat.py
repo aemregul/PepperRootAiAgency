@@ -5,8 +5,9 @@ Mesajlar ana chat session'a, asset'ler aktif projeye kaydedilir.
 from uuid import UUID
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, WebSocket, WebSocketDisconnect
+from fastapi.encoders import jsonable_encoder
 from typing import List
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
@@ -37,6 +38,11 @@ def _extract_inline_reference_media(message: str) -> tuple[str, Optional[str], O
 
     cleaned = re.sub(r"\n?\n?\[Referans (?:Video|Ses)\]\((https?://[^)]+)\)", "", message, flags=re.IGNORECASE).strip()
     return cleaned, video_match.group(1) if video_match else None, audio_match.group(1) if audio_match else None
+
+
+def _chat_json_response(payload: ChatResponse) -> JSONResponse:
+    """FastAPI response-model katmanını bypass ederek stabil JSON döndür."""
+    return JSONResponse(content=jsonable_encoder(payload))
 
 
 @router.get("/main-session")
@@ -147,7 +153,9 @@ async def _process_chat(
     
     # OpenAI formatına çevir - HATA MESAJLARINI FİLTRELE
     conversation_history = []
-    last_reference_urls_from_history = []  # DB'den referans URL listesi çıkar
+    # Yalnızca kullanıcı tarafından yüklenen referansları taşı.
+    # Asistanın ürettiği asset'leri "yüz referansı" gibi geri besleme.
+    last_reference_urls_from_history = []
     
     for msg in previous_messages:
         content = msg.content.lower() if msg.content else ""
@@ -171,7 +179,6 @@ async def _process_chat(
                 urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
                 if urls:
                     msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
-                    last_reference_urls_from_history.extend(urls)  # Tüm üretilen görselleri referans olarak kaydet
             if videos:
                 urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
                 if urls:
@@ -252,13 +259,34 @@ async def _process_chat(
         } if images or videos or entities_created else {}
     )
     db.add(assistant_message)
+    await db.flush()
+
+    session_id_value = session.id
+    session_user_id = session.user_id
+    session_title = session.title
+    user_message_payload = MessageResponse(
+        id=user_message.id,
+        session_id=user_message.session_id,
+        role=user_message.role,
+        content=user_message.content,
+        metadata_=jsonable_encoder(user_message.metadata_),
+        created_at=user_message.created_at
+    )
+    assistant_message_payload = MessageResponse(
+        id=assistant_message.id,
+        session_id=assistant_message.session_id,
+        role=assistant_message.role,
+        content=assistant_message.content,
+        metadata_=jsonable_encoder(assistant_message.metadata_),
+        created_at=assistant_message.created_at
+    )
+
     await db.commit()
-    await db.refresh(assistant_message)
     
     # === AUTO SUMMARY: Projeler arası hafıza ===
     # Her 10 mesajda bir sohbet özeti kaydet
     total_messages = len(conversation_history) + 2  # +2 = yeni user + assistant
-    if total_messages >= 10 and total_messages % 5 == 0 and session.user_id:
+    if total_messages >= 10 and total_messages % 5 == 0 and session_user_id:
         try:
             from app.services.conversation_memory_service import conversation_memory
             summary_messages = conversation_history[-10:] + [
@@ -267,16 +295,16 @@ async def _process_chat(
             ]
             summary_text = await conversation_memory.summarize_conversation(
                 messages=summary_messages,
-                session_title=session.title
+                session_title=session_title
             )
             if summary_text:
                 await conversation_memory.save_conversation_summary(
                     db=db,
-                    user_id=session.user_id,
-                    session_id=session.id,
+                    user_id=session_user_id,
+                    session_id=session_id_value,
                     summary=summary_text
                 )
-            print(f"💾 Auto-summary kaydedildi (proje: {session.title}, mesaj: {total_messages})")
+            print(f"💾 Auto-summary kaydedildi (proje: {session_title}, mesaj: {total_messages})")
         except Exception as e:
             print(f"⚠️ Auto-summary hatası: {e}")
     
@@ -305,34 +333,20 @@ async def _process_chat(
         if isinstance(entity_data, dict):
             entity_responses.append(EntityResponse(
                 id=entity_data.get("id"),
-                user_id=session.user_id,  # Session'dan user_id al
-                session_id=session.id,
+                user_id=session_user_id,
+                session_id=session_id_value,
                 entity_type=entity_data.get("entity_type", ""),
                 name=entity_data.get("name", ""),
                 tag=entity_data.get("tag", ""),
                 description=entity_data.get("description"),
                 attributes=entity_data.get("attributes"),
-                created_at=assistant_message.created_at
+                created_at=assistant_message_payload.created_at
             ))
     
     return ChatResponse(
-        session_id=session.id,
-        message=MessageResponse(
-            id=user_message.id,
-            session_id=user_message.session_id,
-            role=user_message.role,
-            content=user_message.content,
-            metadata_=user_message.metadata_,
-            created_at=user_message.created_at
-        ),
-        response=MessageResponse(
-            id=assistant_message.id,
-            session_id=assistant_message.session_id,
-            role=assistant_message.role,
-            content=assistant_message.content,
-            metadata_=assistant_message.metadata_,
-            created_at=assistant_message.created_at
-        ),
+        session_id=session_id_value,
+        message=user_message_payload,
+        response=assistant_message_payload,
         assets=assets,
         entities_created=entity_responses
     )
@@ -346,16 +360,23 @@ async def chat(
     current_user: User = Depends(get_current_user_required)
 ):
     """Kullanıcı mesajını işle ve yanıt ver (JSON)."""
-    return await _process_chat(
-        actual_session_id=str(request.session_id) if request.session_id else None,
-        actual_message=request.message,
-        reference_images_base64=None,
-        preuploaded_reference_urls=None,
-        reference_video_url=request.reference_video_url,
-        db=db,
-        user_id=current_user.id,
-        active_project_id=str(request.active_project_id) if request.active_project_id else None
-    )
+    try:
+        response = await _process_chat(
+            actual_session_id=str(request.session_id) if request.session_id else None,
+            actual_message=request.message,
+            reference_images_base64=None,
+            preuploaded_reference_urls=None,
+            reference_video_url=request.reference_video_url,
+            db=db,
+            user_id=current_user.id,
+            active_project_id=str(request.active_project_id) if request.active_project_id else None
+        )
+        return _chat_json_response(response)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("chat endpoint failed")
+        raise HTTPException(status_code=500, detail=f"Sohbet işlenirken hata oluştu: {str(e)}")
 
 
 # FormData endpoint (tek dosya — backward compat)
@@ -369,19 +390,26 @@ async def chat_with_image(
     current_user: User = Depends(get_current_user_required)
 ):
     """Kullanıcı mesajını tek referans görsel ile işle (backward compat)."""
-    image_content = await reference_image.read()
-    reference_image_base64 = base64.b64encode(image_content).decode('utf-8')
-    
-    return await _process_chat(
-        actual_session_id=session_id,
-        actual_message=message,
-        reference_images_base64=[reference_image_base64],
-        preuploaded_reference_urls=None,
-        reference_video_url=None,
-        db=db,
-        user_id=current_user.id,
-        active_project_id=active_project_id
-    )
+    try:
+        image_content = await reference_image.read()
+        reference_image_base64 = base64.b64encode(image_content).decode('utf-8')
+        
+        response = await _process_chat(
+            actual_session_id=session_id,
+            actual_message=message,
+            reference_images_base64=[reference_image_base64],
+            preuploaded_reference_urls=None,
+            reference_video_url=None,
+            db=db,
+            user_id=current_user.id,
+            active_project_id=active_project_id
+        )
+        return _chat_json_response(response)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("chat_with_image failed")
+        raise HTTPException(status_code=500, detail=f"Referans görsel işlenirken hata oluştu: {str(e)}")
 
 
 # FormData endpoint (çoklu dosya — max 10)
@@ -395,55 +423,60 @@ async def chat_with_files(
     current_user: User = Depends(get_current_user_required)
 ):
     """Kullanıcı mesajını birden fazla referans görsel ile işle (max 10)."""
-    if len(reference_files) > 10:
-        raise HTTPException(status_code=400, detail="Maksimum 10 dosya yüklenebilir")
-    
-    images_base64 = []
-    uploaded_urls = []
-    
-    for f in reference_files:
-        content = await f.read()
-        images_base64.append(base64.b64encode(content).decode('utf-8'))
+    try:
+        if len(reference_files) > 10:
+            raise HTTPException(status_code=400, detail="Maksimum 10 dosya yüklenebilir")
         
-        # Dosyayı fal.ai storage'a yükle ve asset olarak kaydet
-        try:
-            import fal_client
-            content_type = f.content_type or "image/png"
-            url = fal_client.upload(content, content_type)
-            uploaded_urls.append((url, f.filename or "uploaded_file"))
-        except Exception as e:
-            logger.warning(f"Dosya fal.ai'ye yüklenemedi: {e}")
-    
-    # Yüklenen dosyaları asset olarak kaydet
-    if uploaded_urls:
-        try:
-            from uuid import UUID as UUIDType
-            from app.services.asset_service import AssetService
-            asset_service = AssetService()
-            target_session_id = UUIDType(active_project_id) if active_project_id else UUIDType(session_id)
+        images_base64 = []
+        uploaded_urls = []
+        
+        for f in reference_files:
+            content = await f.read()
+            images_base64.append(base64.b64encode(content).decode('utf-8'))
             
-            for url, filename in uploaded_urls:
-                await asset_service.save_asset(
-                    db=db,
-                    session_id=target_session_id,
-                    url=url,
-                    asset_type="uploaded",
-                    prompt=f"Kullanıcı yüklemesi: {filename}",
-                    model_name="user_upload",
-                )
-        except Exception as e:
-            logger.warning(f"Uploaded asset kaydedilemedi: {e}")
-    
-    return await _process_chat(
-        actual_session_id=session_id,
-        actual_message=message,
-        reference_images_base64=images_base64,
-        preuploaded_reference_urls=[url for url, _ in uploaded_urls] if uploaded_urls else None,
-        reference_video_url=None,
-        db=db,
-        user_id=current_user.id,
-        active_project_id=active_project_id
-    )
+            try:
+                import fal_client
+                content_type = f.content_type or "image/png"
+                url = fal_client.upload(content, content_type)
+                uploaded_urls.append((url, f.filename or "uploaded_file"))
+            except Exception as e:
+                logger.warning(f"Dosya fal.ai'ye yüklenemedi: {e}")
+        
+        if uploaded_urls:
+            try:
+                from uuid import UUID as UUIDType
+                from app.services.asset_service import AssetService
+                asset_service = AssetService()
+                target_session_id = UUIDType(active_project_id) if active_project_id else UUIDType(session_id)
+                
+                for url, filename in uploaded_urls:
+                    await asset_service.save_asset(
+                        db=db,
+                        session_id=target_session_id,
+                        url=url,
+                        asset_type="uploaded",
+                        prompt=f"Kullanıcı yüklemesi: {filename}",
+                        model_name="user_upload",
+                    )
+            except Exception as e:
+                logger.warning(f"Uploaded asset kaydedilemedi: {e}")
+        
+        response = await _process_chat(
+            actual_session_id=session_id,
+            actual_message=message,
+            reference_images_base64=images_base64,
+            preuploaded_reference_urls=[url for url, _ in uploaded_urls] if uploaded_urls else None,
+            reference_video_url=None,
+            db=db,
+            user_id=current_user.id,
+            active_project_id=active_project_id
+        )
+        return _chat_json_response(response)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("chat_with_files failed")
+        raise HTTPException(status_code=500, detail=f"Referans dosyaları işlenirken hata oluştu: {str(e)}")
 
 
 # SSE Streaming endpoint
@@ -505,7 +538,7 @@ async def chat_stream(
     
     ERROR_PATTERNS = ["kredi", "credit", "yetersiz", "insufficient", "hata", "error", "başarısız", "failed"]
     conversation_history = []
-    last_reference_url_from_history = None
+    last_reference_urls_from_history = []
     
     for msg in previous_messages:
         content = msg.content.lower() if msg.content else ""
@@ -523,7 +556,6 @@ async def chat_stream(
                 urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
                 if urls:
                     msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
-                    last_reference_url_from_history = urls[-1]
             if videos:
                 urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
                 if urls:
@@ -532,7 +564,9 @@ async def chat_stream(
         if msg.role == "user" and msg.metadata_:
             meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
             if meta.get("has_reference_image") and meta.get("reference_url"):
-                last_reference_url_from_history = meta["reference_url"]
+                last_reference_urls_from_history = [meta["reference_url"]]
+            elif meta.get("reference_urls") and isinstance(meta.get("reference_urls"), list):
+                last_reference_urls_from_history = meta["reference_urls"]
         
         conversation_history.append({"role": msg.role, "content": msg_content})
     
@@ -611,10 +645,11 @@ async def chat_stream(
                 conversation_history=conversation_history,
                 user_id=current_user.id,
                 reference_video_url=effective_reference_video_url,
+                last_reference_urls=last_reference_urls_from_history,
             ):
-                yield event
-                
-                # Tam yanıtı biriktir (DB'ye kaydetmek için)
+                # Tam yanıtı ÖNCE biriktir/persist et.
+                # Aksi halde client refresh/disconnect tam yield sonrasında olursa
+                # "arka planda başladı" gibi kritik asistan mesajları DB'ye düşmeden kaybolabiliyor.
                 if event.startswith("event: token"):
                     data_line = event.split("data: ", 1)[1].strip()
                     try:
@@ -638,6 +673,8 @@ async def chat_stream(
                         await persist_stream_message()
                     except:
                         pass
+
+                yield event
         except asyncio.CancelledError:
             print("⚠️ Stream client tarafından kapatıldı")
             try:

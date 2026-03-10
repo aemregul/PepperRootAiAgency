@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Send, Paperclip, Loader2, Mic, Smile, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, Image, ZoomIn, Palette, Download, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useToast } from "./ToastProvider";
-import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory, sendFeedback } from "@/lib/api";
+import { sendMessage, sendMessageStream, createSession, checkHealth, getSessionHistory, sendFeedback, type MessageResponse as ApiMessageResponse } from "@/lib/api";
 import { GenerationProgressCard } from "./GenerationProgressCard";
 
 interface Message {
@@ -30,6 +30,54 @@ interface ChatPanelProps {
     installedPlugins?: Array<{ id: string; name: string; promptText: string; emoji?: string }>;
     pendingAssetUrl?: { url: string; type: "image" | "video" | "audio" | "uploaded" } | null;
     onAssetUrlConsumed?: () => void;
+}
+
+function mapApiMessageToChatMessage(msg: ApiMessageResponse): Message {
+    const metadata = (msg.metadata_ || {}) as {
+        images?: { url: string }[];
+        videos?: { url: string }[];
+        has_reference_image?: boolean;
+        reference_url?: string;
+        reference_urls?: string[];
+        reference_video_url?: string;
+        reference_audio_url?: string;
+    };
+
+    let imageUrl = metadata.images?.[0]?.url;
+    let imageUrls: string[] | undefined;
+
+    if (!imageUrl && msg.content) {
+        const match = msg.content.match(/\[(?:ÜRETİLEN GÖRSELLER|Bu mesajda üretilen görseller):\s*([^\]]+)\]/i);
+        if (match) {
+            imageUrl = match[1].split(',')[0].trim();
+        }
+    }
+
+    if (msg.role === 'user' && metadata.reference_urls) {
+        imageUrls = metadata.reference_urls;
+        if (!imageUrl) imageUrl = imageUrls[0];
+    } else if (!imageUrl && msg.role === 'user' && metadata.reference_url) {
+        imageUrl = metadata.reference_url;
+        imageUrls = [imageUrl];
+    }
+
+    const videoUrl = (() => {
+        if (msg.role === 'user' && metadata.reference_video_url) {
+            return metadata.reference_video_url;
+        }
+        if (msg.role !== 'assistant') return undefined;
+        return metadata.videos?.[0]?.url;
+    })();
+
+    return {
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content?.replace(/\n\n\[(?:ÜRETİLEN (?:GÖRSELLER|VİDEOLAR)|Bu mesajda üretilen (?:görseller|videolar)):\s*[^\]]+\]/gi, '') || msg.content,
+        timestamp: new Date(msg.created_at),
+        image_url: imageUrl,
+        image_urls: imageUrls,
+        video_url: videoUrl,
+    };
 }
 
 // Hızlı Stil Şablonları
@@ -628,51 +676,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             try {
                 // Backend'den mesaj geçmişini yükle
                 const history = await getSessionHistory(initialSessionId);
-                const formattedMessages: Message[] = history.map((msg: {
-                    id: string;
-                    role: string;
-                    content: string;
-                    created_at: string;
-                    metadata_?: { images?: { url: string }[]; has_reference_image?: boolean; reference_url?: string; reference_urls?: string[]; reference_video_url?: string; reference_audio_url?: string };
-                }) => {
-                    // Image URL: önce metadata'dan, yoksa content'teki [ÜRETİLEN GÖRSELLER: url] tag'inden
-                    let imageUrl = msg.metadata_?.images?.[0]?.url;
-                    let imageUrls: string[] | undefined;
-                    if (!imageUrl && msg.content) {
-                        // Match both old format [ÜRETİLEN GÖRSELLER: url] and new format [Bu mesajda üretilen görseller: url]
-                        const match = msg.content.match(/\[(?:ÜRETİLEN GÖRSELLER|Bu mesajda üretilen görseller):\s*([^\]]+)\]/i);
-                        if (match) {
-                            imageUrl = match[1].split(',')[0].trim();
-                        }
-                    }
-                    // Kullanıcı mesajlarında referans görsel URL'leri oku
-                    if (msg.role === 'user' && msg.metadata_?.reference_urls) {
-                        imageUrls = msg.metadata_.reference_urls;
-                        if (!imageUrl) imageUrl = imageUrls[0];
-                    } else if (!imageUrl && msg.role === 'user' && msg.metadata_?.reference_url) {
-                        imageUrl = msg.metadata_.reference_url;
-                        imageUrls = [imageUrl];
-                    }
-                    // Video URL: metadata'dan
-                    const videoUrl = (() => {
-                        if (msg.role === 'user' && msg.metadata_?.reference_video_url) {
-                            return msg.metadata_.reference_video_url;
-                        }
-                        if (msg.role !== 'assistant' || !msg.metadata_) return undefined;
-                        const meta = msg.metadata_ as Record<string, unknown>;
-                        const videos = meta.videos as { url: string }[] | undefined;
-                        return videos?.[0]?.url;
-                    })();
-                    return {
-                        id: msg.id,
-                        role: msg.role as 'user' | 'assistant',
-                        content: msg.content?.replace(/\n\n\[(?:ÜRETİLEN (?:GÖRSELLER|VİDEOLAR)|Bu mesajda üretilen (?:görseller|videolar)):\s*[^\]]+\]/gi, '') || msg.content,
-                        timestamp: new Date(msg.created_at),
-                        image_url: imageUrl,
-                        image_urls: imageUrls,
-                        video_url: videoUrl,
-                    }
-                });
+                const formattedMessages: Message[] = history.map(mapApiMessageToChatMessage);
                 setMessages(formattedMessages);
             } catch (err) {
                 console.error('Mesaj geçmişi yüklenemedi:', err);
@@ -966,7 +970,12 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         }
 
         const currentInput = contentToSend || (attachedFiles.length > 0 ? `[${attachedFiles.length} Referans Görsel]` : attachedVideoUrl ? '[📹 Video Referansı]' : attachedAudioUrl ? '[🎵 Ses Referansı]' : "");
+        const currentDraftInput = input;
         const currentFiles = [...attachedFiles];
+        const currentFilePreviews = [...filePreviews];
+        const currentAttachedVideoUrl = attachedVideoUrl;
+        const currentAttachedAudioUrl = attachedAudioUrl;
+        const currentAttachedAudioLabel = attachedAudioLabel;
 
         setInput("");
         // Reset textarea height after clearing
@@ -1055,20 +1064,22 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
                 // Progress kartını kapat
                 // setActiveGenerations([]);
+                const serverUserMessage = response.message ? mapApiMessageToChatMessage(response.message) : null;
+                const assistantMessage = response.response
+                    ? mapApiMessageToChatMessage(response.response)
+                    : {
+                        id: (Date.now() + 1).toString(),
+                        role: "assistant" as const,
+                        content: "Yanıt alınamadı",
+                        timestamp: new Date(),
+                    };
 
-                const responseContent = typeof response.response === 'string'
-                    ? response.response
-                    : response.response?.content ?? 'Yanıt alınamadı';
-                // Inline asset tag'lerini temizle (thumbnail olarak render edilecek)
-                const cleanContent = responseContent.replace(/\n\n\[(?:ÜRETİLEN (?:GÖRSELLER|VİDEOLAR)|Bu mesajda üretilen (?:görseller|videolar)):\s*[^\]]+\]/gi, '').trim();
-                const assistantMessage: Message = {
-                    id: (Date.now() + 1).toString(),
-                    role: "assistant",
-                    content: cleanContent,
-                    timestamp: new Date(),
-                    image_url: response.assets?.find((a: { asset_type: string; url: string }) => a.asset_type === 'image')?.url,
-                };
-                setMessages((prev) => [...prev, assistantMessage]);
+                setMessages((prev) => {
+                    const reconciled = prev.map((msg) =>
+                        msg.id === userMessage.id && serverUserMessage ? serverUserMessage : msg
+                    );
+                    return [...reconciled, assistantMessage];
+                });
                 if (response.assets && response.assets.length > 0) {
                     response.assets.forEach((asset: { url: string; asset_type: string }) => {
                         onNewAsset?.({ url: asset.url, type: asset.asset_type });
@@ -1253,14 +1264,20 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
             }
             console.error("Chat error:", err);
             // Save failed message back to draft for retry
-            localStorage.setItem(DRAFT_KEY, currentInput);
-            setError("Mesaj gönderilemedi. Mesajınız kaydedildi, tekrar deneyin.");
+            localStorage.setItem(DRAFT_KEY, currentDraftInput);
+            setInput(currentDraftInput);
+            setAttachedFiles(currentFiles);
+            setFilePreviews(currentFilePreviews);
+            setAttachedVideoUrl(currentAttachedVideoUrl);
+            setAttachedAudioUrl(currentAttachedAudioUrl);
+            setAttachedAudioLabel(currentAttachedAudioLabel);
+            setError("Mesaj gönderilemedi. Referanslar korundu, tekrar deneyin.");
 
             // Fallback message
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant",
-                content: "Üzgünüm, bir hata oluştu. Mesajınız kaydedildi, lütfen tekrar deneyin.",
+                content: "Üzgünüm, bir hata oluştu. Referanslar korundu, lütfen tekrar deneyin.",
                 timestamp: new Date(),
             };
             setMessages((prev) => [...prev, errorMessage]);

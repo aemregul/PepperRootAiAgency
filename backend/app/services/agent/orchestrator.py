@@ -425,6 +425,49 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         )
 
     @staticmethod
+    def _should_reuse_history_reference_images(user_message: str) -> bool:
+        """Retry veya açık referans devamı isteklerinde önceki kullanıcı referansını koru."""
+        lower_msg = (user_message or "").lower().strip()
+        if not lower_msg:
+            return False
+
+        negative_cues = (
+            "yeni bir kişi",
+            "başka bir kişi",
+            "farklı bir kişi",
+            "başka yüz",
+            "farklı yüz",
+            "referans kullanma",
+            "referanssız",
+            "without reference",
+        )
+        if any(cue in lower_msg for cue in negative_cues):
+            return False
+
+        retry_cues = (
+            "tekrar dene",
+            "yeniden dene",
+            "retry",
+            "bir daha dene",
+            "aynısını tekrar",
+        )
+        reference_followup_cues = (
+            "referans görsel",
+            "referanstaki",
+            "bu kişi",
+            "aynı kişi",
+            "aynı karakter",
+            "yüzü koru",
+            "yanına koy",
+            "yanında",
+            "birlikte",
+            "beraber",
+            "aynı yüz",
+        )
+
+        return any(cue in lower_msg for cue in retry_cues + reference_followup_cues)
+
+    @staticmethod
     def _strip_asset_annotations_from_history(conversation_history: list) -> list:
         """Asset URL anotasyonlarını history'den çıkar; metinsel bağlamı koru."""
         if not conversation_history:
@@ -523,6 +566,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         # Mesaj içeriğini hazırla (referans görsel varsa vision API kullan)
         uploaded_image_url = None
         uploaded_image_urls = []  # Çoklu görsel URL'leri
+        historical_reference_urls = [url for url in (last_reference_urls or []) if url]
         
         # Çoklu görsel desteği: reference_images listesini işle
         all_images = reference_images or ([reference_image] if reference_image else [])
@@ -558,6 +602,14 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     "base64": all_images[0]
                 }
                 print(f"💾 {len(uploaded_image_urls)} referans görsel session'a kaydedildi")
+        elif historical_reference_urls and self._should_reuse_history_reference_images(user_message):
+            uploaded_image_urls = historical_reference_urls
+            uploaded_image_url = uploaded_image_urls[0]
+            self._session_reference_images[str(session_id)] = {
+                "url": uploaded_image_url,
+                "base64": None,
+            }
+            print(f"♻️ Geçmiş referans görseller normal istekte yeniden kullanılıyor: {len(uploaded_image_urls)} adet")
         # Mesajları hazırla
         direct_i2v_request = bool(all_images and uploaded_image_urls and self._is_direct_image_to_video_request(user_message))
 
@@ -604,6 +656,17 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             
             messages = conversation_history + [
                 {"role": "user", "content": user_content}
+            ]
+        elif uploaded_image_urls:
+            url_info = ", ".join([f"Görsel{i+1}: {u}" for i, u in enumerate(uploaded_image_urls)])
+            messages = conversation_history + [
+                {
+                    "role": "user",
+                    "content": user_message + (
+                        f"\n\n[REFERANS GÖRSEL URL'LERİ: {url_info}\n"
+                        "Bu görseller önceki kullanıcı referanslarıdır. Bu istek bir retry veya referanslı devam isteği olduğu için kimlik/yüz referansı olarak kullan.]"
+                    )
+                }
             ]
         elif reference_video_url:
             messages = conversation_history + [
@@ -678,6 +741,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         reference_image: str = None,
         user_id: uuid.UUID = None,
         reference_video_url: str = None,
+        last_reference_urls: list = None,
     ):
         """
         Streaming versiyonu — SSE event'leri yield eder.
@@ -719,11 +783,14 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         
         # Referans görsel
         uploaded_image_url = None
+        uploaded_image_urls = []
+        historical_reference_urls = [url for url in (last_reference_urls or []) if url]
         if reference_image:
             try:
                 upload_result = await self.fal_plugin.upload_base64_image(reference_image)
                 if upload_result.get("success"):
                     uploaded_image_url = upload_result["url"]
+                    uploaded_image_urls = [uploaded_image_url]
                     # Session'a kaydet — sonraki mesajlarda yeniden kullanılacak
                     self._session_reference_images[str(session_id)] = {
                         "url": uploaded_image_url,
@@ -732,12 +799,27 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     print(f"💾 Referans görsel session'a kaydedildi (stream)")
             except Exception:
                 pass
+        elif historical_reference_urls and self._should_reuse_history_reference_images(user_message):
+            uploaded_image_urls = historical_reference_urls
+            uploaded_image_url = uploaded_image_urls[0]
+            self._session_reference_images[str(session_id)] = {
+                "url": uploaded_image_url,
+                "base64": None,
+            }
+            print(f"♻️ Geçmiş referans görseller stream isteğinde yeniden kullanılıyor: {len(uploaded_image_urls)} adet")
         # Mesajları hazırla
         if uploaded_image_url:
-            user_content = [
-                {"type": "image_url", "image_url": {"url": uploaded_image_url}},
-                {"type": "text", "text": user_message + f"\n\n[REFERANS GÖRSEL URL: {uploaded_image_url}\nBu görseli işlemek için ilgili aracın image_url parametresine bu URL'i yaz. Örnekler: remove_background(image_url=\"{uploaded_image_url}\"), edit_image(image_url=\"{uploaded_image_url}\", ...), outpaint_image(image_url=\"{uploaded_image_url}\", ...), upscale_image(image_url=\"{uploaded_image_url}\"). Kaydetmek için create_character(use_current_reference=true).]"}
-            ]
+            if reference_image:
+                user_content = [
+                    {"type": "image_url", "image_url": {"url": uploaded_image_url}},
+                    {"type": "text", "text": user_message + f"\n\n[REFERANS GÖRSEL URL: {uploaded_image_url}\nBu görseli işlemek için ilgili aracın image_url parametresine bu URL'i yaz. Örnekler: remove_background(image_url=\"{uploaded_image_url}\"), edit_image(image_url=\"{uploaded_image_url}\", ...), outpaint_image(image_url=\"{uploaded_image_url}\", ...), upscale_image(image_url=\"{uploaded_image_url}\"). Kaydetmek için create_character(use_current_reference=true).]"}
+                ]
+            else:
+                url_info = ", ".join([f"Görsel{i+1}: {u}" for i, u in enumerate(uploaded_image_urls)])
+                user_content = user_message + (
+                    f"\n\n[REFERANS GÖRSEL URL'LERİ: {url_info}\n"
+                    "Bu görseller önceki kullanıcı referanslarıdır. Bu istek bir retry veya referanslı devam isteği olduğu için kimlik/yüz referansı olarak kullan.]"
+                )
             messages = conversation_history + [{"role": "user", "content": user_content}]
         elif reference_video_url:
             messages = conversation_history + [{
@@ -772,6 +854,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             "_resolved_entities": [],
             "_current_reference_image": reference_image,
             "_uploaded_image_url": uploaded_image_url,
+            "_uploaded_image_urls": uploaded_image_urls,
             "_uploaded_video_url": reference_video_url,
             "_last_generated_image_url": last_generated_image_url,
             "_bg_generations": [],
@@ -3842,7 +3925,16 @@ Konuşma:
             import asyncio
             
             face_ref = params.get("face_reference_url")
-            all_refs = params.get("all_reference_urls", [])
+            all_refs = list(params.get("all_reference_urls", []) or [])
+            if not all_refs and isinstance(edit_instruction, str):
+                inline_ref_urls = []
+                for match in re.findall(r"https?://[^\s)\]>\"']+", edit_instruction, flags=re.IGNORECASE):
+                    cleaned_url = match.rstrip(".,]")
+                    if cleaned_url != image_url and cleaned_url.lower().split("?", 1)[0].endswith((".png", ".jpg", ".jpeg", ".webp")):
+                        inline_ref_urls.append(cleaned_url)
+                if inline_ref_urls:
+                    all_refs = list(dict.fromkeys(inline_ref_urls))
+                    print(f"   🔗 Prompt içinden {len(all_refs)} referans URL çıkarıldı")
             if face_ref and face_ref not in all_refs:
                 all_refs.insert(0, face_ref)
 
@@ -3907,7 +3999,7 @@ Konuşma:
                             "original_image_url": image_url,
                             "model": "gemini-inpainting",
                             "method": res.get("method_used", "gemini-inpainting"),
-                            "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                            "message": "Görsel başarıyla düzenlendi."
                         }
                     else:
                         print(f"   ⚠️ Gemini başarısız: {res.get('error')}")
@@ -3949,7 +4041,7 @@ Konuşma:
                         "original_image_url": image_url,
                         "model": "nano-banana-pro-edit" + ("+face-swap" if final_url != edited_url else ""),
                         "method": "fal-ai/nano-banana-pro/edit",
-                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                        "message": "Görsel başarıyla düzenlendi."
                     }
             except asyncio.TimeoutError:
                 print(f"   ⚠️ Nano Banana Pro Edit timeout (45s)")
@@ -3987,7 +4079,7 @@ Konuşma:
                         "original_image_url": image_url,
                         "model": "gpt-image-1-edit" + ("+face-swap" if final_url != edited_url else ""),
                         "method": "fal-ai/gpt-image-1/edit-image",
-                        "message": f"Görsel başarıyla düzenlendi: {edit_instruction}"
+                        "message": "Görsel başarıyla düzenlendi."
                     }
             except asyncio.TimeoutError:
                 print(f"   ⚠️ GPT Image 1 Edit timeout (60s)")
@@ -4025,7 +4117,7 @@ Konuşma:
                         "original_image_url": image_url,
                         "model": "i2i-fallback" + ("+face-swap" if final_url != edited_url else ""),
                         "method": "fal-ai/nano-banana-pro",
-                        "message": f"Görsel yeniden üretilerek düzenlendi: {edit_instruction}"
+                        "message": "Görsel düzenleme tamamlandı."
                     }
             except asyncio.TimeoutError:
                 print(f"   ⚠️ FLUX Kontext Pro timeout (45s)")

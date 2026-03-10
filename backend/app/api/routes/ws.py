@@ -22,6 +22,13 @@ async def websocket_progress(websocket: WebSocket, session_id: str):
     """
     await websocket.accept()
     progress_service.register(session_id, websocket)
+    cached_progress = await progress_service.get_cached_progress(session_id)
+    if cached_progress:
+        try:
+            await websocket.send_json(cached_progress)
+        except Exception:
+            progress_service.unregister(session_id, websocket)
+            return
     
     try:
         while True:
