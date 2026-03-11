@@ -1028,30 +1028,21 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     { text: "🖌️ Görsel oluşturuluyor...", delay: 3000 },
                     { text: "✨ Son rötuşlar yapılıyor...", delay: 12000 },
                 ];
-                // Production card'ı erken aç
-                setActiveGenerations([{ type: "image" }]);
-                setVideoProgress(0);
-                setVideoGenStatus("generating");
+                // Card erken açılmaz — backend generation_start event'i ile açılır
             } else if (lowerMsg.match(/video|animasyon|klip|sinema|cinematic/)) {
                 statusPhases = [
                     { text: "🎬 Video senaryosu hazırlanıyor...", delay: 0 },
                     { text: "🎥 Video üretiliyor...", delay: 3000 },
                     { text: "🎞️ Video işleniyor...", delay: 15000 },
                 ];
-                // Production card'ı erken aç
-                setActiveGenerations([{ type: "video" }]);
-                setVideoProgress(0);
-                setVideoGenStatus("generating");
+                // Card erken açılmaz — backend generation_start/progress event'i ile açılır
             } else if (lowerMsg.match(/düzenle|edit|değiştir|kaldır|ekle.*görsel|remove|change/)) {
                 statusPhases = [
                     { text: "🔍 Görsel analiz ediliyor...", delay: 0 },
                     { text: "✏️ Düzenleme yapılıyor...", delay: 3000 },
                     { text: "✨ Sonuç hazırlanıyor...", delay: 10000 },
                 ];
-                // Production card'ı erken aç (edit = image tipi)
-                setActiveGenerations([{ type: "image" }]);
-                setVideoProgress(0);
-                setVideoGenStatus("generating");
+                // Card erken açılmaz — backend generation_start event'i ile açılır
             } else if (hasImage) {
                 statusPhases = [
                     { text: "📷 Görsel inceleniyor...", delay: 0 },
