@@ -236,12 +236,12 @@ export function PluginDetailModal({ isOpen, onClose, plugin, onDelete, onUse, on
                 name: editName,
                 description: editDescription,
                 config: {
-                    style: editStyle || undefined,
-                    timeOfDay: editTimeOfDay || undefined,
-                    cameraAngles: editCameraAngles.length > 0 ? editCameraAngles : undefined,
-                    promptTemplate: editPromptTemplate || undefined,
-                    character_tag: editCharacterTag || undefined,
-                    location_tag: editLocationTag || undefined,
+                    style: editStyle,
+                    timeOfDay: editTimeOfDay,
+                    cameraAngles: editCameraAngles,
+                    promptTemplate: editPromptTemplate,
+                    character_tag: editCharacterTag,
+                    location_tag: editLocationTag,
                 }
             });
 
@@ -252,13 +252,12 @@ export function PluginDetailModal({ isOpen, onClose, plugin, onDelete, onUse, on
                     name: editName,
                     description: editDescription,
                     config: {
-                        ...plugin.config,
-                        style: editStyle || undefined,
-                        timeOfDay: editTimeOfDay || undefined,
-                        cameraAngles: editCameraAngles.length > 0 ? editCameraAngles : undefined,
-                        promptTemplate: editPromptTemplate || undefined,
-                        character_tag: editCharacterTag || undefined,
-                        location_tag: editLocationTag || undefined,
+                        style: editStyle,
+                        timeOfDay: editTimeOfDay,
+                        cameraAngles: editCameraAngles,
+                        promptTemplate: editPromptTemplate,
+                        character_tag: editCharacterTag,
+                        location_tag: editLocationTag,
                     }
                 });
             }

@@ -1048,8 +1048,9 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                             else:
                                 # Entity silinmiş — ÜRETİM YAPMA, uyarı göster ve dur
                                 print(f"❌ Preset entity '{tag}' artık mevcut değil! Üretim engellendi.")
-                                warning_msg = f"⚠️ Bu preset'teki **@{tag}** karakteri silinmiş. Gereksiz kredi harcamamak için üretim durduruldu.\n\nLütfen:\n• Preset kartını düzenleyip karakter tag'ını güncelleyin\n• veya karakter tag'ını kaldırıp tekrar deneyin."
-                                yield warning_msg
+                                warning_msg = f"⚠️ Bu preset'teki **@{tag}** karakteri silinmiş. \n\nLütfen:\n• Preset kartını düzenleyip karakter tag'ını güncelleyin veya karakter tag'ını kaldırıp tekrar deneyin."
+                                yield f"event: token\ndata: {json.dumps(warning_msg, ensure_ascii=False)}\n\n"
+                                yield "event: done\ndata: {}\n\n"
                                 return
                     
                     enriched_prompt = ", ".join(parts) if parts else f"generate image with preset {preset_name}"

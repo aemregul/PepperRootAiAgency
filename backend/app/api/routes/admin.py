@@ -687,10 +687,9 @@ async def update_preset(plugin_id: UUID, data: PresetUpdate, db: AsyncSession = 
     if data.description is not None:
         plugin.description = data.description
     if data.config is not None:
-        # Mevcut config'i merge et
-        existing = dict(plugin.config or {})
-        existing.update(data.config)
-        plugin.config = existing
+        # Boş stringleri temizle, config'i tamamen değiştir (merge değil replace)
+        cleaned = {k: v for k, v in data.config.items() if v != "" and v != []}
+        plugin.config = cleaned
         flag_modified(plugin, "config")
     
     await db.commit()
