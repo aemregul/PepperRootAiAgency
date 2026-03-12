@@ -1923,7 +1923,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const pluginMessage = "Bu sohbetteki bilgilerden bir plugin oluştur.";
+                                        const pluginMessage = "Bu sohbetteki bilgilerden bir preset oluştur.";
                                         setInput(pluginMessage);
                                         // Auto-send after a tick so React state updates first
                                         setTimeout(() => {
