@@ -158,6 +158,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 - Başarısızlıkta otomatik alternatif dene.
 - Değişiklik isterse ilgili tool'u çağır, sadece metin yazma.
 - Her yanıtın ANLAMLI ve SPESİFİK olmalı — ne yaptığını/ne ürettiğini açıkla.
+- generate_image çağrıyorsan "Görsel oluşturuluyor" de, generate_video çağrıyorsan "Video oluşturuluyor" de. İKİSİNİ KARIŞTIRMA!
 """
 
     def _is_direct_image_to_video_request(self, user_message: str) -> bool:
