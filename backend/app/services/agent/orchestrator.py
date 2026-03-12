@@ -5583,6 +5583,34 @@ Konuşma:
                 if not name:
                     return {"success": False, "error": "Preset adı gerekli."}
                 
+                # AI'ın config'ini KULLANMA — session'daki gerçek entity'lerden oluştur
+                from app.models.models import Entity
+                entity_result = await db.execute(
+                    select(Entity).where(
+                        Entity.session_id == session_id
+                    )
+                )
+                entities = entity_result.scalars().all()
+                
+                # Gerçek config'i entity'lerden oluştur
+                config = {}
+                characters = [e for e in entities if e.entity_type == "character"]
+                locations = [e for e in entities if e.entity_type == "location"]
+                
+                if characters:
+                    config["character_tag"] = characters[0].tag  # İlk karakter
+                if locations:
+                    config["location_tag"] = locations[0].tag  # İlk lokasyon
+                
+                # Stil bilgisini AI'dan al (hallüsinasyon riski düşük)
+                ai_config = params.get("config", {})
+                if ai_config.get("style"):
+                    config["style"] = ai_config["style"]
+                if ai_config.get("timeOfDay"):
+                    config["timeOfDay"] = ai_config["timeOfDay"]
+                if ai_config.get("cameraAngles"):
+                    config["cameraAngles"] = ai_config["cameraAngles"]
+                
                 # Duplicate kontrolü — aynı session'da benzer plugin var mı?
                 existing_result = await db.execute(
                     select(Preset).where(
