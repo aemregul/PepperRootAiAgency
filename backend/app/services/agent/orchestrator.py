@@ -146,6 +146,13 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 - Sohbetteki karakter/lokasyon/stil bilgilerini config'e ekle
 - İsmi KESİNLİKLE kullanıcının yazdığı gibi kullan, değiştirme!
 
+## PRESET KULLANIMI
+"Preset: X" formatında mesaj geldiğinde:
+- Bu preset'in config bilgilerini (stil, kamera açısı, zaman, prompt şablonu vb.) bağlamdan oku
+- HİÇ AÇIKLAMA YAPMA, doğrudan generate_image tool'unu çağır
+- Preset'teki stil, sahne detayları ve karakter/lokasyon bilgilerini prompt'a dahil et
+- Kısaca "Preset uygulanıyor..." gibi kısa bir mesaj yaz, uzun açıklama YAPMA
+
 ## YANITLAR
 - Doğal, kısa ve bağlamsal konuş. Hangi model kullandığını belirt.
 - Başarısızlıkta otomatik alternatif dene.
@@ -963,8 +970,17 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             content = str(m.get('content', ''))[:120]
             print(f"   History[-{3-i}]: [{role}] {content}")
         print(f"{'='*60}")
-        # Preset oluştur mesajında tool zorunlu kıl
+        # Preset kullanımı veya oluşturma mesajında tool zorunlu kıl
+        last_user_msg = ""
+        for m in reversed(messages):
+            if m.get("role") == "user":
+                last_user_msg = str(m.get("content", "")).strip()
+                break
+        
         initial_tool_choice = "auto"
+        if last_user_msg.lower().startswith("preset:"):
+            initial_tool_choice = "required"
+            print(f"🔌 Preset kullanımı algılandı: {last_user_msg} → tool_choice=required")
         
         stream = await self.async_client.chat.completions.create(
             model=self.model,
@@ -1597,11 +1613,30 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             )
             plugins = list(plugin_result.scalars().all())
             if plugins:
-                plugin_ctx = "\n\n--- 🔌 PROJEDEKİ EKLENTİLER ---\n"
-                plugin_ctx += "Bu projede yüklü yaratıcı eklentiler. Kullanıcının isteğiyle eşleşen bir eklenti varsa stilini uygula:\n"
+                plugin_ctx = "\n\n--- 🔌 PROJEDEKİ PRESET'LER ---\n"
+                plugin_ctx += "Bu projede kayıtlı preset'ler. 'Preset: X' mesajı geldiğinde ilgili preset'in TÜM config bilgilerini kullanarak generate_image çağır:\n"
                 for p in plugins[:10]:  # Max 10 plugin
-                    style = p.config.get("style", "—") if p.config else "—"
-                    plugin_ctx += f"- {p.icon} {p.name}: {p.description or '—'} (stil: {style})\n"
+                    config = p.config or {}
+                    style = config.get("style", "—")
+                    time_of_day = config.get("timeOfDay", "")
+                    camera_angles = config.get("cameraAngles", [])
+                    prompt_template = config.get("promptTemplate", "")
+                    char_tag = config.get("character_tag", "")
+                    loc_tag = config.get("location_tag", "")
+                    
+                    plugin_ctx += f"- {p.icon} **{p.name}**: {p.description or '—'}\n"
+                    plugin_ctx += f"  Stil: {style}"
+                    if time_of_day:
+                        plugin_ctx += f" | Zaman: {time_of_day}"
+                    if camera_angles:
+                        plugin_ctx += f" | Açılar: {', '.join(camera_angles)}"
+                    if char_tag:
+                        plugin_ctx += f" | Karakter: @{char_tag}"
+                    if loc_tag:
+                        plugin_ctx += f" | Lokasyon: @{loc_tag}"
+                    if prompt_template:
+                        plugin_ctx += f"\n  Prompt: {prompt_template}"
+                    plugin_ctx += "\n"
                 extra_context += plugin_ctx
                 print(f"🔌 Plugin context eklendi: {len(plugins)} plugin")
         except Exception as e:
