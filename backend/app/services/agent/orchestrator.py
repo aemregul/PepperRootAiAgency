@@ -52,6 +52,10 @@ class AgentOrchestrator:
         # Session-level reference image cache: {session_id: {"url": str, "base64": str}}
         self._session_reference_images = {}
         
+        # Active background tasks registry: {session_id_str: asyncio.Task}
+        # İptal mekanizması için kullanılır
+        self._active_bg_tasks: dict[str, asyncio.Task] = {}
+        
         self.system_prompt = """Sen Pepper Root AI Agency'nin yaratıcı asistanısın. Türkçe yanıt ver. Otonom düşünen, problem çözen bir agent'sın.
 
 ## KİMLİK & HAFIZA
@@ -157,6 +161,50 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             and any(keyword in lower_msg for keyword in transform_keywords)
             and not any(keyword in lower_msg for keyword in question_keywords)
         )
+
+    def _register_bg_task(self, session_id: str, task: asyncio.Task):
+        """Arka plan görevini session bazlı kaydet (iptal mekanizması için)."""
+        # Önceki task varsa ve hâlâ çalışıyorsa, yenisiyle değiştir
+        old_task = self._active_bg_tasks.get(session_id)
+        if old_task and not old_task.done():
+            print(f"⚠️ Session {session_id[:8]} için önceki BG task değiştiriliyor")
+        
+        self._active_bg_tasks[session_id] = task
+        
+        # Task bittiğinde registry'den temizle
+        def _cleanup(t):
+            if self._active_bg_tasks.get(session_id) is t:
+                del self._active_bg_tasks[session_id]
+        task.add_done_callback(_cleanup)
+
+    async def cancel_session_task(self, session_id: str) -> bool:
+        """Session'daki aktif arka plan görevini iptal et.
+        
+        Returns:
+            True = görev iptal edildi, False = iptal edilecek görev yok
+        """
+        task = self._active_bg_tasks.get(session_id)
+        if not task or task.done():
+            print(f"⚠️ İptal edilecek aktif görev yok: {session_id[:8]}")
+            return False
+        
+        print(f"🛑 Session {session_id[:8]} arka plan görevi iptal ediliyor...")
+        task.cancel()
+        
+        # WebSocket ile kullanıcıya bildir
+        try:
+            from app.services.progress_service import progress_service
+            await progress_service.send_error(
+                session_id, 
+                "İşlem iptal edildi."
+            )
+        except Exception as e:
+            print(f"⚠️ İptal bildirimi gönderilemedi: {e}")
+        
+        # Registry'den temizle
+        self._active_bg_tasks.pop(session_id, None)
+        print(f"✅ Session {session_id[:8]} görevi iptal edildi")
+        return True
 
     def _is_explicit_session_asset_request(self, user_message: str) -> bool:
         """Kullanıcı mevcut oturumdaki bir asset'i açıkça hedefliyor mu?
@@ -1162,7 +1210,8 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             "advanced_edit_video",
             "apply_style",
         }
-        video_already_called = False
+        # video_already_called result dict'te saklanır — recursive retry'larda da korunur
+        video_already_called = result.get("_video_already_called", False)
         deterministic_media_message = None
         last_tool_name = None
         
@@ -1214,6 +1263,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Bu istek için zaten bir video üretimi başlatıldı, tekrar üretim gereksiz."})})
                     continue
                 video_already_called = True
+                result["_video_already_called"] = True
             
             print(f"🔧 STREAM TOOL: {tool_name} (retry={retry_count})")
             last_tool_name = tool_name
@@ -2901,6 +2951,7 @@ Konuşma:
             global _GLOBAL_BG_TASKS
             _GLOBAL_BG_TASKS.add(task)
             task.add_done_callback(_GLOBAL_BG_TASKS.discard)
+            self._register_bg_task(str(session_id), task)
 
             return {
                 "success": True,
@@ -3179,6 +3230,7 @@ Konuşma:
                 _GLOBAL_BG_TASKS = set()
             _GLOBAL_BG_TASKS.add(task)
             task.add_done_callback(_GLOBAL_BG_TASKS.discard)
+            self._register_bg_task(str(session_id), task)
             
             decision = "Görselden video (i2v)" if image_url else "Metinden video (t2v)"
             
@@ -3473,6 +3525,7 @@ Konuşma:
             _GLOBAL_BG_TASKS = set()
         _GLOBAL_BG_TASKS.add(task)
         task.add_done_callback(_GLOBAL_BG_TASKS.discard)
+        self._register_bg_task(str(session_id), task)
         
         return {
             "success": True,

@@ -1,6 +1,6 @@
 # Pepper Root AI Agency — Proje Dokümantasyonu
 
-> **Son Güncelleme:** 10 Mart 2026
+> **Son Güncelleme:** 11 Mart 2026
 > **Repo:** [github.com/aemregul/PepperRootAiAgency](https://github.com/aemregul/PepperRootAiAgency)
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
@@ -56,137 +56,26 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 
 ---
 
-## 🔧 Son Stabilizasyon Çalışması (7 Mart 2026)
+## 🚀 Aktif Özellikler (11 Mart 2026)
 
-### Amaç
+### Production Progress Card
+- Video/görsel/ses üretimi sırasında chat'te gerçek zamanlı ilerleme kartı
+- İki sütunlu tasarım: sol tarafta mini chat log, sağ tarafta dairesel progress
+- Uzun videolarda sahne göstergeleri (✓ S1, ⏳ S2, ○ S3...)
+- Card **sadece backend üretimi başlattığında** açılır (keyword değil, event bazlı)
+- Bilinçli asistan mesajları card mini-log'unda görünür
 
-- Yeni özellik değil, mevcut demoda bozulan akışları tekrar güvenilir hale getirmek
-- Özellikle:
-  - Chat bazen yanıt vermiyor gibi görünüyordu
-  - Video üretimi başarısız olduğunda kullanıcıya net hata dönmüyordu
-  - Kısa video üretiminde sistem gereksiz şekilde kırılgan servis yoluna düşebiliyordu
+### Task Cancellation (İptal Mekanizması)
+- Production card'ın sağ üstünde kırmızı ✕ iptal butonu
+- Frontend: `AbortController.abort()` ile SSE stream kesilir
+- Backend: `POST /chat/cancel-task` → `cancel_session_task()` → `asyncio.Task.cancel()`
+- Session bazlı `_active_bg_tasks` registry — video, edit_video, long_video takibi
+- İptal sonrası chat'e "🛑 İşlem iptal edildi" mesajı eklenir
 
-### Yapılan Düzeltmeler
+### Duplicate Video Guard
+- GPT-4o recursive retry'larda tekrar `generate_long_video` çağırsa bile sadece ilk video çalışır
+- `_video_already_called` flag'i `result` dict'inde saklanır, recursive çağrılarda korunur
 
-- **Frontend SSE hata görünürlüğü düzeltildi**
-  - Dosya: `frontend/src/components/ChatPanel.tsx`
-  - Sorun: Backend `event: error` gönderse bile frontend bunu sadece console'a yazıyordu, kullanıcı chat içinde hata görmüyordu.
-  - Düzeltme: SSE hata event'i artık UI'da görünür hata mesajına çevriliyor.
-
-- **Arka plan video crash'lerinde WebSocket hata bildirimi eklendi**
-  - Dosya: `backend/app/services/agent/orchestrator.py`
-  - Sorun: `_run_video_bg` ve `_run_long_video_bg` exception aldığında DB'ye hata mesajı yazılsa da canlı progress kanalına hata gitmiyordu.
-  - Düzeltme: Crash durumunda `progress_service.send_error(...)` çağrılıyor.
-
-- **Kısa video varsayılan modeli daha güvenilir hatta alındı**
-  - Dosya: `backend/app/services/agent/orchestrator.py`
-  - Sorun: Kısa video tool çağrısında model gelmezse varsayılan olarak `veo` kullanılıyordu; bu da sistemi gereksiz şekilde Google/Gemini hattına bağımlı yapıyordu.
-  - Düzeltme: Varsayılan model `kling` yapıldı.
-
-- **Test branch'inde video maliyet optimizasyonu yapıldı**
-  - Dosyalar:
-    - `backend/app/services/agent/orchestrator.py`
-    - `backend/app/services/plugins/fal_plugin_v2.py`
-    - `backend/app/services/plugins/model_selector.py`
-    - `backend/app/services/long_video_service.py`
-  - Amaç: Testlerde kredi tüketimini düşürmek
-  - Karar: Mevcut entegrasyon içindeki varsayılan video modeli `MiniMax Hailuo 02 Standard` olarak ayarlandı
-  - Not:
-    - Bu değişiklik **test branch'i** içindir
-    - Yayına çıkarken kalite / ihtiyaç durumuna göre `Veo` veya başka ana modele geri dönülebilir
-    - Explicit olarak `veo`, `kling` vb. model isteyen çağrılar bozulmadı; sadece varsayılanlar ve auto seçim maliyet odaklı kaydırıldı
-
-- **Kısa video tamamlanınca chat'e düşmeyen kritik hata izole edildi**
-  - Dosyalar:
-    - `backend/app/services/stats_service.py`
-    - `backend/app/services/agent/orchestrator.py`
-    - `frontend/src/components/ChatPanel.tsx`
-  - Kök neden: `usage_stats` tablosu hem günlük aggregate hem model-bazlı satırlar için kullanılıyor. Video asset kaydedildikten sonra `StatsService` yanlış şekilde birden fazla satırla eşleşip `Multiple rows were found when one or none was required` hatası üretiyordu.
-  - Etki: Video aslında oluşuyor ve assets tarafına kaydoluyor, ama completion mesajı chat'e düşmeden akış hata mesajına dönüyordu; kullanıcı ekranda `%90` civarında takılmış gibi görüyordu.
-  - Düzeltme:
-    - `StatsService` artık sadece aggregate satırı (`model_name IS NULL`) hedefliyor
-    - Legacy duplicate durumda ilk uygun satırı kullanıp user flow'u bozmuyor
-    - Video istatistiği yazımı ayrıca non-critical hale getirildi; hata olsa bile completion akışı kesilmiyor
-    - Frontend progress state `complete/error` event'lerinde doğru statüye çekildi
-
-- **Media panelinden eklenen referans görsel yanlış asset'e düşebiliyordu**
-  - Dosyalar:
-    - `frontend/src/components/ChatPanel.tsx`
-    - `backend/app/services/agent/orchestrator.py`
-  - Kök neden 1: Media panelinden chat'e eklenen görsel gerçek binary olarak attach edilmiyordu; boş `File` placeholder gönderildiği için backend yeni referansı alamıyor, session cache'deki eski görsele düşebiliyordu.
-  - Kök neden 2: `with-files` (non-stream) akışında arka plan video görevi başlatıldıktan sonra sistem tekrar LLM final response üretiyordu; bu da saçma/hallucinated kapanış metinlerine neden olabiliyordu.
-  - Düzeltme:
-    - Asset panelinden eklenen image URL artık önce fetch edilip gerçek dosya olarak attach ediliyor
-    - Drag/drop ve asset-panel image attach davranışı aynı mantığa çekildi
-    - Non-stream background task akışında final LLM cevabı atlanıyor; tool'un deterministik mesajı doğrudan kullanılıyor
-
-- **Referanslı video akışında gereksiz çift upload kaldırıldı**
-  - Dosyalar:
-    - `backend/app/api/routes/chat.py`
-    - `backend/app/services/agent/orchestrator.py`
-  - Kök neden:
-    - `with-files` endpoint'i yüklenen referans görseli önce fal storage'a upload ediyordu
-    - ardından `agent.process_message` aynı görseli base64'ten tekrar fal storage'a upload ediyordu
-    - bu da özellikle referanslı video başlatma akışında gereksiz gecikme yaratıyordu
-  - Düzeltme:
-    - `with-files` akışında oluşan fal URL'leri artık `agent.process_message` içine doğrudan taşınıyor
-    - agent bu URL'leri yeniden kullanıyor, ikinci upload yapılmıyor
-    - GPT-4o vision için base64 içerik korunuyor; sadece storage upload duplicaton kaldırıldı
-    - Saf `videoya çevir / animate` isteklerinde GPT-4o'ya görsel piksellerini tekrar okutmak yerine doğrudan `image_url` odaklı hızlı yol kullanılıyor
-
-- **Agent prompt hafızasında DB öğrenilmiş tercihler görünür hale getirildi**
-  - Dosya: `backend/app/services/preferences_service.py`
-  - Not: Bu değişiklik stabilite dışı ama kaybolmaması için kayıt altına alındı. `manage_core_memory` ile kaydedilen `learned_preferences` verileri artık prompt context'e açık şekilde ekleniyor.
-
-- **Hafıza hijyeni daraltıldı; anlık görev parametreleri artık kalıcı tercih gibi davranmıyor**
-  - Dosyalar:
-    - `backend/app/services/memory_hygiene.py`
-    - `backend/app/services/preferences_service.py`
-    - `backend/app/services/conversation_memory_service.py`
-    - `backend/app/services/episodic_memory_service.py`
-    - `backend/app/services/agent/orchestrator.py`
-    - `backend/app/services/agent/tools.py`
-  - Kök neden:
-    - Kullanıcıyı tanımak için eklenen hafıza katmanı; `5 saniye`, `1 görsel`, seçilen model, son referans gibi anlık görev parametrelerini de kalıcı bilgi gibi prompt'a geri taşıyabiliyordu.
-    - Özellikle `successful_prompts` benzerlik araması ve learned preferences, yeni istekte açıkça verilen süre/adet bilgisini kirletebiliyordu.
-  - Düzeltme:
-    - Kalıcı hafıza yazımı whitelist ile sınırlandı; sadece stabil `style / identity / brand / workflow / preferred_colors` türü bilgiler saklanıyor
-    - Süre, adet, model, URL, son asset, tek seferlik görev talimatları hafızaya yazılmıyor
-    - Cross-project memory ve episodic memory prompt'a eklenirken transient içerikler filtreleniyor
-    - `find_similar_prompts` artık mevcut istekle çelişen geçmiş prompt'ları eliyor ve prompt örneklerini sadece stil/ton ilhamı olarak veriyor
-    - Agent system prompt'una "mevcut mesaj hafızadan üstündür" guardrail'i eklendi
-
-- **Video üretiminde stale referans görsel sızıntısı kapatıldı**
-  - Dosyalar:
-    - `backend/app/services/agent/orchestrator.py`
-    - `backend/tests/test_video_reference_resolution.py`
-  - Kök neden:
-    - Kullanıcı yeni referans seçmeden video istediğinde sistem bazen eski session cache / eski referans geçmişini `generate_video` aracına gizlice `image_url` olarak enjekte ediyordu.
-    - Bu da text-to-video isteğinin yanlışlıkla eski bir görselle image-to-video'ya dönmesine neden oluyordu.
-  - Düzeltme:
-    - `generate_video` ve `generate_long_video` için stale session-cache auto injection kaldırıldı
-    - Video aracı artık sadece:
-      - bu mesajda gerçekten attach edilen referansı kullanıyor
-      - veya kullanıcı açıkça "ilk görsel", "son görsel", "ilk oluşturduğumuz kedi görseli" gibi bir asset seçimi yaparsa oturum asset'lerinden doğru görseli çözüyor
-    - Eski referans artık sırf cache'de kaldı diye yeni video isteğine sızmıyor
-
-### Yapılan Doğrulamalar
-
-- `backend/venv/bin/python -m py_compile backend/app/services/agent/orchestrator.py`
-- `backend/venv/bin/python -m py_compile backend/app/services/preferences_service.py`
-- `backend/venv/bin/pytest backend/tests/test_preferences_service.py`
-- `backend/venv/bin/python -m py_compile backend/app/services/memory_hygiene.py backend/app/services/preferences_service.py backend/app/services/conversation_memory_service.py backend/app/services/episodic_memory_service.py backend/app/services/agent/orchestrator.py backend/app/services/agent/tools.py`
-- `backend/venv/bin/pytest backend/tests/test_preferences_service.py backend/tests/test_memory_hygiene.py backend/tests/test_stats_service.py`
-- `backend/venv/bin/python -m py_compile backend/app/services/agent/orchestrator.py backend/tests/test_video_reference_resolution.py`
-- `backend/venv/bin/pytest backend/tests/test_video_reference_resolution.py backend/tests/test_memory_hygiene.py backend/tests/test_preferences_service.py backend/tests/test_stats_service.py`
-- `frontend`: `ChatPanel.tsx` için lint çalıştırıldı, yeni error yok; dosyada mevcut eski warning'ler devam ediyor.
-
-### Halen Doğrulanması Gerekenler
-
-- Lokal canlı akışta düz metin chat isteği
-- Lokal canlı akışta kısa video üretimi
-- Lokal canlı akışta uzun video başlatma + progress / complete bildirimi
-- Branch deploy sonrası Vercel/Railway üzerinde yeniden test
 
 ---
 
@@ -640,67 +529,3 @@ Bu maddeler çözülmeden yeni özelliğe geçilmez.
 
 ---
 
-## �🛠️ Son Lokal Düzeltmeler
-
-- Video üretiminde stale referans görsel sızıntısı kapatıldı:
-  - Session cache'deki eski görsel artık yeni video isteğine otomatik enjekte edilmiyor
-  - `image_url` sadece kullanıcı bu turda görsel attach ettiyse veya mesajda açıkça mevcut asset'i hedeflediyse kullanılıyor
-- Medya üretiminde saçma/hallucinated kapanış metinleri kapatıldı:
-  - Başarılı `generate_image` / `edit_image` / medya araçlarında final LLM kapanış turu atlanıyor
-  - Kullanıcıya tool'un deterministik `message` alanı gösteriliyor
-  - Tool call ile birlikte gelen initial planning text artık non-stream akışta kullanıcıya direkt yazılmıyor
-- SSE chat mesaj kalıcılığı güçlendirildi:
-  - Stream assistant mesajı baştan placeholder olarak DB'ye yazılıyor
-  - Token ve asset geldikçe aynı mesaj incremental update ediliyor
-  - Backend restart/stream kopması olsa bile asset kaydı ile chat mesajı birbirinden kopmuyor
-- Referans video akışı yapılandırıldı:
-  - Frontend artık referans videoyu metin içine markdown link olarak gömmek yerine structured alanla backend'e iletiyor
-  - Aktif referans video varsa working memory asset listesi bu istekte baskılanıyor
-  - Eski asset anotasyonları history'den temizlenerek prompt sızıntısı azaltıldı
-  - Agent attached video varken yanlışlıkla `generate_video` seçerse akış `edit_video`ya reroute ediliyor
-  - Referans video yoksa ve kullanıcı `önceki/ilk/son video` diyorsa session asset'lerinden doğru video seçilmeye çalışılıyor
-- Video düzenleme (`edit_video`) akışı arka plana alındı:
-  - `önceki videoyu anime yap` gibi istekler artık SSE request'ine bağlı kalmıyor
-  - Sayfa yenilense bile iş iptal olmak yerine arka planda devam ediyor
-  - Video edit talepleri de `generation_start` + WebSocket progress ile progress card gösterecek
-- Boş pending assistant mesajları temizlendi:
-  - SSE bağlantısı client tarafından kapanırsa içerik üretmeden kalan placeholder mesaj siliniyor
-  - Session history endpoint'i legacy boş/pending assistant kayıtlarını geri döndürmüyor
-- Gizli `ltx-video` fallback'i sistemden çıkarıldı:
-  - `edit_video` akışı artık admin panelini bypass eden legacy `fal-ai/ltx-video` yolunu kullanmıyor
-  - Video edit sadece admin tarafından yönetilen ve açık olan modellerle çalışıyor
-  - Stil/anime video düzenleme akışında kare çıkarma + stil uygulama + yönetilen video modeli zinciri kullanılıyor
-- `edit_video` başarısız olunca yanlış tool fallback'i kapatıldı:
-  - Video düzenleme preflight veya tool seviyesinde hata alırsa sistem artık kafasına göre `generate_video` / `sora2` gibi alakasız bir t2v akışına düşmüyor
-  - Kullanıcı doğrudan video edit hatasını chat içinde görüyor
-- Doğrudan `video_url` ile gelen video edit isteklerinde kayıtlı referans kare tekrar kullanılıyor:
-  - Eğer video asset'in `thumbnail_url` veya `model_params.source_image` verisi varsa, yeniden frame extraction zorunlu olmadan edit akışına taşınıyor
-  - Bu sayede önceki videoyu düzenleme akışında gereksiz preflight hataları azaltıldı
-- Tüm kullanıcıya görünen hata mesajları Türkçe ve normalize hale getirildi:
-  - Yeni servis: `backend/app/services/user_error_formatter.py`
-  - SSE stream, WebSocket progress error ve arka plan video/video-edit/long-video hata mesajları artık tek merkezden formatlanıyor
-  - Teknik metinler (`stderr de boş`, `subprocess`, `quota`, `timeout` vb.) kullanıcı dostu Türkçe açıklamaya çevriliyor
-- Yerel video edit retest'inde başarılı çıktı alındı:
-  - Referanslı video üzerinden yeniden üretim akışında kullanıcı tarafından iyi kalite sonucu doğrulandı
-  - Kapsamlı uçtan uca regresyon testi bir sonraki gün yeni proje üzerinde tekrar yapılacak
-- Bilinçli asistan bilgilendirme sistemi (Smart Reassurance v2):
-  - Video üretimi sırasında asistan artık robotik sabit zamanlayıcı yerine **olay bazlı bilinçli mesajlar** gönderiyor
-  - Uzun video: sahne tamamlandığında ("Sahne 2/4 bitti! Sıradaki başlıyor"), FFmpeg başladığında ("Sahneler birleştiriliyor!")
-  - Tüm video tipleri: 3+ dk sessizlik olursa geçen süre ve durum bilgisiyle bağlamsal mesaj ("14. dakikadayız, 3/4 sahne hazır")
-  - `progress_service.send_reassurance()` → DB'ye gerçek assistant mesajı + WebSocket `reassurance` tipi
-  - Frontend `ChatPanel.tsx` → `reassurance` mesajını gerçek chat baloncuğu olarak gösteriyor (duplicate korumalı)
-
-### ✅ ÇÖZÜLDÜ: "Tekrar dene" komutunda yanlış referans görseli kullanımı
-- **Sorun:** Kullanıcı "tekrar dene" / "beğenmedim" dediğinde orchestrator eski session asset'lerinden yanlış referans görseli çekiyordu
-- **Çözüm (3 vektör):**
-  1. `_is_explicit_session_asset_request`: Retry mesajları artık diskalifiye — "tekrar dene" AÇIK asset referansı DEĞİL
-  2. Working Memory talimatı: LLM'ye "retry mesajlarında bu URL'leri image_url olarak VERME" uyarısı eklendi
-  3. `_session_reference_images` cache: Her request başında stale referanslar temizleniyor
-- **Durum:** ✅ Düzeltildi — `fix/reference-image-bug` branch
-
-### 🔮 Gelecek Plan: Task İptal Mekanizması
-- 30+ dk süren üretimlerde asistan "Çok uzun sürdü, iptal edip yeniden başlayalım mı?" önerisi yapabilmeli
-- Backend'de `asyncio.Task` referansları session bazlı saklanmalı, `task.cancel()` ile durdurulabilmeli
-- Frontend'de iptal butonu + kullanıcı "iptal et" yazarsa chat handler'dan tetikleme
-- fal.ai request_id ile üretim iptali de desteklenmeli
-- Bu özellik henüz uygulanmadı — planlama ve tasarım gerektirir

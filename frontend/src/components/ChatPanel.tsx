@@ -1028,30 +1028,21 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                     { text: "🖌️ Görsel oluşturuluyor...", delay: 3000 },
                     { text: "✨ Son rötuşlar yapılıyor...", delay: 12000 },
                 ];
-                // Production card'ı erken aç
-                setActiveGenerations([{ type: "image" }]);
-                setVideoProgress(0);
-                setVideoGenStatus("generating");
+                // Card erken açılmaz — backend generation_start event'i ile açılır
             } else if (lowerMsg.match(/video|animasyon|klip|sinema|cinematic/)) {
                 statusPhases = [
                     { text: "🎬 Video senaryosu hazırlanıyor...", delay: 0 },
                     { text: "🎥 Video üretiliyor...", delay: 3000 },
                     { text: "🎞️ Video işleniyor...", delay: 15000 },
                 ];
-                // Production card'ı erken aç
-                setActiveGenerations([{ type: "video" }]);
-                setVideoProgress(0);
-                setVideoGenStatus("generating");
+                // Card erken açılmaz — backend generation_start/progress event'i ile açılır
             } else if (lowerMsg.match(/düzenle|edit|değiştir|kaldır|ekle.*görsel|remove|change/)) {
                 statusPhases = [
                     { text: "🔍 Görsel analiz ediliyor...", delay: 0 },
                     { text: "✏️ Düzenleme yapılıyor...", delay: 3000 },
                     { text: "✨ Sonuç hazırlanıyor...", delay: 10000 },
                 ];
-                // Production card'ı erken aç (edit = image tipi)
-                setActiveGenerations([{ type: "image" }]);
-                setVideoProgress(0);
-                setVideoGenStatus("generating");
+                // Card erken açılmaz — backend generation_start event'i ile açılır
             } else if (hasImage) {
                 statusPhases = [
                     { text: "📷 Görsel inceleniyor...", delay: 0 },
@@ -1741,6 +1732,42 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         productionLogs={productionLogs}
                                         completedScenes={completedScenes}
                                         totalScenes={totalScenes}
+                                        onCancel={async () => {
+                                            // 1. SSE stream kes (senkron üretimler)
+                                            abortControllerRef.current?.abort();
+                                            abortControllerRef.current = null;
+
+                                            // 2. Backend BG task iptal (arka plan üretimler)
+                                            if (sessionId) {
+                                                try {
+                                                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                                                    const formData = new FormData();
+                                                    formData.append('session_id', sessionId);
+                                                    await fetch(`${apiUrl}/api/v1/chat/cancel-task`, {
+                                                        method: 'POST',
+                                                        body: formData,
+                                                        credentials: 'include',
+                                                    });
+                                                } catch (err) {
+                                                    console.warn('[Cancel] Backend cancel error:', err);
+                                                }
+                                            }
+
+                                            // 3. UI temizle
+                                            setActiveGenerations([]);
+                                            setVideoProgress(0);
+                                            setVideoGenStatus("generating");
+                                            setIsLoading(false);
+                                            setProductionLogs([]);
+
+                                            // 4. İptal mesajı ekle
+                                            setMessages(prev => [...prev, {
+                                                id: Date.now().toString(),
+                                                role: 'assistant' as const,
+                                                content: '🛑 İşlem iptal edildi.',
+                                                timestamp: new Date(),
+                                            }]);
+                                        }}
                                     />
                                 ))}
                             </div>
