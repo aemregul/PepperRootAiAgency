@@ -140,11 +140,11 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 - İç URL'leri (fal.media vb.) ASLA yanıtta gösterme.
 
 ## PRESET
-"Preset oluştur" → manage_plugin tool'unu çağır. Metin yanıt verme, direkt tool çağır.
+"Preset oluştur" istendiğinde İKİ ADIMLI akış:
+1. ADIM: Kullanıcıya sor → "Preset'inize ne isim vermek istersiniz?" (sadece bunu sor, başka bir şey yapma)
+2. ADIM: Kullanıcı ismi yazdıktan sonra → manage_plugin tool'unu kullanıcının verdiği İSİMLE çağır
 - Sohbetteki karakter/lokasyon/stil bilgilerini config'e ekle
-- Preset adını İngilizce ver, kısa ve açıklayıcı olsun (örn: "Emre Street Portrait", "Night City Cinematic")
-- Başarılıysa: ✅ '[İsim]' oluşturuldu + kısa içerik özeti
-- Başarısızsa: tool'dan gelen mesajı aynen ilet
+- İsmi KESİNLİKLE kullanıcının yazdığı gibi kullan, değiştirme!
 
 ## YANITLAR
 - Doğal, kısa ve bağlamsal konuş. Hangi model kullandığını belirt.
@@ -964,12 +964,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             print(f"   History[-{3-i}]: [{role}] {content}")
         print(f"{'='*60}")
         # Preset oluştur mesajında tool zorunlu kıl
-        user_last_msg = ""
-        for m in reversed(messages):
-            if m.get("role") == "user" and isinstance(m.get("content"), str):
-                user_last_msg = m["content"].lower()
-                break
-        initial_tool_choice = "required" if "preset oluştur" in user_last_msg else "auto"
+        initial_tool_choice = "auto"
         
         stream = await self.async_client.chat.completions.create(
             model=self.model,
@@ -5587,22 +5582,6 @@ Konuşma:
             if action == "create":
                 if not name:
                     return {"success": False, "error": "Preset adı gerekli."}
-                
-                # İsmi config bilgilerinden otomatik iyileştir
-                name_parts = []
-                if config.get("character_tag"):
-                    # @karakter formatından temizle
-                    char_name = config["character_tag"].replace("@", "").replace("_", " ").title()
-                    name_parts.append(char_name)
-                if config.get("location_tag"):
-                    loc_name = config["location_tag"].replace("@", "").replace("_", " ").title()
-                    name_parts.append(loc_name)
-                if config.get("style"):
-                    name_parts.append(config["style"].title())
-                
-                # Config'ten isim oluşturabiliyorsan onu kullan, yoksa AI'ın ismini kullan
-                if name_parts:
-                    name = " ".join(name_parts)
                 
                 # Duplicate kontrolü — aynı session'da benzer plugin var mı?
                 existing_result = await db.execute(
