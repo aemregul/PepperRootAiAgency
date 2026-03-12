@@ -456,7 +456,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "manage_plugin",
-        "description": "Creative Plugin yönetimi. Kullanıcı 'plugin oluştur' dediğinde sohbetteki mevcut bilgileri (karakter, lokasyon, stil vb.) toplayıp HEMEN bir plugin oluştur. Tüm alanların dolu olması GEREKMEZ — elindeki ne varsa onu kullan. Eksik alan engellemez, plugin oluşturulur.",
+        "description": "Preset yönetimi. Kullanıcı 'preset oluştur' dediğinde sohbetteki mevcut bilgileri (karakter, lokasyon, stil vb.) toplayıp HEMEN bir preset oluştur. Tüm alanların dolu olması GEREKMEZ — elindeki ne varsa onu kullan. Eksik alan engellemez, preset oluşturulur. Başarılı olduğunda kullanıcıya DETAYLI bilgi ver: hangi bilgilerle oluşturuldu, neler eksik, nasıl kullanılır.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -467,19 +467,19 @@ AGENT_TOOLS_ANTHROPIC = [
                 },
                 "name": {
                     "type": "string",
-                    "description": "Plugin adı (create için zorunlu)"
+                    "description": "Preset adı (create için zorunlu)"
                 },
                 "description": {
                     "type": "string",
-                    "description": "Plugin açıklaması (opsiyonel)"
+                    "description": "Preset açıklaması (opsiyonel)"
                 },
                 "plugin_id": {
                     "type": "string",
-                    "description": "Silinecek plugin ID (delete için)"
+                    "description": "Silinecek preset ID (delete için)"
                 },
                 "config": {
                     "type": "object",
-                    "description": "Plugin ayarları — hepsinin dolu olması gerekmez, mevcut olanları gönder",
+                    "description": "Preset ayarları — hepsinin dolu olması gerekmez, mevcut olanları gönder",
                     "properties": {
                         "style": {"type": "string", "description": "Görsel stil (örn: cinematic, anime, minimalist)"},
                         "character_tag": {"type": "string", "description": "Karakter entity tag'i (örn: @emre)"},
@@ -497,7 +497,7 @@ AGENT_TOOLS_ANTHROPIC = [
                 },
                 "is_public": {
                     "type": "boolean",
-                    "description": "Marketplace'te herkese açık mı (varsayılan: false)"
+                    "description": "Toplulukta herkese açık mı (varsayılan: false)"
                 }
             },
             "required": ["action"]

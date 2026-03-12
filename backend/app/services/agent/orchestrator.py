@@ -119,7 +119,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 | Entity | create_character, create_location, create_brand, get_entity, list_entities, delete_entity |
 | Araştırma | search_web, search_images, browse_url, research_brand |
 | Otonom | plan_and_execute (çoklu çıktılı kampanya) |
-| Plugin | manage_plugin |
+| Preset | manage_plugin |
 
 ## TAKİP İSTEKLERİ & DÜZENLEME
 - Önceki görsele atıf → Working Memory/history'den URL al → edit_image çağır (generate_image DEĞİL!)
@@ -139,8 +139,13 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 - "Başka bir konuda yardımcı olabilir miyim?" gibi boş kapanış cümleleri KULLANMA.
 - İç URL'leri (fal.media vb.) ASLA yanıtta gösterme.
 
-## PLUGIN
-"Plugin oluştur" → HEMEN manage_plugin çağır (generate_image DEĞİL!). Sohbetteki bilgileri config'e dahil et.
+## PRESET
+"Preset oluştur" → HEMEN manage_plugin çağır (generate_image DEĞİL!). Sohbetteki bilgileri config'e dahil et.
+Preset başarıyla oluşturulduğunda kullanıcıya DETAYLI bilgi ver:
+- Hangi bilgilerle oluşturuldu (karakter, lokasyon, stil vs.)
+- Neler eksik kaldı
+- Toplulukta yayınlayabileceklerini belirt
+- ASLA sadece 'Başka bir şey?' deyip geçme!
 
 ## YANITLAR
 - Doğal, kısa ve bağlamsal konuş. Hangi model kullandığını belirt.
@@ -1247,7 +1252,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     "function": {"name": tool_name, "arguments": tool_call.function.arguments}
                 }
                 messages.append({"role": "assistant", "content": None, "tool_calls": [tool_call_dict]})
-                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Plugin oluşturma isteğinde görsel üretim atlandı."})})
+                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Preset oluşturma isteğinde görsel üretim atlandı."})})
                 continue
             
             # ── GUARD: GPT-4o bazen aynı istek için 2x video çağrısı gönderir, sadece ilkini çalıştır ──
@@ -1355,6 +1360,14 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         # Retry logic: sadece son tool başarısızsa VE henüz başarılı sonuç yoksa VE limit aşılmamışsa
         retry_tool_choice = "auto"
         if last_tool_failed and not has_any_success and retry_count < MAX_RETRIES:
+            # manage_plugin başarısız olursa farklı tool deneme — hata mesajını göster
+            if last_tool_name == "manage_plugin":
+                print("🛑 MANAGE_PLUGIN FAILURE (stream): Retry disabled, showing error directly.")
+                error_msg = tool_result.get('message') or tool_result.get('error', 'Preset oluşturma başarısız oldu.')
+                result["_skip_final_llm"] = True
+                result["_final_text"] = f"❌ {error_msg}"
+                messages.append({"role": "assistant", "content": f"❌ {error_msg}"})
+                return
             messages.append({
                 "role": "user",
                 "content": "[SYSTEM: Önceki araç başarısız oldu. FARKLI bir araç dene. Örneğin: generate_image ile yeniden üret veya edit_image ile düzenle. HEMEN bir araç çağır!]"
@@ -1771,6 +1784,12 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             
             retry_tool_choice = "auto"
             if last_tool_failed and not has_any_success and retry_count < MAX_RETRIES:
+                # manage_plugin başarısız olursa farklı tool deneme — hata mesajını göster
+                if tool_name == "manage_plugin":
+                    print("🛑 MANAGE_PLUGIN FAILURE (non-stream): Retry disabled, showing error directly.")
+                    error_msg = tool_result.get('message') or tool_result.get('error', 'Preset oluşturma başarısız oldu.')
+                    result["response"] += f"❌ {error_msg}"
+                    return
                 messages.append({
                     "role": "user",
                     "content": "[SYSTEM: Önceki araç başarısız oldu. FARKLI bir araç dene. HEMEN bir araç çağır!]"
@@ -5538,7 +5557,7 @@ Konuşma:
             
             if action == "create":
                 if not name:
-                    return {"success": False, "error": "Plugin adı gerekli."}
+                    return {"success": False, "error": "Preset adı gerekli."}
                 
                 # Duplicate kontrolü — aynı session'da benzer plugin var mı?
                 existing_result = await db.execute(
@@ -5549,19 +5568,19 @@ Konuşma:
                 existing_plugins = existing_result.scalars().all()
                 if existing_plugins:
                     existing_names = [p.name for p in existing_plugins]
-                    # Aynı isimde plugin varsa uyar
+                    # Aynı isimde preset varsa bilgilendir
                     if name in existing_names:
                         return {
                             "success": False, 
                             "already_exists": True,
-                            "message": f"Bu sohbette zaten '{name}' adlı bir plugin oluşturulmuş. Yeni bilgi ekleyip farklı bir plugin oluşturmak ister misin? Mevcut pluginler: {', '.join(existing_names)}"
+                            "message": f"Bu sohbette daha önce '{name}' adlı bir preset oluşturulmuş. 🔄 Tekrar oluşturmamı ister misiniz, yoksa mevcut preset'inizi düzenlemek mi istersiniz?\n\n📌 Mevcut preset'leriniz: {', '.join(existing_names)}\n\n💡 İpucu: Sol menüdeki ➡️ Topluluk butonuna tıklayıp ➡️ Preset'lerim sekmesinde mevcut preset'lerinizi görüntüleyebilir, toplulukta yayınlayabilir veya değişiklik yapabilirsiniz."
                         }
-                    # Farklı isimde ama yeni bilgi yoksa da uyar (max 3 plugin per session)
+                    # Farklı isimde ama max 3 preset per session
                     if len(existing_plugins) >= 3:
                         return {
                             "success": False,
                             "already_exists": True,  
-                            "message": f"Bu sohbette zaten {len(existing_plugins)} plugin oluşturulmuş ({', '.join(existing_names)}). Sohbete yeni bilgi ekleyip sonra tekrar dene."
+                            "message": f"Bu sohbette daha önce {len(existing_plugins)} preset oluşturulmuş: **{', '.join(existing_names)}**.\n\n🔄 Yine de yeni bir preset oluşturmamı ister misiniz?\n\n💡 İpucu: Sol menüdeki ➡️ Topluluk butonuna tıklayıp ➡️ Preset'lerim sekmesinde mevcut preset'lerinizi görüntüleyebilir, düzenleyebilir ve toplulukta yayınlayabilirsiniz."
                         }
                 
                 # Prompt template oluştur
@@ -5584,7 +5603,7 @@ Konuşma:
                     user_id=user_id,
                     session_id=session_id,
                     name=name,
-                    description=description or f"{name} plugin'i",
+                    description=description or f"{name} preset'i",
                     icon="🧩",
                     color="#22c55e",
                     system_prompt=system_prompt,
@@ -5604,7 +5623,7 @@ Konuşma:
                     else:
                         missing.append(label)
                 
-                summary = f"'{name}' plugin'i oluşturuldu!"
+                summary = f"✅ '{name}' preset'i başarıyla oluşturuldu!"
                 if filled:
                     summary += f" İçerik: {', '.join(filled)}."
                 if missing:
