@@ -486,7 +486,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     description: p.description || '',
                     author: 'Ben',
                     isPublic: p.is_public,
-                    config: {},
+                    config: p.config || {},
                     createdAt: new Date(),
                     downloads: p.usage_count,
                     rating: 0

@@ -675,6 +675,7 @@ export interface PresetData {
     created_at: string;
     downloads?: number;
     author?: string;
+    config?: Record<string, unknown>;
 }
 
 export async function getPresets(sessionId?: string): Promise<PresetData[]> {

@@ -92,6 +92,7 @@ class PresetResponse(BaseModel):
     system_prompt: Optional[str]
     is_public: bool
     usage_count: int
+    config: Optional[dict] = None
 
 class TrashItemResponse(BaseModel):
     id: str
@@ -629,7 +630,8 @@ async def list_presets(
         color=p.color,
         system_prompt=p.system_prompt,
         is_public=p.is_public,
-        usage_count=p.usage_count
+        usage_count=p.usage_count,
+        config=p.config
     ) for p in plugins]
 
 
@@ -661,7 +663,8 @@ async def create_preset(
         color=plugin.color,
         system_prompt=plugin.system_prompt,
         is_public=plugin.is_public,
-        usage_count=plugin.usage_count
+        usage_count=plugin.usage_count,
+        config=plugin.config
     )
 
 
