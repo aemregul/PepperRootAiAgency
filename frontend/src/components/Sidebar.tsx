@@ -25,7 +25,7 @@ import {
     User,
     Puzzle,
     Trash2,
-    Store,
+
     Pencil,
     Grid3x3,
     LogOut,
@@ -42,7 +42,7 @@ import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
 import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePluginModal";
 import { useToast } from "./ToastProvider";
-import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
+import { CommunityHubModal } from "./CommunityHubModal";
 import { GridGeneratorModal } from "./GridGeneratorModal";
 import { SavedImagesModal } from "./SavedImagesModal";
 import { useKeyboardShortcuts, SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
@@ -565,7 +565,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     }, [sessionId, refreshKey]);
     const [selectedPlugin, setSelectedPlugin] = useState<CreativePlugin | null>(null);
     const [pluginDetailOpen, setPluginDetailOpen] = useState(false);
-    const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+    const [communityHubOpen, setCommunityHubOpen] = useState(false);
 
     // Trash state - backend'den yükle
     const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -983,17 +983,16 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
 
                     <button
                         className="rail-feature-btn"
-                        onClick={() => setMarketplaceOpen(true)}
+                        onClick={() => setCommunityHubOpen(true)}
                         style={{
-                            background: 'rgba(168, 85, 247, 0.10)',
-                            border: '1px solid rgba(168, 85, 247, 0.25)',
-                            color: '#a855f7'
+                            background: 'rgba(74, 222, 128, 0.10)',
+                            border: '1px solid rgba(74, 222, 128, 0.25)',
+                            color: '#4ade80'
                         }}
                     >
-                        <Store size={20} />
-                        <span className="rail-label" style={{ color: '#a855f7' }}>Eklenti Mağazası</span>
+                        <Users size={20} />
+                        <span className="rail-label" style={{ color: '#4ade80' }}>Topluluk</span>
                     </button>
-
                     {/* Spacer */}
                     <div className="rail-spacer" />
                     <div className="rail-divider" />
@@ -1414,24 +1413,20 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 }}
             />
 
-            <PluginMarketplaceModal
-                isOpen={marketplaceOpen}
-                onClose={() => setMarketplaceOpen(false)}
-                onInstall={(plugin, projectId) => {
-                    // Sadece aktif projeye yükleniyorsa sidebar'da göster
-                    if (projectId === sessionId) {
-                        setCreativePlugins([...creativePlugins, plugin]);
-                    }
-                }}
-                projects={projects}
-                activeProjectId={sessionId || undefined}
-            />
+
 
             <GridGeneratorModal
                 isOpen={gridGeneratorOpen}
                 onClose={() => setGridGeneratorOpen(false)}
             />
 
+            <CommunityHubModal
+                isOpen={communityHubOpen}
+                onClose={() => setCommunityHubOpen(false)}
+                projects={projects}
+                activeProjectId={sessionId || undefined}
+                sessionId={sessionId}
+            />
             <SavedImagesModal
                 isOpen={savedImagesOpen}
                 onClose={() => setSavedImagesOpen(false)}

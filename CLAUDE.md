@@ -352,6 +352,14 @@ Bu maddeler çözülmeden yeni özelliğe geçilmez.
   - Düzeltilen: Frontend çöp kutusu etiketleri yanlıştı (Kıyafet → Kaydedilen Görsel, Asset → Medya)
   - Etki alanı: `backend/app/api/routes/sessions.py`, `frontend/src/components/TrashModal.tsx`
 
+- [ ] **1.4 — Videodan Entity Kaydederken Referans Görsel Sorunu** _(12 Mart 2026 — Tespit edildi)_
+  - Sorun: Kullanıcı bir videodan lokasyon/karakter kaydettiğinde `reference_image_url` olarak video URL'i (.mp4) kaydediliyor
+  - Etki: Görsel üretim modelleri (Nano Banana, GPT Image, FLUX) video dosyasını referans görsel olarak yükleyemiyor → 400 INVALID_ARGUMENT hatası
+  - Sadece Gemini video'dan kare çıkarabildiği için fallback'te çalışıyor, diğer modeller başarısız
+  - Çözüm önerisi: Entity kaydederken video URL tespit edilmeli → FFmpeg/backend ile ilk kareden thumbnail çıkartılıp `reference_image_url` olarak kullanılmalı
+  - Video tarama: Kullanıcı "bu sahnedeki arka planı kaydet" dediğinde AI videonun ilgili sahnesini gerçekten analiz edip kare çıkarmalı
+  - Etki alanı: `backend/app/services/entity_service.py`, `backend/app/services/agent/orchestrator.py`
+
 ---
 
 ### 🟡 Faz 2 — Stabilite & Performans (Öncelik: YÜKSEK)

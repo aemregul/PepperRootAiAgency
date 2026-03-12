@@ -668,9 +668,13 @@ export interface CreativePluginData {
     description?: string;
     icon: string;
     color: string;
+    style?: string;
     system_prompt?: string;
     is_public: boolean;
     usage_count: number;
+    created_at: string;
+    downloads?: number;
+    author?: string;
 }
 
 export async function getCreativePlugins(sessionId?: string): Promise<CreativePluginData[]> {
