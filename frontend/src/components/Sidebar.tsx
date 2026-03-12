@@ -1318,7 +1318,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                                                         <span style={{
                                                             width: 6, height: 6, borderRadius: '50%',
-                                                            background: plugin.isPublic ? '#8b5cf6' : 'var(--accent)', flexShrink: 0
+                                                            background: plugin.isPublic ? '#8b5cf6' : '#f59e0b', flexShrink: 0
                                                         }} />
                                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plugin.name}</span>
                                                     </div>
