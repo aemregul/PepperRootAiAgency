@@ -5,6 +5,9 @@
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
 
+cd /Users/emre/PepperRootAiAgency/backend && uvicorn app.main:app --reload --port 8000
+cd /Users/emre/PepperRootAiAgency/frontend && npm run dev
+
 ---
 
 ## 🚨 KRİTİK ÇALIŞMA KURALLARI (EN ÖNCELİKLİ!)
@@ -59,6 +62,7 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 ## 🚀 Aktif Özellikler (11 Mart 2026)
 
 ### Production Progress Card
+
 - Video/görsel/ses üretimi sırasında chat'te gerçek zamanlı ilerleme kartı
 - İki sütunlu tasarım: sol tarafta mini chat log, sağ tarafta dairesel progress
 - Uzun videolarda sahne göstergeleri (✓ S1, ⏳ S2, ○ S3...)
@@ -66,6 +70,7 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 - Bilinçli asistan mesajları card mini-log'unda görünür
 
 ### Task Cancellation (İptal Mekanizması)
+
 - Production card'ın sağ üstünde kırmızı ✕ iptal butonu
 - Frontend: `AbortController.abort()` ile SSE stream kesilir
 - Backend: `POST /chat/cancel-task` → `cancel_session_task()` → `asyncio.Task.cancel()`
@@ -73,9 +78,9 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 - İptal sonrası chat'e "🛑 İşlem iptal edildi" mesajı eklenir
 
 ### Duplicate Video Guard
+
 - GPT-4o recursive retry'larda tekrar `generate_long_video` çağırsa bile sadece ilk video çalışır
 - `_video_already_called` flag'i `result` dict'inde saklanır, recursive çağrılarda korunur
-
 
 ---
 
@@ -537,4 +542,3 @@ Bu maddeler çözülmeden yeni özelliğe geçilmez.
 - ✅ **Hosting:** Frontend Vercel, Backend Railway — mevcut deployment yapısı korunacak
 
 ---
-
