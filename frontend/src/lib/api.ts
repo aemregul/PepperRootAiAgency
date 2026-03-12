@@ -706,6 +706,16 @@ export async function createPreset(plugin: {
     return response.json();
 }
 
+export async function updatePreset(pluginId: string, data: { name?: string; description?: string; config?: Record<string, unknown> }): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/presets/${pluginId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update preset');
+    return response.json();
+}
+
 export async function deletePreset(pluginId: string): Promise<boolean> {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/presets/${pluginId}`, {
         method: 'DELETE',

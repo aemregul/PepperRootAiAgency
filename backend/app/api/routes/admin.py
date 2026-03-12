@@ -663,6 +663,33 @@ async def create_preset(
     )
 
 
+class PresetUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    config: Optional[dict] = None
+
+@router.patch("/presets/{plugin_id}")
+async def update_preset(plugin_id: UUID, data: PresetUpdate, db: AsyncSession = Depends(get_db)):
+    """Preset güncelle — isim, açıklama, config."""
+    result = await db.execute(select(Preset).where(Preset.id == plugin_id))
+    plugin = result.scalar_one_or_none()
+    
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Preset bulunamadı")
+    
+    if data.name is not None:
+        plugin.name = data.name
+    if data.description is not None:
+        plugin.description = data.description
+    if data.config is not None:
+        # Mevcut config'i merge et
+        existing = plugin.config or {}
+        existing.update(data.config)
+        plugin.config = existing
+    
+    await db.commit()
+    return {"success": True, "message": f"'{plugin.name}' güncellendi"}
+
 @router.delete("/presets/{plugin_id}")
 async def delete_preset(plugin_id: UUID, db: AsyncSession = Depends(get_db)):
     """Creative plugin'i çöp kutusuna taşı."""

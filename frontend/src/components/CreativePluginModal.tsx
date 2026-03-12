@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Sparkles, Share2, Download, Check, Users, MapPin, Clock, Camera, Palette, FileJson } from "lucide-react";
+import { X, Sparkles, Share2, Download, Check, Users, MapPin, Clock, Camera, Palette, FileJson, Pencil, Trash2 } from "lucide-react";
 
 export interface CreativePlugin {
     id: string;
@@ -16,15 +16,18 @@ export interface CreativePlugin {
             name: string;
             isVariable: boolean;
         };
+        character_tag?: string;
         location?: {
             id: string;
             name: string;
             settings: string;
         };
+        location_tag?: string;
         timeOfDay?: string;
         cameraAngles?: string[];
         style?: string;
         promptTemplate?: string;
+        [key: string]: unknown;
     };
     createdAt: Date;
     downloads: number;
@@ -170,7 +173,7 @@ export function SavePluginModal({ isOpen, onClose, onSave, suggestedName, plugin
 }
 
 // =====================================================
-// 2. PLUGIN DETAIL MODAL (Tıklayınca açılır)
+// 2. PLUGIN DETAIL MODAL (Tıklayınca açılır — Skill kartı)
 // =====================================================
 interface PluginDetailModalProps {
     isOpen: boolean;
@@ -178,10 +181,86 @@ interface PluginDetailModalProps {
     plugin: CreativePlugin | null;
     onDelete?: (id: string) => void;
     onUse?: (plugin: CreativePlugin) => void;
+    onUpdate?: (plugin: CreativePlugin) => void;
 }
 
-export function PluginDetailModal({ isOpen, onClose, plugin, onDelete, onUse }: PluginDetailModalProps) {
+export function PluginDetailModal({ isOpen, onClose, plugin, onDelete, onUse, onUpdate }: PluginDetailModalProps) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editName, setEditName] = useState("");
+    const [editDescription, setEditDescription] = useState("");
+    const [editStyle, setEditStyle] = useState("");
+    const [editTimeOfDay, setEditTimeOfDay] = useState("");
+    const [editCameraAngles, setEditCameraAngles] = useState<string[]>([]);
+    const [editPromptTemplate, setEditPromptTemplate] = useState("");
+    const [newAngle, setNewAngle] = useState("");
+    const [saving, setSaving] = useState(false);
+
     if (!isOpen || !plugin) return null;
+
+    const startEditing = () => {
+        setEditName(plugin.name);
+        setEditDescription(plugin.description || "");
+        setEditStyle(plugin.config?.style || "");
+        setEditTimeOfDay(plugin.config?.timeOfDay || "");
+        setEditCameraAngles([...(plugin.config?.cameraAngles || [])]);
+        setEditPromptTemplate(plugin.config?.promptTemplate || "");
+        setIsEditing(true);
+    };
+
+    const cancelEditing = () => {
+        setIsEditing(false);
+        setNewAngle("");
+    };
+
+    const addCameraAngle = () => {
+        const trimmed = newAngle.trim();
+        if (trimmed && !editCameraAngles.includes(trimmed)) {
+            setEditCameraAngles([...editCameraAngles, trimmed]);
+            setNewAngle("");
+        }
+    };
+
+    const removeCameraAngle = (angle: string) => {
+        setEditCameraAngles(editCameraAngles.filter(a => a !== angle));
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const { updatePreset } = await import("@/lib/api");
+            await updatePreset(plugin.id, {
+                name: editName,
+                description: editDescription,
+                config: {
+                    style: editStyle || undefined,
+                    timeOfDay: editTimeOfDay || undefined,
+                    cameraAngles: editCameraAngles.length > 0 ? editCameraAngles : undefined,
+                    promptTemplate: editPromptTemplate || undefined,
+                }
+            });
+
+            // Parent'a güncellenen plugin'i bildir
+            if (onUpdate) {
+                onUpdate({
+                    ...plugin,
+                    name: editName,
+                    description: editDescription,
+                    config: {
+                        ...plugin.config,
+                        style: editStyle || undefined,
+                        timeOfDay: editTimeOfDay || undefined,
+                        cameraAngles: editCameraAngles.length > 0 ? editCameraAngles : undefined,
+                        promptTemplate: editPromptTemplate || undefined,
+                    }
+                });
+            }
+            setIsEditing(false);
+        } catch (error) {
+            console.error("Preset güncelleme hatası:", error);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const handleDownload = () => {
         const pluginData = {
@@ -197,7 +276,7 @@ export function PluginDetailModal({ isOpen, onClose, plugin, onDelete, onUse }: 
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${plugin.name.toLowerCase().replace(/\s+/g, "_")}.pepper-plugin.json`;
+        a.download = `${plugin.name.toLowerCase().replace(/\s+/g, "_")}.pepper-preset.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -210,148 +289,309 @@ export function PluginDetailModal({ isOpen, onClose, plugin, onDelete, onUse }: 
 
             <div
                 className="relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                style={{ background: "var(--card)", border: "1px solid var(--border)", maxHeight: "85vh" }}
             >
                 {/* Header */}
                 <div
-                    className="flex items-center justify-between p-5 border-b"
-                    style={{ borderColor: "var(--border)", background: "linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%)" }}
+                    className="p-5 border-b"
+                    style={{ borderColor: "var(--border)", background: "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(99, 102, 241, 0.05) 100%)" }}
                 >
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl" style={{ background: "rgba(139, 92, 246, 0.2)" }}>
-                            <Sparkles size={24} className="text-purple-500" />
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="p-2.5 rounded-xl" style={{ background: "rgba(139, 92, 246, 0.2)" }}>
+                                <Sparkles size={22} className="text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        className="w-full text-lg font-bold bg-transparent outline-none px-2 py-1 rounded-lg"
+                                        style={{ border: "1px solid var(--accent)" }}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-lg font-bold truncate">{plugin.name}</h2>
+                                        <button
+                                            onClick={startEditing}
+                                            className="p-1 rounded-lg transition-all opacity-50 hover:opacity-100 hover:bg-white/10"
+                                            title="İsmi düzenle"
+                                        >
+                                            <Pencil size={14} />
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: "var(--foreground-muted)" }}>
+                                    {plugin.isPublic && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: "rgba(139, 92, 246, 0.25)", color: "#a78bfa" }}>
+                                            Topluluk
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
+                        <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/10 transition-all ml-2">
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="overflow-y-auto" style={{ maxHeight: "calc(85vh - 180px)" }}>
+                    <div className="p-5 space-y-4">
+
+                        {/* Açıklama */}
                         <div>
-                            <h2 className="text-lg font-bold">{plugin.name}</h2>
-                            <div className="flex items-center gap-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                <span>by {plugin.author}</span>
-                                {plugin.isPublic && (
-                                    <span className="px-1.5 py-0.5 rounded" style={{ background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
-                                        Public
-                                    </span>
+                            <div className="flex items-center gap-2 text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                                <FileJson size={12} /> Açıklama
+                            </div>
+                            {isEditing ? (
+                                <textarea
+                                    value={editDescription}
+                                    onChange={(e) => setEditDescription(e.target.value)}
+                                    rows={2}
+                                    className="w-full px-3 py-2 rounded-xl text-sm resize-none"
+                                    style={{ background: "var(--background)", border: "1px solid var(--border)" }}
+                                    placeholder="Preset açıklaması..."
+                                />
+                            ) : (
+                                <p className="text-sm leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
+                                    {plugin.description || "Açıklama eklenmemiş"}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Konfigürasyon Grid */}
+                        <div>
+                            <div className="flex items-center gap-2 text-xs font-medium mb-3" style={{ color: "var(--foreground-muted)" }}>
+                                <Sparkles size={12} /> Sahne Detayları
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {/* Karakter Tag */}
+                                {plugin.config?.character_tag && (
+                                    <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "var(--foreground-muted)" }}>
+                                            <Users size={10} /> Karakter
+                                        </div>
+                                        <div className="text-sm font-medium">{String(plugin.config.character_tag)}</div>
+                                    </div>
+                                )}
+
+                                {/* Lokasyon Tag */}
+                                {plugin.config?.location_tag && (
+                                    <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "var(--foreground-muted)" }}>
+                                            <MapPin size={10} /> Lokasyon
+                                        </div>
+                                        <div className="text-sm font-medium">{String(plugin.config.location_tag)}</div>
+                                    </div>
+                                )}
+
+                                {/* Stil */}
+                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "var(--foreground-muted)" }}>
+                                        <Palette size={10} /> Stil
+                                    </div>
+                                    {isEditing ? (
+                                        <input
+                                            value={editStyle}
+                                            onChange={(e) => setEditStyle(e.target.value)}
+                                            className="w-full text-sm bg-transparent outline-none px-1 py-0.5 rounded"
+                                            style={{ border: "1px solid var(--border)" }}
+                                            placeholder="realistic, anime..."
+                                        />
+                                    ) : (
+                                        <div className="text-sm font-medium">{plugin.config?.style || "—"}</div>
+                                    )}
+                                </div>
+
+                                {/* Zaman */}
+                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "var(--foreground-muted)" }}>
+                                        <Clock size={10} /> Zaman
+                                    </div>
+                                    {isEditing ? (
+                                        <input
+                                            value={editTimeOfDay}
+                                            onChange={(e) => setEditTimeOfDay(e.target.value)}
+                                            className="w-full text-sm bg-transparent outline-none px-1 py-0.5 rounded"
+                                            style={{ border: "1px solid var(--border)" }}
+                                            placeholder="Gün batımı, gece..."
+                                        />
+                                    ) : (
+                                        <div className="text-sm font-medium">{plugin.config?.timeOfDay || "—"}</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Kamera Açıları — chip listesi */}
+                        <div>
+                            <div className="flex items-center gap-2 text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                                <Camera size={12} /> Kamera Açıları
+                            </div>
+                            <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                {isEditing ? (
+                                    <>
+                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                            {editCameraAngles.map((angle, i) => (
+                                                <span
+                                                    key={i}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg group"
+                                                    style={{ background: "rgba(139, 92, 246, 0.15)", color: "#a78bfa" }}
+                                                >
+                                                    {angle}
+                                                    <button
+                                                        onClick={() => removeCameraAngle(angle)}
+                                                        className="opacity-50 hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X size={10} />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                value={newAngle}
+                                                onChange={(e) => setNewAngle(e.target.value)}
+                                                onKeyDown={(e) => e.key === "Enter" && addCameraAngle()}
+                                                className="flex-1 text-xs px-2.5 py-1.5 rounded-lg bg-transparent"
+                                                style={{ border: "1px solid var(--border)" }}
+                                                placeholder="Close-up, Wide Shot..."
+                                            />
+                                            <button
+                                                onClick={addCameraAngle}
+                                                className="px-3 py-1.5 text-xs rounded-lg font-medium"
+                                                style={{ background: "rgba(139, 92, 246, 0.2)", color: "#a78bfa" }}
+                                            >
+                                                + Ekle
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {plugin.config?.cameraAngles && plugin.config.cameraAngles.length > 0 ? (
+                                            plugin.config.cameraAngles.map((angle, i) => (
+                                                <span
+                                                    key={i}
+                                                    className="px-2.5 py-1 text-xs rounded-lg"
+                                                    style={{ background: "rgba(139, 92, 246, 0.1)", color: "#a78bfa" }}
+                                                >
+                                                    {angle}
+                                                </span>
+                                            ))
+                                        ) : (
+                                            <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                                Henüz eklenmedi
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Prompt Şablonu */}
+                        <div>
+                            <div className="flex items-center gap-2 text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                                <FileJson size={12} /> Prompt Şablonu
+                            </div>
+                            <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
+                                {isEditing ? (
+                                    <textarea
+                                        value={editPromptTemplate}
+                                        onChange={(e) => setEditPromptTemplate(e.target.value)}
+                                        rows={3}
+                                        className="w-full text-xs font-mono bg-transparent outline-none resize-none"
+                                        style={{ border: "1px solid var(--border)", padding: "8px", borderRadius: "8px" }}
+                                        placeholder="cinematic photo, {character}, sunset..."
+                                    />
+                                ) : (
+                                    <code className="text-xs font-mono block leading-relaxed" style={{ color: "var(--accent)" }}>
+                                        {plugin.config?.promptTemplate || "Şablon eklenmemiş"}
+                                    </code>
                                 )}
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--background)] transition-all">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Content */}
-                <div className="p-5 space-y-4">
-                    {plugin.description && (
-                        <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                            {plugin.description}
-                        </p>
-                    )}
-
-                    {/* Config Details */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-medium">Konfigürasyon</h3>
-
-                        <div className="grid grid-cols-2 gap-2">
-                            {plugin.config.character && (
-                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
-                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
-                                        <Users size={12} /> Karakter
-                                    </div>
-                                    <div className="text-sm font-medium">
-                                        {plugin.config.character.isVariable ? "🔄 Değişken" : plugin.config.character.name}
-                                    </div>
-                                </div>
-                            )}
-
-                            {plugin.config.location && (
-                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
-                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
-                                        <MapPin size={12} /> Lokasyon
-                                    </div>
-                                    <div className="text-sm font-medium">{plugin.config.location.name}</div>
-                                </div>
-                            )}
-
-                            {plugin.config.timeOfDay && (
-                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
-                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
-                                        <Clock size={12} /> Zaman
-                                    </div>
-                                    <div className="text-sm font-medium">{plugin.config.timeOfDay}</div>
-                                </div>
-                            )}
-
-                            {plugin.config.style && (
-                                <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
-                                    <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
-                                        <Palette size={12} /> Stil
-                                    </div>
-                                    <div className="text-sm font-medium">{plugin.config.style}</div>
-                                </div>
-                            )}
-                        </div>
-
-                        {plugin.config.cameraAngles && plugin.config.cameraAngles.length > 0 && (
-                            <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
-                                <div className="flex items-center gap-2 text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
-                                    <Camera size={12} /> Kamera Açıları
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                    {plugin.config.cameraAngles.map((angle, i) => (
-                                        <span key={i} className="px-2 py-1 text-xs rounded" style={{ background: "var(--card)" }}>
-                                            {angle}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {plugin.config.promptTemplate && (
-                            <div className="p-3 rounded-xl" style={{ background: "var(--background)" }}>
-                                <div className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
-                                    Prompt Şablonu
-                                </div>
-                                <code className="text-xs font-mono block" style={{ color: "var(--accent)" }}>
-                                    {plugin.config.promptTemplate}
-                                </code>
-                            </div>
-                        )}
-                    </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 p-4 border-t" style={{ borderColor: "var(--border)" }}>
-                    <button
-                        onClick={handleDownload}
-                        className="flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl hover:bg-[var(--background)] transition-colors"
-                        style={{ border: "1px solid var(--border)" }}
-                    >
-                        <FileJson size={16} />
-                        JSON İndir
-                    </button>
+                <div className="flex items-center gap-2 p-4 border-t" style={{ borderColor: "var(--border)" }}>
+                    {isEditing ? (
+                        <>
+                            <button
+                                onClick={cancelEditing}
+                                className="px-4 py-2.5 text-sm rounded-xl hover:bg-white/5 transition-colors"
+                                style={{ border: "1px solid var(--border)" }}
+                            >
+                                İptal
+                            </button>
+                            <div className="flex-1" />
+                            <button
+                                onClick={handleSave}
+                                disabled={saving || !editName.trim()}
+                                className="px-6 py-2.5 text-sm font-medium rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
+                                style={{ background: "var(--accent)", color: "var(--background)" }}
+                            >
+                                {saving ? (
+                                    <span className="animate-spin">⏳</span>
+                                ) : (
+                                    <Check size={16} />
+                                )}
+                                Kaydet
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={handleDownload}
+                                className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl hover:bg-white/5 transition-colors"
+                                style={{ border: "1px solid var(--border)" }}
+                                title="JSON olarak indir"
+                            >
+                                <Download size={14} />
+                            </button>
 
-                    {onDelete && (
-                        <button
-                            onClick={() => { onDelete(plugin.id); onClose(); }}
-                            className="px-4 py-2.5 text-sm rounded-xl hover:bg-red-500/20 text-red-400 transition-colors"
-                        >
-                            Sil
-                        </button>
-                    )}
+                            <button
+                                onClick={startEditing}
+                                className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl hover:bg-white/5 transition-colors"
+                                style={{ border: "1px solid var(--border)" }}
+                                title="Düzenle"
+                            >
+                                <Pencil size={14} />
+                                <span>Düzenle</span>
+                            </button>
 
-                    <div className="flex-1" />
+                            {onDelete && (
+                                <button
+                                    onClick={() => { onDelete(plugin.id); onClose(); }}
+                                    className="px-3 py-2.5 text-sm rounded-xl hover:bg-red-500/20 text-red-400 transition-colors"
+                                    title="Sil"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
 
-                    {onUse && (
-                        <button
-                            onClick={() => { onUse(plugin); onClose(); }}
-                            className="px-6 py-2.5 text-sm font-medium rounded-xl transition-colors flex items-center gap-2"
-                            style={{ background: "var(--accent)", color: "var(--background)" }}
-                        >
-                            <Sparkles size={16} />
-                            Kullan
-                        </button>
+                            <div className="flex-1" />
+
+                            {onUse && (
+                                <button
+                                    onClick={() => { onUse(plugin); onClose(); }}
+                                    className="px-6 py-2.5 text-sm font-medium rounded-xl transition-colors flex items-center gap-2"
+                                    style={{ background: "var(--accent)", color: "var(--background)" }}
+                                >
+                                    <Sparkles size={16} />
+                                    Kullan
+                                </button>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
         </div>
     );
 }
+
