@@ -682,7 +682,7 @@ export async function getPresets(sessionId?: string): Promise<PresetData[]> {
         ? `${API_BASE_URL}${API_PREFIX}/admin/presets?session_id=${sessionId}`
         : `${API_BASE_URL}${API_PREFIX}/admin/presets`;
     const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch creative plugins');
+    if (!response.ok) throw new Error('Failed to fetch presets');
     return response.json();
 }
 
@@ -702,7 +702,7 @@ export async function createPreset(plugin: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(plugin),
     });
-    if (!response.ok) throw new Error('Failed to create creative plugin');
+    if (!response.ok) throw new Error('Failed to create preset');
     return response.json();
 }
 
