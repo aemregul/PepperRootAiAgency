@@ -47,19 +47,19 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
         }
     }, [sortBy, searchQuery]);
 
-    // Fetch my presets
+    // Fetch my presets (tüm presetler, session farketmez)
     const fetchMyPresets = useCallback(async () => {
-        if (!sessionId) return;
         setLoading(true);
         try {
-            const data = await getPresets(sessionId);
+            // session_id vermeden çağırırsak user_id ile tüm presetleri getirir
+            const data = await getPresets();
             setMyPresets(data);
         } catch (err) {
             console.error("My presets fetch error:", err);
         } finally {
             setLoading(false);
         }
-    }, [sessionId]);
+    }, []);
 
     useEffect(() => {
         if (!isOpen) return;

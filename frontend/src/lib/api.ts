@@ -682,7 +682,9 @@ export async function getPresets(sessionId?: string): Promise<PresetData[]> {
     const url = sessionId
         ? `${API_BASE_URL}${API_PREFIX}/admin/presets?session_id=${sessionId}`
         : `${API_BASE_URL}${API_PREFIX}/admin/presets`;
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        headers: getAuthHeaders(),
+    });
     if (!response.ok) throw new Error('Failed to fetch presets');
     return response.json();
 }

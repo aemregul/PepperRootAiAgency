@@ -13,9 +13,10 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
+from app.core.auth import get_current_user as get_current_user_optional
 from app.models.models import (
     AIModel, InstalledPlugin, UsageStats, UserSettings, 
-    Preset, TrashItem, Session, GeneratedAsset, Message
+    Preset, TrashItem, Session, GeneratedAsset, Message, User
 )
 
 
@@ -611,12 +612,19 @@ async def get_model_distribution(db: AsyncSession = Depends(get_db)):
 @router.get("/presets", response_model=list[PresetResponse])
 async def list_presets(
     session_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user_optional)
 ):
-    """Kullanıcı tanımlı creative pluginleri listele."""
+    """Kullanıcı tanımlı creative pluginleri listele.
+    session_id verilirse o session'a ait olanları, verilmezse kullanıcının tüm presetlerini döner.
+    """
     query = select(Preset)
     if session_id:
+        # Belirli session'ın presetleri
         query = query.where(Preset.session_id == session_id)
+    elif current_user:
+        # Kullanıcının TÜM presetleri (session fark etmez)
+        query = query.where(Preset.user_id == current_user.id)
     query = query.order_by(Preset.created_at.desc())
     
     result = await db.execute(query)
@@ -768,21 +776,26 @@ async def get_marketplace_plugins(
     
     # 2. Topluluk (kullanıcı oluşturmuş, public)
     if category in ("all", "community"):
+        # User tablosunu JOIN ederek gerçek kullanıcı adını al
         result = await db.execute(
-            select(Preset).where(Preset.is_public == True)
+            select(Preset, User.full_name, User.email)
+            .outerjoin(User, Preset.user_id == User.id)
+            .where(Preset.is_public == True)
         )
-        user_plugins = result.scalars().all()
-        for p in user_plugins:
+        rows = result.all()
+        for p, user_full_name, user_email in rows:
             config = p.config or {}
+            # Gerçek kullanıcı adı: full_name > email username > fallback
+            real_author = user_full_name or (user_email.split('@')[0] if user_email else "Anonim")
             all_plugins.append({
                 "id": str(p.id),
                 "name": p.name,
                 "description": p.description or "",
-                "author": config.get("author", "Topluluk Üyesi"),
+                "author": real_author,
                 "icon": p.icon,
                 "color": p.color,
                 "style": config.get("style", "Custom"),
-                "rating": config.get("rating", 4.0),
+                "rating": 0,  # Gerçek rating sistemi henüz yok, sahte veri gösterme
                 "downloads": p.usage_count,
                 "created_at": p.created_at.strftime("%Y-%m-%d") if p.created_at else "2026-01-01",
                 "source": "community",
