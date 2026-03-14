@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Search, Star, Download, TrendingUp, Clock, Users, Loader2, Globe, Pin, Plus, Check, Eye, EyeOff, Sparkles } from "lucide-react";
+import { X, Search, Download, TrendingUp, Clock, Users, Loader2, Globe, Pin, Plus, Check, Eye, EyeOff, Sparkles } from "lucide-react";
 import { getMarketplacePlugins, getPresets, publishPlugin, installMarketplacePlugin, type MarketplacePlugin, type PresetData } from "@/lib/api";
 import { useToast } from "./ToastProvider";
 
@@ -203,7 +203,6 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
                         <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--background)" }}>
                             {([
                                 { sort: "downloads" as SortMode, icon: <TrendingUp size={12} />, label: "Popüler" },
-                                { sort: "rating" as SortMode, icon: <Star size={12} />, label: "En İyi" },
                                 { sort: "recent" as SortMode, icon: <Clock size={12} />, label: "Yeni" },
                             ]).map((fb) => (
                                 <button
@@ -254,10 +253,6 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
                                                 <div className="flex items-center gap-2 text-xs mt-1 flex-wrap" style={{ color: "var(--foreground-muted)" }}>
                                                     <span className="flex items-center gap-1">
                                                         <Users size={10} /> {plugin.author}
-                                                    </span>
-                                                    <span>•</span>
-                                                    <span className="flex items-center gap-1">
-                                                        <Star size={10} className="text-yellow-500" /> {plugin.rating}
                                                     </span>
                                                     <span>•</span>
                                                     <span className="flex items-center gap-1">
