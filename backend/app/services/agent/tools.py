@@ -38,8 +38,8 @@ AGENT_TOOLS_ANTHROPIC = [
                 },
                 "model": {
                     "type": "string",
-                    "enum": ["auto", "nano_banana", "flux2", "flux2_max", "gpt_image", "reve", "seedream", "recraft", "grok_imagine"],
-                    "description": "Görsel modeli seç. auto=Smart Router. nano_banana=Fotorealist/portre(varsayılan). flux2=Hızlı+metin/tipografi. flux2_max=Maksimum kalite/detay. gpt_image=Anime/Ghibli/cartoon/illüstrasyon. reve=Yaratıcı/sanatsal. seedream=Hızlı+ucuz. recraft=Logo/vektör/marka. grok_imagine=xAI Grok/yüksek estetik/hassas metin render."
+                    "enum": ["auto", "nano_banana", "nano_banana_2", "flux2", "flux2_max", "gpt_image", "reve", "seedream", "recraft", "grok_imagine"],
+                    "description": "Görsel modeli seç. auto=Smart Router. nano_banana=Fotorealist/portre(varsayılan). nano_banana_2=Hızlı fotorealist(ucuz). flux2=Hızlı+metin/tipografi. flux2_max=Maksimum kalite/detay. gpt_image=Anime/Ghibli/cartoon/illüstrasyon. reve=Yaratıcı/sanatsal. seedream=Hızlı+ucuz. recraft=Logo/vektör/marka. grok_imagine=xAI Grok/yüksek estetik/hassas metin render."
                 },
                 "resolution": {
                     "type": "string",

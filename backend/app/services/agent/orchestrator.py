@@ -92,9 +92,10 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
    - ASLA: "Harika bir fikir!", "Müthiş!", "Süper seçim!" gibi olumsuz bağlama uymayan kalıplar kullanma.
 
 ## MODEL SEÇİMİ (MUTLAKA UYGULA)
-- **Görsel:** nano_banana(fotorealist), flux2(metin/hızlı), gpt_image(anime/ghibli), reve(sanatsal), recraft(logo), flux2_max(premium)
-- **Video:** kling(genel), sora2(uzun/hikaye), veo(sinematik), seedance(hızlı/ucuz), hailuo(sosyal medya)
-- auto bırakma, içeriği analiz edip model seç!
+- Aşağıdaki "AKTİF AI MODELLERİ" bölümünde hangi modellerin açık (✅) / kapalı (❌) olduğu listelenir.
+- Kullanıcı belirli bir model isterse ("Flux 2 Max ile üret", "bunu Recraft ile yap") → o modeli model parametresine yaz.
+- İstenen model kapalıysa (❌): "Bu model şu an aktif değil. Şu modeller kullanılabilir: ..." diye aktif alternatifleri listele.
+- Kullanıcı model belirtmezse → içeriği analiz edip en uygun AKTİF modeli seç, auto bırakma.
 
 ## VİDEO KURALLARI
 | Süre | Araç | Parametre |
@@ -1774,6 +1775,67 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         except Exception as e:
             print(f"⚠️ Model stats hatası: {e}")
         
+        # 11. Aktif AI Modelleri — agent hangi modellerin açık/kapalı olduğunu bilsin
+        try:
+            from app.models.models import AIModel
+            models_result = await db.execute(select(AIModel.name, AIModel.is_enabled, AIModel.model_type))
+            all_models = models_result.all()
+            if all_models:
+                # İnsan dostu isim mapping
+                display_names = {
+                    "nano_banana_pro": "Nano Banana Pro", "nano_banana_2": "Nano Banana 2",
+                    "flux2": "Flux 2", "flux2_max": "Flux 2 Max",
+                    "gpt_image": "GPT Image 1", "reve": "Reve",
+                    "seedream": "Seedream 4.5", "recraft": "Recraft V3",
+                    "grok_imagine": "Grok Imagine",
+                    "kling": "Kling 3.0 Pro", "sora2": "Sora 2 Pro",
+                    "veo_fast": "Veo 3.1 Fast", "veo_quality": "Veo 3.1 Quality",
+                    "seedance": "Seedance 1.5", "hailuo": "Hailuo 02",
+                    "grok_imagine_video": "Grok Imagine Video",
+                }
+                # Shortcode mapping (agent tool parametresi için)
+                shortcode_map = {
+                    "nano_banana_pro": "nano_banana", "nano_banana_2": "nano_banana_2",
+                    "flux2": "flux2", "flux2_max": "flux2_max",
+                    "gpt_image": "gpt_image", "reve": "reve",
+                    "seedream": "seedream", "recraft": "recraft",
+                    "grok_imagine": "grok_imagine",
+                    "kling": "kling", "sora2": "sora2",
+                    "veo_fast": "veo", "veo_quality": "veo_quality",
+                    "seedance": "seedance", "hailuo": "hailuo",
+                    "grok_imagine_video": "grok_imagine_video",
+                }
+                
+                image_models = []
+                video_models = []
+                for name, enabled, model_type in all_models:
+                    if name not in display_names:
+                        continue
+                    status = "✅" if enabled else "❌"
+                    sc = shortcode_map.get(name, name)
+                    label = f"{display_names[name]}({sc}) {status}"
+                    cat = (model_type or "").lower()
+                    if cat in ("image", "görsel", "image_generation"):
+                        image_models.append(label)
+                    elif cat in ("video", "video_generation"):
+                        video_models.append(label)
+                    elif name in ("nano_banana_pro", "nano_banana_2", "flux2", "flux2_max", "gpt_image", "reve", "seedream", "recraft", "grok_imagine"):
+                        image_models.append(label)
+                    elif name in ("kling", "sora2", "veo_fast", "veo_quality", "seedance", "hailuo", "grok_imagine_video"):
+                        video_models.append(label)
+                
+                if image_models or video_models:
+                    model_ctx = "\n\n--- 🎨 AKTİF AI MODELLERİ ---\n"
+                    if image_models:
+                        model_ctx += f"GÖRSEL: {', '.join(image_models)}\n"
+                    if video_models:
+                        model_ctx += f"VİDEO: {', '.join(video_models)}\n"
+                    model_ctx += "Kullanıcı kapalı (❌) model isterse → aktif alternatifleri öner.\n"
+                    extra_context += model_ctx
+                    print(f"🎨 Aktif model listesi enjekte edildi: {len(image_models)} görsel, {len(video_models)} video")
+        except Exception as e:
+            print(f"⚠️ Aktif model listesi hatası: {e}")
+        
         return extra_context
     
     async def _process_response(
@@ -2458,6 +2520,8 @@ Konuşma:
             original_prompt = params.get("prompt", "")
             aspect_ratio = params.get("aspect_ratio", "1:1")
             resolution = params.get("resolution", "1K")
+            preferred_model = params.get("model", "auto")
+            print(f"🎯 _generate_image: preferred_model={preferred_model}, all params keys={list(params.keys())}")
             
             # 🔄 PROMPTU İNGİLİZCE'YE ÇEVİR (Hangi dilde olursa olsun - daha iyi görsel sonuçları için)
             prompt, was_translated = await translate_to_english(original_prompt)
@@ -2672,19 +2736,20 @@ Konuşma:
                     }
             
             else:
-                # Referans yok - sadece generate_image (Smart Router)
+                # Referans yok - generate_image (Smart Router / kullanıcı model seçimi)
                 plugin_result = await self.fal_plugin.execute("generate_image", {
                     "prompt": prompt,
                     "aspect_ratio": aspect_ratio,
-                    "resolution": resolution
+                    "resolution": resolution,
+                    "model": preferred_model
                 })
                 result = plugin_result.data if plugin_result.success else {"success": False, "error": plugin_result.error or "Görsel üretilemedi"}
                 
                 if result.get("success"):
                     image_url = result.get("image_url")
-                    method = "nano-banana-pro"
-                    model_display = "Nano Banana Pro"
-                    quality_notes = "Referans görsel olmadan Nano Banana Pro ile üretildi."
+                    method = result.get("model_id", result.get("model", "nano-banana-pro"))
+                    model_display = result.get("model", "Nano Banana Pro")
+                    quality_notes = f"{model_display} ile üretildi."
                     
                     # ==========================================
                     # 🔍 2. SELF-REFLECTION (AUTO-CORRECTION) BAŞLANGICI
