@@ -18,7 +18,7 @@ import re
 
 logger = logging.getLogger(__name__)
 
-from app.core.database import get_db
+from app.core.database import get_db, async_session_maker
 from app.core.auth import get_current_user, get_current_user_required
 from app.models.models import Session, Message, User
 from app.schemas.schemas import ChatRequest, ChatResponse, MessageResponse, AssetResponse, EntityResponse
@@ -585,6 +585,10 @@ async def chat_stream(
     db.add(assistant_msg)
     await db.commit()
     await db.refresh(assistant_msg)
+    # get_db session'ı StreamingResponse return edildiğinde kapanır.
+    # event_generator() içinde bu session kullanılamaz.
+    # Bu yüzden assistant_msg.id'yi saklayıp kendi session'ımızı oluşturacağız.
+    assistant_msg_id = assistant_msg.id
     
     async def event_generator():
         full_response = ""
@@ -610,29 +614,24 @@ async def chat_stream(
             if not (should_persist_text or should_persist_media or should_persist_error):
                 return
 
-            assistant_msg.content = full_response or stream_error_text or assistant_msg.content or ""
-            assistant_meta = dict(assistant_msg.metadata_ or {})
-            assistant_meta["streamed"] = True
-            assistant_meta["pending"] = not force and not stream_error_text
-
+            content = full_response or stream_error_text or ""
+            meta = {"streamed": True, "pending": not force and not stream_error_text}
             if all_images:
-                assistant_meta["images"] = all_images
-            else:
-                assistant_meta.pop("images", None)
-
+                meta["images"] = all_images
             if all_videos:
-                assistant_meta["videos"] = all_videos
-            else:
-                assistant_meta.pop("videos", None)
-
+                meta["videos"] = all_videos
             if stream_error_text:
-                assistant_meta["stream_error"] = True
-            else:
-                assistant_meta.pop("stream_error", None)
+                meta["stream_error"] = True
 
-            assistant_msg.metadata_ = assistant_meta
-            flag_modified(assistant_msg, "metadata_")
-            await db.commit()
+            # Bağımsız session — get_db session'ı kapalı olabilir
+            async with async_session_maker() as persist_db:
+                from sqlalchemy import update
+                await persist_db.execute(
+                    update(Message)
+                    .where(Message.id == assistant_msg_id)
+                    .values(content=content, metadata_=meta)
+                )
+                await persist_db.commit()
 
             last_persisted_len = len(full_response)
             last_image_count = len(all_images)
@@ -656,24 +655,33 @@ async def chat_stream(
                     try:
                         token = json.loads(data_line)
                         full_response += token
-                        if not last_persisted_len or len(full_response) - last_persisted_len >= 80:
+                    except Exception as parse_err:
+                        print(f"⚠️ Token parse hatası: {parse_err}")
+                    if full_response and (not last_persisted_len or len(full_response) - last_persisted_len >= 80):
+                        try:
                             await persist_stream_message()
-                    except:
-                        pass
+                        except Exception as persist_err:
+                            print(f"⚠️ Token persist hatası: {persist_err}")
                 elif event.startswith("event: assets"):
                     data_line = event.split("data: ", 1)[1].strip()
                     try:
                         all_images = json.loads(data_line)
+                    except Exception as parse_err:
+                        print(f"⚠️ Asset parse hatası: {parse_err}")
+                    try:
                         await persist_stream_message()
-                    except:
-                        pass
+                    except Exception as persist_err:
+                        print(f"⚠️ Asset persist hatası: {persist_err}")
                 elif event.startswith("event: videos"):
                     data_line = event.split("data: ", 1)[1].strip()
                     try:
                         all_videos = json.loads(data_line)
+                    except Exception as parse_err:
+                        print(f"⚠️ Video parse hatası: {parse_err}")
+                    try:
                         await persist_stream_message()
-                    except:
-                        pass
+                    except Exception as persist_err:
+                        print(f"⚠️ Video persist hatası: {persist_err}")
 
                 yield event
         except asyncio.CancelledError:
@@ -682,8 +690,10 @@ async def chat_stream(
                 if full_response or all_images or all_videos:
                     await persist_stream_message(force=True)
                 else:
-                    await db.delete(assistant_msg)
-                    await db.commit()
+                    async with async_session_maker() as cleanup_db:
+                        from sqlalchemy import delete
+                        await cleanup_db.execute(delete(Message).where(Message.id == assistant_msg_id))
+                        await cleanup_db.commit()
                     print("ℹ️ Boş placeholder mesaj client disconnect nedeniyle silindi")
             except Exception as cancel_err:
                 print(f"⚠️ Stream disconnect cleanup hatası: {cancel_err}")
@@ -692,14 +702,14 @@ async def chat_stream(
             stream_error_text = str(e)
             yield f"event: error\ndata: {json.dumps(format_user_error_message(stream_error_text, 'chat'))}\n\n"
         
-        # Yanıtı finalize et — placeholder zaten başta açıldı, burada update ediyoruz.
+        # Yanıtı finalize et
         try:
             if full_response or all_images or all_videos or stream_error_text:
                 await persist_stream_message(force=True)
 
-                # === AUTO SUMMARY: Projeler arası hafıza (stream) ===
+                # === AUTO SUMMARY ===
                 total_messages = len(conversation_history) + 2
-                if total_messages >= 10 and total_messages % 5 == 0 and session.user_id:
+                if total_messages >= 10 and total_messages % 5 == 0:
                     try:
                         from app.services.conversation_memory_service import conversation_memory
                         summary_messages = conversation_history[-10:] + [
@@ -711,18 +721,21 @@ async def chat_stream(
                             session_title=session.title
                         )
                         if summary_text:
-                            await conversation_memory.save_conversation_summary(
-                                db=db,
-                                user_id=session.user_id,
-                                session_id=session.id,
-                                summary=summary_text
-                            )
-                        print(f"💾 Stream auto-summary kaydedildi (proje: {session.title}, mesaj: {total_messages})")
+                            async with async_session_maker() as sum_db:
+                                await conversation_memory.save_conversation_summary(
+                                    db=sum_db,
+                                    user_id=current_user.id,
+                                    session_id=session.id,
+                                    summary=summary_text
+                                )
+                        print(f"💾 Stream auto-summary kaydedildi")
                     except Exception as sum_err:
                         print(f"⚠️ Stream auto-summary hatası: {sum_err}")
             else:
-                await db.delete(assistant_msg)
-                await db.commit()
+                async with async_session_maker() as cleanup_db:
+                    from sqlalchemy import delete
+                    await cleanup_db.execute(delete(Message).where(Message.id == assistant_msg_id))
+                    await cleanup_db.commit()
                 print("ℹ️ Stream yanıtı boş — placeholder mesaj silindi")
         except Exception as e:
             print(f"⚠️ Stream DB kayıt hatası: {e}")
