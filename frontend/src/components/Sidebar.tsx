@@ -120,9 +120,10 @@ interface CollapsibleSectionProps {
     items: { id: string; name: string }[];
     defaultOpen?: boolean;
     onDelete?: (id: string) => void;
+    onItemClick?: (item: { id: string; name: string }) => void;
 }
 
-function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete, onItemClick }: CollapsibleSectionProps) {
     // Her zaman items.length > 0 ise true, değilse false
     // Kullanıcının manuel açıp kapatmasına da izin ver
     const [userOverride, setUserOverride] = useState<boolean | null>(null);
@@ -164,26 +165,39 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
                             key={item.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, item)}
-                            className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-grab active:cursor-grabbing transition-colors"
+                            onClick={() => onItemClick?.(item)}
+                            className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
                             style={{ color: "var(--foreground-muted)" }}
+                            title={`${item.name} etiketini chat'e ekle`}
                         >
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
                                 <span className="truncate">{item.name}</span>
                             </div>
-                            {onDelete && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        onDelete(item.id);
-                                    }}
-                                    className="p-1 rounded hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
-                                    title="Sil"
-                                >
-                                    <Trash2 size={14} className="text-red-400" />
-                                </button>
-                            )}
+                            <div className="flex items-center gap-0.5">
+                                {onItemClick && (
+                                    <span
+                                        className="p-1 rounded opacity-0 group-hover:opacity-60 transition-colors"
+                                        title="Chat'e ekle"
+                                        style={{ color: 'var(--accent)', fontSize: 11 }}
+                                    >
+                                        ↗
+                                    </span>
+                                )}
+                                {onDelete && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            onDelete(item.id);
+                                        }}
+                                        className="p-1 rounded hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Sil"
+                                    >
+                                        <Trash2 size={14} className="text-red-400" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -1326,6 +1340,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                     icon={<Users size={16} />}
                                     items={filteredCharacters}
                                     onDelete={confirmDeleteCharacter}
+                                    onItemClick={(item) => onSetInputText?.(`${item.name} `)}
                                 />
 
                                 {/* Locations */}
@@ -1334,6 +1349,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                     icon={<MapPin size={16} />}
                                     items={filteredLocations}
                                     onDelete={confirmDeleteLocation}
+                                    onItemClick={(item) => onSetInputText?.(`${item.name} `)}
                                 />
 
                                 {/* Brands */}
@@ -1342,6 +1358,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                     icon={<Tag size={16} />}
                                     items={filteredBrands}
                                     onDelete={confirmDeleteBrand}
+                                    onItemClick={(item) => onSetInputText?.(`${item.name} `)}
                                 />
 
                                 {/* Creative Plugins — başlık her zaman görünür */}
