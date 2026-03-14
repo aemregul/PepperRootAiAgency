@@ -32,6 +32,7 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
     const [installing, setInstalling] = useState<string | null>(null);
     const [publishing, setPublishing] = useState<string | null>(null);
     const [selectingPluginId, setSelectingPluginId] = useState<string | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const toast = useToast();
 
     // Fetch community presets
@@ -128,7 +129,6 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
 
     // Delete preset
     const handleDeletePreset = async (presetId: string) => {
-        if (!confirm('Bu preset silinecek. Emin misiniz?')) return;
         try {
             const ok = await deletePreset(presetId);
             if (ok) {
@@ -139,6 +139,8 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
             }
         } catch {
             toast.error('Silme başarısız');
+        } finally {
+            setConfirmDeleteId(null);
         }
     };
 
@@ -424,8 +426,7 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
                                             </div>
                                         </div>
 
-                                        {/* Publish / Unpublish Button */}
-                                        <div className="flex items-center gap-2 shrink-0">
+                                               <div className="flex items-center gap-2 shrink-0">
                                             <button
                                                 onClick={() => handlePublish(preset.id)}
                                                 disabled={publishing === preset.id}
@@ -448,13 +449,31 @@ export function CommunityHubModal({ isOpen, onClose, projects, activeProjectId, 
                                                     <><Eye size={14} /> Toplulukta Yayınla</>
                                                 )}
                                             </button>
-                                            <button
-                                                onClick={() => handleDeletePreset(preset.id)}
-                                                className="p-2 rounded-lg transition-all hover:bg-red-500/20"
-                                                title="Preset'i sil"
-                                            >
-                                                <Trash2 size={14} className="text-red-400" />
-                                            </button>
+                                            {confirmDeleteId === preset.id ? (
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => handleDeletePreset(preset.id)}
+                                                        className="px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1 transition-all"
+                                                        style={{ background: "rgba(239, 68, 68, 0.2)", border: "1px solid rgba(239, 68, 68, 0.4)", color: "#ef4444" }}
+                                                    >
+                                                        <Trash2 size={12} /> Sil
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setConfirmDeleteId(null)}
+                                                        className="p-1.5 rounded-lg transition-all hover:bg-[var(--card)]"
+                                                    >
+                                                        <X size={14} style={{ color: "var(--foreground-muted)" }} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setConfirmDeleteId(preset.id)}
+                                                    className="p-2 rounded-lg transition-all hover:bg-red-500/20"
+                                                    title="Preset'i sil"
+                                                >
+                                                    <Trash2 size={14} className="text-red-400" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
