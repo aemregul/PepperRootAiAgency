@@ -844,7 +844,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             }
 
             // Çöp kutusundan kaldır
-            setTrashItems(trashItems.filter(t => t.id !== item.id));
+            setTrashItems(prev => prev.filter(t => t.id !== item.id));
             toast.success(`"${item.name}" başarıyla geri yüklendi`);
 
             // Asset geri yüklendiyse media panel'ı güncelle
@@ -861,7 +861,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const handlePermanentDelete = async (id: string) => {
         try {
             await permanentDeleteTrashItem(id);
-            setTrashItems(trashItems.filter(t => t.id !== id));
+            setTrashItems(prev => prev.filter(t => t.id !== id));
             toast.success('Kalıcı olarak silindi');
         } catch (error) {
             console.error('Kalıcı silme hatası:', error);
@@ -872,24 +872,47 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     // Delete all trash items
     const handleDeleteAll = async () => {
         try {
-            for (const item of trashItems) {
-                await permanentDeleteTrashItem(item.id);
-            }
+            const currentItems = [...trashItems];
+            await Promise.all(currentItems.map(item => permanentDeleteTrashItem(item.id)));
             setTrashItems([]);
+            toast.success('Tüm öğeler silindi');
         } catch (error) {
             console.error('Tümünü silme hatası:', error);
+            // Hata durumunda backend'den tekrar yükle
+            const items = await getTrashItems();
+            const trashList: TrashItem[] = items.map((i: TrashItemData) => ({
+                id: i.id,
+                name: i.item_name,
+                type: i.item_type as TrashItem["type"],
+                deletedAt: new Date(i.deleted_at),
+                imageUrl: (i.original_data?.url || i.original_data?.reference_image_url || undefined) as string | undefined,
+                assetType: i.original_data?.type as TrashItem["assetType"] || undefined,
+                originalData: i.original_data || {}
+            }));
+            setTrashItems(trashList);
         }
     };
 
     // Delete multiple selected items
     const handleDeleteMultiple = async (ids: string[]) => {
         try {
-            for (const id of ids) {
-                await permanentDeleteTrashItem(id);
-            }
-            setTrashItems(trashItems.filter(t => !ids.includes(t.id)));
+            await Promise.all(ids.map(id => permanentDeleteTrashItem(id)));
+            setTrashItems(prev => prev.filter(t => !ids.includes(t.id)));
+            toast.success(`${ids.length} öğe silindi`);
         } catch (error) {
             console.error('Çoklu silme hatası:', error);
+            // Hata durumunda backend'den tekrar yükle
+            const items = await getTrashItems();
+            const trashList: TrashItem[] = items.map((i: TrashItemData) => ({
+                id: i.id,
+                name: i.item_name,
+                type: i.item_type as TrashItem["type"],
+                deletedAt: new Date(i.deleted_at),
+                imageUrl: (i.original_data?.url || i.original_data?.reference_image_url || undefined) as string | undefined,
+                assetType: i.original_data?.type as TrashItem["assetType"] || undefined,
+                originalData: i.original_data || {}
+            }));
+            setTrashItems(trashList);
         }
     };
 
