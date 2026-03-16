@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
     getEntities, deleteEntity, Entity, createSession, getSessions, deleteSession, updateSession,
-    getCreativePlugins, createCreativePlugin, deleteCreativePlugin, CreativePluginData,
+    getPresets, createPreset, deletePreset, PresetData,
     getTrashItems, restoreTrashItem, permanentDeleteTrashItem, TrashItemData
 } from "@/lib/api";
 import {
@@ -25,7 +25,7 @@ import {
     User,
     Puzzle,
     Trash2,
-    Store,
+
     Pencil,
     Grid3x3,
     LogOut,
@@ -42,7 +42,7 @@ import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { TrashModal, TrashItem } from "./TrashModal";
 import { SavePluginModal, PluginDetailModal, CreativePlugin } from "./CreativePluginModal";
 import { useToast } from "./ToastProvider";
-import { PluginMarketplaceModal } from "./PluginMarketplaceModal";
+import { CommunityHubModal } from "./CommunityHubModal";
 import { GridGeneratorModal } from "./GridGeneratorModal";
 import { SavedImagesModal } from "./SavedImagesModal";
 import { useKeyboardShortcuts, SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
@@ -77,7 +77,7 @@ const mockWardrobe = [
     { id: "w4", name: "@object_smartphone" },
 ];
 
-const mockCreativePlugins: CreativePlugin[] = [
+const mockPresets: CreativePlugin[] = [
     {
         id: "p1",
         name: "Mutfak Reklamı Seti",
@@ -120,9 +120,10 @@ interface CollapsibleSectionProps {
     items: { id: string; name: string }[];
     defaultOpen?: boolean;
     onDelete?: (id: string) => void;
+    onItemClick?: (item: { id: string; name: string }) => void;
 }
 
-function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete, onItemClick }: CollapsibleSectionProps) {
     // Her zaman items.length > 0 ise true, değilse false
     // Kullanıcının manuel açıp kapatmasına da izin ver
     const [userOverride, setUserOverride] = useState<boolean | null>(null);
@@ -164,26 +165,39 @@ function CollapsibleSection({ title, icon, items, defaultOpen = false, onDelete 
                             key={item.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, item)}
-                            className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-grab active:cursor-grabbing transition-colors"
+                            onClick={() => onItemClick?.(item)}
+                            className="flex items-center justify-between group px-3 py-1.5 text-sm rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors"
                             style={{ color: "var(--foreground-muted)" }}
+                            title={`${item.name} etiketini chat'e ekle`}
                         >
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
                                 <span className="truncate">{item.name}</span>
                             </div>
-                            {onDelete && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        onDelete(item.id);
-                                    }}
-                                    className="p-1 rounded hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
-                                    title="Sil"
-                                >
-                                    <Trash2 size={14} className="text-red-400" />
-                                </button>
-                            )}
+                            <div className="flex items-center gap-0.5">
+                                {onItemClick && (
+                                    <span
+                                        className="p-1 rounded opacity-0 group-hover:opacity-60 transition-colors"
+                                        title="Chat'e ekle"
+                                        style={{ color: 'var(--accent)', fontSize: 11 }}
+                                    >
+                                        ↗
+                                    </span>
+                                )}
+                                {onDelete && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            onDelete(item.id);
+                                        }}
+                                        className="p-1 rounded hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Sil"
+                                    >
+                                        <Trash2 size={14} className="text-red-400" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -320,6 +334,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     // Drag-and-drop reorder state
     const [dragProjectId, setDragProjectId] = useState<string | null>(null);
     const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null);
+    const [dragOverPosition, setDragOverPosition] = useState<'above' | 'below' | null>(null);
 
     const applyProjectOrder = (list: typeof projects) => {
         try {
@@ -341,12 +356,21 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const handleProjectDragStart = (e: React.DragEvent, projectId: string) => {
         setDragProjectId(projectId);
         e.dataTransfer.effectAllowed = 'move';
+        // Daha iyi ghost efekti
+        const el = e.currentTarget as HTMLElement;
+        el.style.opacity = '0.5';
     };
 
     const handleProjectDragOver = (e: React.DragEvent, projectId: string) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        if (projectId !== dragProjectId) setDragOverProjectId(projectId);
+        if (projectId === dragProjectId) return;
+        // Üst/alt yarı tespiti — hangi tarafa bırakılacağını belirle
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const pos = e.clientY < midY ? 'above' : 'below';
+        setDragOverProjectId(projectId);
+        setDragOverPosition(pos as 'above' | 'below');
     };
 
     const handleProjectDrop = (e: React.DragEvent, targetId: string) => {
@@ -357,16 +381,23 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
         if (fromIdx === -1 || toIdx === -1) return;
         const reordered = [...projects];
         const [moved] = reordered.splice(fromIdx, 1);
-        reordered.splice(toIdx, 0, moved);
+        // Pozisyona göre ekleme noktasını ayarla
+        const adjustedIdx = dragOverPosition === 'below'
+            ? (toIdx > fromIdx ? toIdx : toIdx + 1)
+            : (toIdx > fromIdx ? toIdx - 1 : toIdx);
+        reordered.splice(Math.max(0, adjustedIdx), 0, moved);
         setProjects(reordered);
         localStorage.setItem('projectOrder', JSON.stringify(reordered.map(p => p.id)));
         setDragProjectId(null);
         setDragOverProjectId(null);
+        setDragOverPosition(null);
     };
 
-    const handleProjectDragEnd = () => {
+    const handleProjectDragEnd = (e: React.DragEvent) => {
+        (e.currentTarget as HTMLElement).style.opacity = '1';
         setDragProjectId(null);
         setDragOverProjectId(null);
+        setDragOverPosition(null);
     };
 
     // Keyboard shortcuts
@@ -430,7 +461,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
     const [savedImages, setSavedImages] = useState<{ id: string; name: string; imageUrl?: string }[]>([]);
     const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
-    const [creativePlugins, setCreativePlugins] = useState<CreativePlugin[]>([]);
+    const [presetsList, setPresetsList] = useState<CreativePlugin[]>([]);
 
     // Filtrelenmiş entity'ler (arama için)
     const filteredCharacters = characters.filter(c =>
@@ -474,37 +505,37 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
         fetchProjects();
     }, [sessionId, refreshKey]);
 
-    // Backend'den creative plugins'i yükle
+    // Backend'den presets'i yükle
     useEffect(() => {
-        const fetchCreativePlugins = async () => {
+        const fetchPresets = async () => {
             if (!sessionId) return;
             try {
-                const plugins = await getCreativePlugins(sessionId);
-                const pluginList: CreativePlugin[] = plugins.map((p: CreativePluginData) => ({
+                const plugins = await getPresets(sessionId);
+                const pluginList: CreativePlugin[] = plugins.map((p: PresetData) => ({
                     id: p.id,
                     name: p.name,
                     description: p.description || '',
                     author: 'Ben',
                     isPublic: p.is_public,
-                    config: {},
+                    config: p.config || {},
                     createdAt: new Date(),
                     downloads: p.usage_count,
                     rating: 0
                 }));
-                setCreativePlugins(pluginList);
+                setPresetsList(pluginList);
             } catch (error) {
                 console.error('Creative plugins yükleme hatası:', error);
-                setCreativePlugins([]);
+                setPresetsList([]);
             }
         };
 
-        fetchCreativePlugins();
-    }, [sessionId]);
+        fetchPresets();
+    }, [sessionId, refreshKey]);
 
     // Plugin listesi değiştiğinde parent'a bildir
     useEffect(() => {
         if (onPluginsLoaded) {
-            const simplified = creativePlugins.map(p => {
+            const simplified = presetsList.map(p => {
                 const parts: string[] = [];
                 if (p.config?.style) parts.push(`Stil: ${p.config.style}`);
                 if (p.config?.cameraAngles?.length) parts.push(`Açılar: ${p.config.cameraAngles.join(', ')}`);
@@ -516,7 +547,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             });
             onPluginsLoaded(simplified);
         }
-    }, [creativePlugins, onPluginsLoaded]);
+    }, [presetsList, onPluginsLoaded]);
 
     // API'den entity'leri çek
     useEffect(() => {
@@ -565,7 +596,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     }, [sessionId, refreshKey]);
     const [selectedPlugin, setSelectedPlugin] = useState<CreativePlugin | null>(null);
     const [pluginDetailOpen, setPluginDetailOpen] = useState(false);
-    const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+    const [communityHubOpen, setCommunityHubOpen] = useState(false);
 
     // Trash state - backend'den yükle
     const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -580,7 +611,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                     name: i.item_name,
                     type: i.item_type as TrashItem["type"],
                     deletedAt: new Date(i.deleted_at),
-                    imageUrl: i.original_data?.url || undefined,
+                    imageUrl: (i.original_data?.url || i.original_data?.reference_image_url || undefined) as string | undefined,
                     assetType: i.original_data?.type as TrashItem["assetType"] || undefined,
                     originalData: i.original_data || {}
                 }));
@@ -614,12 +645,14 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     };
 
     // Move to trash instead of deleting
-    const moveToTrash = (id: string, name: string, type: TrashItem["type"], originalData: Record<string, unknown>) => {
-        setTrashItems([...trashItems, {
+    const moveToTrash = (id: string, name: string, type: TrashItem["type"], originalData: Record<string, unknown>, imageUrl?: string) => {
+        setTrashItems(prev => [...prev, {
             id,
             name,
             type,
             deletedAt: new Date(),
+            imageUrl,
+            assetType: (originalData?.type as TrashItem["assetType"]) || undefined,
             originalData
         }]);
     };
@@ -679,7 +712,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             onConfirm: async () => {
                 const success = await deleteEntity(id);
                 if (success) {
-                    moveToTrash(id, item.name, "wardrobe", item);
+                    moveToTrash(id, item.name, "wardrobe", item, item.imageUrl as string | undefined);
                     setSavedImages(savedImages.filter((w: { id: string; name: string; imageUrl?: string }) => w.id !== id));
                     toast.success(`"${item.name}" çöp kutusuna taşındı`);
                 } else {
@@ -790,8 +823,9 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                         };
                         setProjects(prevProjects => [...prevProjects, newProject]);
                         break;
-                    case "plugin":
-                        console.log("Plugin restore - not implemented");
+                    case "preset":
+                        // Preset geri yüklendi — sidebar refresh olacak
+                        console.log("Preset restored");
                         break;
                     case "marka":
                     case "brand":  // Backend alias
@@ -810,7 +844,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             }
 
             // Çöp kutusundan kaldır
-            setTrashItems(trashItems.filter(t => t.id !== item.id));
+            setTrashItems(prev => prev.filter(t => t.id !== item.id));
             toast.success(`"${item.name}" başarıyla geri yüklendi`);
 
             // Asset geri yüklendiyse media panel'ı güncelle
@@ -827,7 +861,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     const handlePermanentDelete = async (id: string) => {
         try {
             await permanentDeleteTrashItem(id);
-            setTrashItems(trashItems.filter(t => t.id !== id));
+            setTrashItems(prev => prev.filter(t => t.id !== id));
             toast.success('Kalıcı olarak silindi');
         } catch (error) {
             console.error('Kalıcı silme hatası:', error);
@@ -838,24 +872,47 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
     // Delete all trash items
     const handleDeleteAll = async () => {
         try {
-            for (const item of trashItems) {
-                await permanentDeleteTrashItem(item.id);
-            }
+            const currentItems = [...trashItems];
+            await Promise.all(currentItems.map(item => permanentDeleteTrashItem(item.id)));
             setTrashItems([]);
+            toast.success('Tüm öğeler silindi');
         } catch (error) {
             console.error('Tümünü silme hatası:', error);
+            // Hata durumunda backend'den tekrar yükle
+            const items = await getTrashItems();
+            const trashList: TrashItem[] = items.map((i: TrashItemData) => ({
+                id: i.id,
+                name: i.item_name,
+                type: i.item_type as TrashItem["type"],
+                deletedAt: new Date(i.deleted_at),
+                imageUrl: (i.original_data?.url || i.original_data?.reference_image_url || undefined) as string | undefined,
+                assetType: i.original_data?.type as TrashItem["assetType"] || undefined,
+                originalData: i.original_data || {}
+            }));
+            setTrashItems(trashList);
         }
     };
 
     // Delete multiple selected items
     const handleDeleteMultiple = async (ids: string[]) => {
         try {
-            for (const id of ids) {
-                await permanentDeleteTrashItem(id);
-            }
-            setTrashItems(trashItems.filter(t => !ids.includes(t.id)));
+            await Promise.all(ids.map(id => permanentDeleteTrashItem(id)));
+            setTrashItems(prev => prev.filter(t => !ids.includes(t.id)));
+            toast.success(`${ids.length} öğe silindi`);
         } catch (error) {
             console.error('Çoklu silme hatası:', error);
+            // Hata durumunda backend'den tekrar yükle
+            const items = await getTrashItems();
+            const trashList: TrashItem[] = items.map((i: TrashItemData) => ({
+                id: i.id,
+                name: i.item_name,
+                type: i.item_type as TrashItem["type"],
+                deletedAt: new Date(i.deleted_at),
+                imageUrl: (i.original_data?.url || i.original_data?.reference_image_url || undefined) as string | undefined,
+                assetType: i.original_data?.type as TrashItem["assetType"] || undefined,
+                originalData: i.original_data || {}
+            }));
+            setTrashItems(trashList);
         }
     };
 
@@ -981,17 +1038,16 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
 
                     <button
                         className="rail-feature-btn"
-                        onClick={() => setMarketplaceOpen(true)}
+                        onClick={() => setCommunityHubOpen(true)}
                         style={{
-                            background: 'rgba(168, 85, 247, 0.10)',
-                            border: '1px solid rgba(168, 85, 247, 0.25)',
-                            color: '#a855f7'
+                            background: 'rgba(167, 139, 250, 0.10)',
+                            border: '1px solid rgba(167, 139, 250, 0.25)',
+                            color: '#a78bfa'
                         }}
                     >
-                        <Store size={20} />
-                        <span className="rail-label" style={{ color: '#a855f7' }}>Eklenti Mağazası</span>
+                        <Users size={20} />
+                        <span className="rail-label" style={{ color: '#a78bfa' }}>Topluluk</span>
                     </button>
-
                     {/* Spacer */}
                     <div className="rail-spacer" />
                     <div className="rail-divider" />
@@ -1115,85 +1171,124 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                         const isEditing = editingProjectId === project.id;
                                         const colors = categoryColor(project.category);
                                         return (
-                                            <div
-                                                key={project.id}
-                                                draggable={!isEditing}
-                                                onDragStart={(e) => handleProjectDragStart(e, project.id)}
-                                                onDragOver={(e) => handleProjectDragOver(e, project.id)}
-                                                onDrop={(e) => handleProjectDrop(e, project.id)}
-                                                onDragEnd={handleProjectDragEnd}
-                                                className={`project-card-v2 group ${project.active ? 'active' : ''} ${dragProjectId === project.id ? 'opacity-40' : ''} ${dragOverProjectId === project.id ? 'ring-2 ring-[var(--accent)]' : ''}`}
-                                                style={{ cursor: isEditing ? 'text' : 'grab' }}
-                                                onClick={() => !isEditing && handleProjectClick(project.id)}
-                                                onDoubleClick={(e) => {
-                                                    e.stopPropagation();
-                                                    startEditingProject(project.id, project.name);
-                                                }}
-                                            >
-                                                {/* Drag handle + Thumbnail */}
-                                                <div className="project-thumb" style={{ position: 'relative' }}>
-                                                    {categoryEmoji(project.category)}
-                                                </div>
+                                            <div key={project.id} style={{ position: 'relative' }}>
+                                                {/* Drop indicator — above */}
+                                                {dragOverProjectId === project.id && dragOverPosition === 'above' && dragProjectId !== project.id && (
+                                                    <div style={{
+                                                        position: 'absolute', top: -1, left: 8, right: 8, height: 2,
+                                                        background: 'var(--accent)', borderRadius: 2, zIndex: 10,
+                                                        boxShadow: '0 0 6px var(--accent)'
+                                                    }} />
+                                                )}
 
-                                                {/* Info */}
-                                                <div className="project-info">
-                                                    {isEditing ? (
-                                                        <input
-                                                            ref={editInputRef}
-                                                            type="text"
-                                                            value={editingProjectName}
-                                                            onChange={(e) => setEditingProjectName(e.target.value)}
-                                                            onBlur={() => saveProjectName(project.id)}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') saveProjectName(project.id);
-                                                                if (e.key === 'Escape') cancelEditingProject();
-                                                            }}
-                                                            onClick={(e) => e.stopPropagation()}
+                                                <div
+                                                    draggable={!isEditing}
+                                                    onDragStart={(e) => handleProjectDragStart(e, project.id)}
+                                                    onDragOver={(e) => handleProjectDragOver(e, project.id)}
+                                                    onDrop={(e) => handleProjectDrop(e, project.id)}
+                                                    onDragEnd={handleProjectDragEnd}
+                                                    className={`project-card-v2 group ${project.active ? 'active' : ''}`}
+                                                    style={{
+                                                        cursor: isEditing ? 'text' : 'pointer',
+                                                        opacity: dragProjectId === project.id ? 0.35 : 1,
+                                                        transform: dragProjectId === project.id ? 'scale(0.97)' : 'scale(1)',
+                                                        transition: 'opacity 0.2s ease, transform 0.2s ease'
+                                                    }}
+                                                    onClick={() => !isEditing && handleProjectClick(project.id)}
+                                                    onDoubleClick={(e) => {
+                                                        e.stopPropagation();
+                                                        startEditingProject(project.id, project.name);
+                                                    }}
+                                                >
+                                                    {/* Drag handle — only visible on hover */}
+                                                    {!isEditing && (
+                                                        <div
                                                             style={{
-                                                                width: '100%', background: 'transparent',
-                                                                border: 'none', borderBottom: '1px solid var(--accent)',
-                                                                outline: 'none', fontSize: 13, color: 'var(--foreground)',
-                                                                padding: '2px 0'
+                                                                display: 'flex', alignItems: 'center',
+                                                                cursor: 'grab', opacity: 0, transition: 'opacity 0.15s',
+                                                                padding: '0 2px', marginLeft: -4
                                                             }}
-                                                            autoFocus
-                                                        />
-                                                    ) : (
-                                                        <>
-                                                            <div className="project-name">{project.name}</div>
-                                                            <div className="project-meta">
-                                                                {project.category && (
-                                                                    <span
-                                                                        className="category-badge"
-                                                                        style={{ background: colors.bg, color: colors.text }}
-                                                                    >
-                                                                        {categoryLabel(project.category)}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </>
+                                                            className="group-hover:opacity-100!"
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                        >
+                                                            <GripVertical size={14} style={{ color: 'var(--foreground-muted)' }} />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Thumbnail */}
+                                                    <div className="project-thumb" style={{ position: 'relative' }}>
+                                                        {categoryEmoji(project.category)}
+                                                    </div>
+
+                                                    {/* Info */}
+                                                    <div className="project-info">
+                                                        {isEditing ? (
+                                                            <input
+                                                                ref={editInputRef}
+                                                                type="text"
+                                                                value={editingProjectName}
+                                                                onChange={(e) => setEditingProjectName(e.target.value)}
+                                                                onBlur={() => saveProjectName(project.id)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') saveProjectName(project.id);
+                                                                    if (e.key === 'Escape') cancelEditingProject();
+                                                                }}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                style={{
+                                                                    width: '100%', background: 'transparent',
+                                                                    border: 'none', borderBottom: '1px solid var(--accent)',
+                                                                    outline: 'none', fontSize: 13, color: 'var(--foreground)',
+                                                                    padding: '2px 0'
+                                                                }}
+                                                                autoFocus
+                                                            />
+                                                        ) : (
+                                                            <>
+                                                                <div className="project-name">{project.name}</div>
+                                                                <div className="project-meta">
+                                                                    {project.category && (
+                                                                        <span
+                                                                            className="category-badge"
+                                                                            style={{ background: colors.bg, color: colors.text }}
+                                                                        >
+                                                                            {categoryLabel(project.category)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Actions */}
+                                                    {!isEditing && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0, transition: 'opacity 0.15s' }}
+                                                            className="group-hover:opacity-100!"
+                                                        >
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); startEditingProject(project.id, project.name); }}
+                                                                className="p-1 rounded hover:bg-[var(--card-hover)]"
+                                                                title="Yeniden Adlandır"
+                                                            >
+                                                                <Pencil size={12} style={{ color: 'var(--foreground-muted)' }} />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); confirmDeleteProject(project.id); }}
+                                                                className="p-1 rounded hover:bg-red-500/20"
+                                                                title="Sil"
+                                                            >
+                                                                <Trash2 size={12} style={{ color: '#ef4444' }} />
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
 
-                                                {/* Actions */}
-                                                {!isEditing && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0, transition: 'opacity 0.15s' }}
-                                                        className="group-hover:!opacity-100"
-                                                    >
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); startEditingProject(project.id, project.name); }}
-                                                            className="p-1 rounded hover:bg-[var(--card-hover)]"
-                                                            title="Yeniden Adlandır"
-                                                        >
-                                                            <Pencil size={12} style={{ color: 'var(--foreground-muted)' }} />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); confirmDeleteProject(project.id); }}
-                                                            className="p-1 rounded hover:bg-red-500/20"
-                                                            title="Sil"
-                                                        >
-                                                            <Trash2 size={12} style={{ color: '#ef4444' }} />
-                                                        </button>
-                                                    </div>
+                                                {/* Drop indicator — below */}
+                                                {dragOverProjectId === project.id && dragOverPosition === 'below' && dragProjectId !== project.id && (
+                                                    <div style={{
+                                                        position: 'absolute', bottom: -1, left: 8, right: 8, height: 2,
+                                                        background: 'var(--accent)', borderRadius: 2, zIndex: 10,
+                                                        boxShadow: '0 0 6px var(--accent)'
+                                                    }} />
                                                 )}
                                             </div>
                                         );
@@ -1268,6 +1363,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                     icon={<Users size={16} />}
                                     items={filteredCharacters}
                                     onDelete={confirmDeleteCharacter}
+                                    onItemClick={(item) => onSetInputText?.(`${item.name} `)}
                                 />
 
                                 {/* Locations */}
@@ -1276,6 +1372,7 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                     icon={<MapPin size={16} />}
                                     items={filteredLocations}
                                     onDelete={confirmDeleteLocation}
+                                    onItemClick={(item) => onSetInputText?.(`${item.name} `)}
                                 />
 
                                 {/* Brands */}
@@ -1284,42 +1381,57 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                     icon={<Tag size={16} />}
                                     items={filteredBrands}
                                     onDelete={confirmDeleteBrand}
+                                    onItemClick={(item) => onSetInputText?.(`${item.name} `)}
                                 />
 
-                                {/* Creative Plugins */}
-                                {creativePlugins.length > 0 && (
-                                    <div style={{ marginTop: 8 }}>
-                                        <div style={{
-                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                            padding: '8px 16px'
-                                        }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>
-                                                <Puzzle size={14} />
-                                                <span>Yaratıcı Eklentiler</span>
-                                                <span style={{ opacity: 0.6 }}>({creativePlugins.length})</span>
-                                            </div>
+                                {/* Creative Plugins — başlık her zaman görünür */}
+                                <div style={{ marginTop: 8 }}>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        padding: '8px 16px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>
+                                            <Puzzle size={14} />
+                                            <span>Yaratıcı Eklentiler</span>
+                                            {presetsList.length > 0 && (
+                                                <span style={{ opacity: 0.6 }}>({presetsList.length})</span>
+                                            )}
                                         </div>
+                                    </div>
+                                    {presetsList.length > 0 ? (
                                         <div>
-                                            {creativePlugins.map((plugin) => (
+                                            {presetsList.map((plugin) => (
                                                 <div
                                                     key={plugin.id}
                                                     onClick={() => { setSelectedPlugin(plugin); setPluginDetailOpen(true); }}
-                                                    className="entity-item group"
-                                                    style={{ paddingLeft: 16 }}
+                                                    className="group"
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                        padding: '6px 16px 6px 28px', cursor: 'pointer', fontSize: 13,
+                                                        color: 'var(--foreground-muted)', transition: 'background 0.15s'
+                                                    }}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                                                         <span style={{
                                                             width: 6, height: 6, borderRadius: '50%',
-                                                            background: plugin.isPublic ? '#8b5cf6' : 'var(--accent)', flexShrink: 0
+                                                            background: plugin.isPublic ? '#8b5cf6' : '#f59e0b', flexShrink: 0
                                                         }} />
                                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plugin.name}</span>
                                                     </div>
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            deleteEntity(plugin.id).then(success => {
+                                                            deletePreset(plugin.id).then(success => {
                                                                 if (success) {
-                                                                    setCreativePlugins(creativePlugins.filter(p => p.id !== plugin.id));
+                                                                    setPresetsList(presetsList.filter(p => p.id !== plugin.id));
+                                                                    // Çöp kutusuna anında ekle
+                                                                    moveToTrash(
+                                                                        plugin.id,
+                                                                        plugin.name,
+                                                                        "preset",
+                                                                        { description: plugin.description },
+                                                                        undefined
+                                                                    );
                                                                 }
                                                             });
                                                         }}
@@ -1332,8 +1444,12 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <div style={{ padding: '4px 16px 8px 28px', fontSize: 12, color: 'var(--foreground-muted)', opacity: 0.5 }}>
+                                            Henüz preset eklenmemiş
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </>
                     )}
@@ -1393,48 +1509,47 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
                 isOpen={pluginDetailOpen}
                 onClose={() => setPluginDetailOpen(false)}
                 plugin={selectedPlugin}
-                onDelete={(id) => setCreativePlugins(creativePlugins.filter(p => p.id !== id))}
+                onDelete={(id) => {
+                    setPresetsList(presetsList.filter(p => p.id !== id));
+                    setPluginDetailOpen(false);
+                }}
+                onUpdate={(updated) => {
+                    setPresetsList(presetsList.map(p => p.id === updated.id ? updated : p));
+                    setSelectedPlugin(updated);
+                }}
                 onUse={(plugin) => {
                     const setTextFn = onSetInputText || onSendPrompt;
-                    if (setTextFn && plugin.config) {
-                        const parts: string[] = [];
-                        if (plugin.config.style) parts.push(`Stil: ${plugin.config.style}`);
-                        if (plugin.config.cameraAngles && plugin.config.cameraAngles.length > 0) {
-                            parts.push(`Açılar: ${plugin.config.cameraAngles.join(", ")}`);
-                        }
-                        if (plugin.config.timeOfDay) parts.push(`Zaman: ${plugin.config.timeOfDay}`);
-                        const prompt = plugin.config.promptTemplate
-                            ? `[${plugin.name}] ${plugin.config.promptTemplate}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`
-                            : `[${plugin.name}] ${parts.join(", ")} tarzında görsel üret`;
-                        setTextFn(prompt);
+                    if (setTextFn) {
+                        setTextFn(`Preset: ${plugin.name}`);
                     }
                     setPluginDetailOpen(false);
                 }}
             />
 
-            <PluginMarketplaceModal
-                isOpen={marketplaceOpen}
-                onClose={() => setMarketplaceOpen(false)}
-                onInstall={(plugin, projectId) => {
-                    // Sadece aktif projeye yükleniyorsa sidebar'da göster
-                    if (projectId === sessionId) {
-                        setCreativePlugins([...creativePlugins, plugin]);
-                    }
-                }}
-                projects={projects}
-                activeProjectId={sessionId || undefined}
-            />
+
 
             <GridGeneratorModal
                 isOpen={gridGeneratorOpen}
                 onClose={() => setGridGeneratorOpen(false)}
             />
 
+            <CommunityHubModal
+                isOpen={communityHubOpen}
+                onClose={() => setCommunityHubOpen(false)}
+                projects={projects}
+                activeProjectId={sessionId || undefined}
+                sessionId={sessionId}
+            />
             <SavedImagesModal
                 isOpen={savedImagesOpen}
                 onClose={() => setSavedImagesOpen(false)}
                 sessionId={sessionId}
                 onRefresh={() => { }}
+                onItemDeleted={(id, name, imageUrl, mediaType) => {
+                    moveToTrash(id, name, "wardrobe", { reference_image_url: imageUrl, type: mediaType }, imageUrl);
+                    // Sidebar entity listesinden de kaldır
+                    setSavedImages(prev => prev.filter(w => w.id !== id));
+                }}
             />
         </>
     );

@@ -579,10 +579,10 @@ class FalPluginV2(PluginBase):
         # Smart Model Router: Agent seçimi veya prompt analizi
         selected_model, disabled_warning = await self._select_image_model(prompt, agent_model=preferred_model)
         
-        # Auto-Retry Fallback zinciri oluştur
+        # Auto-Retry Fallback zinciri oluştur — SADECE enabled modeller
         models_to_try = [selected_model]
         for m in self.IMAGE_MODEL_CHAIN:
-            if m not in models_to_try:
+            if m not in models_to_try and await self.is_model_enabled(m):
                 models_to_try.append(m)
         
         last_error = None
@@ -590,8 +590,18 @@ class FalPluginV2(PluginBase):
             try:
                 logger.info(f"🖼️ Görsel üretim deneniyor: {model_id}")
                 
+                # Nano Banana 2 (Gemini tabanlı) — farklı parametre yapısı
+                if "nano-banana-2" in model_id:
+                    arguments = {
+                        "prompt": prompt,
+                        "aspect_ratio": aspect_ratio,
+                        "resolution": resolution or "1K",
+                        "num_images": 1,
+                        "output_format": "png",
+                    }
+                    logger.info(f"   📋 NB2 Arguments: {arguments}")
                 # FLUX 2 Flex farklı parametre yapısı kullanır
-                if "flux-2" in model_id:
+                elif "flux-2" in model_id:
                     arguments = {
                         "prompt": prompt,
                         "image_size": image_size,
@@ -616,6 +626,8 @@ class FalPluginV2(PluginBase):
                     with_logs=True,
                 )
                 
+                logger.info(f"   📦 Sonuç keys: {list(result.keys()) if result else 'None'}")
+                
                 if result and "images" in result and len(result["images"]) > 0:
                     logger.info(f"✅ Görsel üretildi: {model_id}")
                     response = {
@@ -627,10 +639,12 @@ class FalPluginV2(PluginBase):
                     if disabled_warning:
                         response["disabled_model_warning"] = disabled_warning
                     return response
+                else:
+                    logger.warning(f"⚠️ {model_id} sonuç döndü ama images yok: {str(result)[:200]}")
                     
             except Exception as e:
                 last_error = str(e)
-                logger.warning(f"⚠️ {model_id} başarısız: {e}. Sonraki model deneniyor...")
+                logger.warning(f"⚠️ {model_id} başarısız: {type(e).__name__}: {e}. Sonraki model deneniyor...")
                 continue
         
         return {"success": False, "error": f"Tüm modeller başarısız. Son hata: {last_error}"}

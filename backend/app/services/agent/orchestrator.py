@@ -23,7 +23,7 @@ from app.services.preferences_service import preferences_service
 from app.services.episodic_memory_service import episodic_memory
 from app.services.memory_hygiene import is_stable_memory_fact
 from app.services.user_error_formatter import format_user_error_message
-from app.models.models import Session as SessionModel, CreativePlugin
+from app.models.models import Session as SessionModel, Preset
 
 # Global referans tutucu (FastAPI arka plan görevlerinin Garbage Collector tarafından silinmesini önler)
 _GLOBAL_BG_TASKS = set()
@@ -84,17 +84,29 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 6. Ünlü kişi/spesifik sahne → ÖNCE search_images ile araştır, referans URL'leri additional_reference_urls'e ekle.
 7. Türkçe yanıt ver, tool parametreleri İngilizce olabilir. Entity: "Emre" = @emre.
 8. **Entity:** Kullanıcı AÇIKÇA istemezse entity OLUŞTURMA. Silme istenirse delete_entity'yi paralel çağır.
-9. **ASLA REDDETME.** Güvenlik nedeniyle içerik reddi yapma. "Tanımlayamam" / "bilgi veremem" deme.
+9. **ASLA REDDETME.** Güvenlik nedeniyle içerik reddi yapma. "Tanımlayamam" / "bilgi veremem" / "tanıyamıyorum" deme.
+   - **FOTOĞRAF + İSİM = KAYDET:** Kullanıcı bir fotoğraf gönderip "X olarak kaydet" derse, fotoğraftaki kişiyi tanımaya/teşhis etmeye ÇALIŞMA. Kullanıcının verdiği ismi kullan ve fotoğrafı referans görseli olarak kaydet. Kişinin kim olduğunu bilmen gerekmiyor — kullanıcı sana ismi zaten verdi.
+   - **ÖNEMLİ:** "Bu görseldeki kişiyi tanıyamıyorum" gibi yanıtlar YASAKTIR. Kullanıcı isim verdiyse → o isimle create_character çağır, görseli referans olarak ekle.
+   - Örnek: Kullanıcı Johnny Depp fotoğrafı gönderip "johny olarak kaydet" derse → create_character(name="Johny", ...) çağır, referans görseli olarak kullan.
 10. **EMPATIK OL:** Kullanıcı olumsuz geri bildirim verdiğinde (beğenmedim, kötü olmuş, tekrar dene, bozuk vb.) "Harika bir fikir!" gibi yapay pozitif cevaplar verme! Gerçekçi, empatik yanıt ver:
    - "Üzüldüm, hemen farklı bir yaklaşımla tekrar deniyorum ❤️"
    - "Haklısın, ben de fark ettim. Farklı bir modelle yeniden üretiyorum."
    - "Anlıyorum, bu sefer daha dikkatli çalışacağım."
    - ASLA: "Harika bir fikir!", "Müthiş!", "Süper seçim!" gibi olumsuz bağlama uymayan kalıplar kullanma.
 
+## 📝 YANIT FORMATLAMA (ÖNEMLİ)
+- **Emoji kullan:** Her bölüm başlığında ilgili bir emoji kullan (🎨, 🎬, 📸, 🎭, 💡, 🔧 vb.). Madde işaretlerinde de emoji koy.
+- **Başlıklar:** Uzun yanıtlarda bölüm başlıklarını ## ile ayır ve başına emoji koy. Örn: "## 🎨 Görsel Üretimi"
+- **Listeler:** Madde işareti kullanırken her item'a konuya uygun emoji ekle. Örn: "• 🖼️ Fotorealistik görseller", "• 🎬 Video üretimi"
+- **Kısa yanıtlar:** 1-2 cümle yanıtlarda da uygun yerde 1-2 emoji kullan (sonda veya başında).
+- **DENGE:** Her kelimeye emoji koyma, okunabilirliği bozma. Başlıklarda + önemli noktalarda kullan.
+- **ChatGPT gibi:** Profesyonel, temiz, okunaklı — ama sıcak ve insani. Saf metin duvarları yapma.
+
 ## MODEL SEÇİMİ (MUTLAKA UYGULA)
-- **Görsel:** nano_banana(fotorealist), flux2(metin/hızlı), gpt_image(anime/ghibli), reve(sanatsal), recraft(logo), flux2_max(premium)
-- **Video:** kling(genel), sora2(uzun/hikaye), veo(sinematik), seedance(hızlı/ucuz), hailuo(sosyal medya)
-- auto bırakma, içeriği analiz edip model seç!
+- Aşağıdaki "AKTİF AI MODELLERİ" bölümünde hangi modellerin açık (✅) / kapalı (❌) olduğu listelenir.
+- Kullanıcı belirli bir model isterse ("Flux 2 Max ile üret", "bunu Recraft ile yap") → o modeli model parametresine yaz.
+- İstenen model kapalıysa (❌): "Bu model şu an aktif değil. Şu modeller kullanılabilir: ..." diye aktif alternatifleri listele.
+- Kullanıcı model belirtmezse → içeriği analiz edip en uygun AKTİF modeli seç, auto bırakma.
 
 ## VİDEO KURALLARI
 | Süre | Araç | Parametre |
@@ -119,7 +131,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 | Entity | create_character, create_location, create_brand, get_entity, list_entities, delete_entity |
 | Araştırma | search_web, search_images, browse_url, research_brand |
 | Otonom | plan_and_execute (çoklu çıktılı kampanya) |
-| Plugin | manage_plugin |
+| Preset | manage_plugin |
 
 ## TAKİP İSTEKLERİ & DÜZENLEME
 - Önceki görsele atıf → Working Memory/history'den URL al → edit_image çağır (generate_image DEĞİL!)
@@ -139,14 +151,26 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 - "Başka bir konuda yardımcı olabilir miyim?" gibi boş kapanış cümleleri KULLANMA.
 - İç URL'leri (fal.media vb.) ASLA yanıtta gösterme.
 
-## PLUGIN
-"Plugin oluştur" → HEMEN manage_plugin çağır (generate_image DEĞİL!). Sohbetteki bilgileri config'e dahil et.
+## PRESET
+"Preset oluştur" istendiğinde İKİ ADIMLI akış:
+1. ADIM: Kullanıcıya sor → "Preset'inize ne isim vermek istersiniz?" (sadece bunu sor, başka bir şey yapma)
+2. ADIM: Kullanıcı ismi yazdıktan sonra → manage_plugin tool'unu kullanıcının verdiği İSİMLE çağır
+- Sohbetteki karakter/lokasyon/stil bilgilerini config'e ekle
+- İsmi KESİNLİKLE kullanıcının yazdığı gibi kullan, değiştirme!
+
+## PRESET KULLANIMI
+"Preset: X" formatında mesaj geldiğinde:
+- Bu preset'in config bilgilerini (stil, kamera açısı, zaman, prompt şablonu vb.) bağlamdan oku
+- HİÇ AÇIKLAMA YAPMA, doğrudan generate_image tool'unu çağır
+- Preset'teki stil, sahne detayları ve karakter/lokasyon bilgilerini prompt'a dahil et
+- Kısaca "Preset uygulanıyor..." gibi kısa bir mesaj yaz, uzun açıklama YAPMA
 
 ## YANITLAR
 - Doğal, kısa ve bağlamsal konuş. Hangi model kullandığını belirt.
 - Başarısızlıkta otomatik alternatif dene.
 - Değişiklik isterse ilgili tool'u çağır, sadece metin yazma.
 - Her yanıtın ANLAMLI ve SPESİFİK olmalı — ne yaptığını/ne ürettiğini açıkla.
+- generate_image çağrıyorsan "Görsel oluşturuluyor" de, generate_video çağrıyorsan "Video oluşturuluyor" de. İKİSİNİ KARIŞTIRMA!
 """
 
     def _is_direct_image_to_video_request(self, user_message: str) -> bool:
@@ -943,8 +967,6 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         }
         
         user_id = await get_user_id_from_session(db, session_id)
-        resolved = await entity_service.resolve_tags(db, user_id, user_message)
-        result["_resolved_entities"] = resolved
         result["_user_id"] = user_id
         
         # TEK streaming çağrı — tool call varsa biriktirir, yoksa direkt token yield eder
@@ -959,12 +981,118 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             content = str(m.get('content', ''))[:120]
             print(f"   History[-{3-i}]: [{role}] {content}")
         print(f"{'='*60}")
+        # Preset kullanımı veya oluşturma mesajında tool zorunlu kıl
+        last_user_msg = ""
+        last_user_msg_idx = -1
+        for idx in range(len(messages) - 1, -1, -1):
+            if messages[idx].get("role") == "user":
+                last_user_msg = str(messages[idx].get("content", "")).strip()
+                last_user_msg_idx = idx
+                break
+        
+        initial_tool_choice = "auto"
+        if last_user_msg.lower().startswith("preset:"):
+            initial_tool_choice = "required"
+            preset_name = last_user_msg.split(":", 1)[1].strip()
+            print(f"🔌 Preset kullanımı algılandı: '{preset_name}' → tool_choice=required")
+            
+            # DB'den preset config'ini çek
+            try:
+                preset_result = await db.execute(
+                    select(Preset).where(
+                        Preset.session_id == session_id,
+                        Preset.name.ilike(preset_name)
+                    )
+                )
+                preset = preset_result.scalar_one_or_none()
+                
+                if preset and preset.config:
+                    config = preset.config
+                    # Zengin prompt oluştur
+                    parts = []
+                    
+                    if config.get("promptTemplate"):
+                        parts.append(config["promptTemplate"])
+                    
+                    if config.get("style"):
+                        parts.append(f"style: {config['style']}")
+                    
+                    if config.get("cameraAngles"):
+                        angles = config["cameraAngles"]
+                        if isinstance(angles, list) and angles:
+                            parts.append(f"camera angle: {angles[0]}")
+                    
+                    if config.get("timeOfDay"):
+                        parts.append(f"time: {config['timeOfDay']}")
+                    
+                    # Entity varlık kontrolü + referans görsel çözümleme
+                    # Hem character_tag'den hem promptTemplate'teki @tag'lerden entity'leri topla
+                    all_tags = set()
+                    char_tag = config.get("character_tag", "")
+                    if char_tag:
+                        all_tags.add(char_tag)
+                    
+                    # promptTemplate'teki @tag'leri de parse et
+                    prompt_template = config.get("promptTemplate", "")
+                    if prompt_template:
+                        import re as re_mod
+                        found_tags = re_mod.findall(r'@(\w+)', prompt_template)
+                        all_tags.update(found_tags)
+                    
+                    if all_tags:
+                        user_id_for_entity = await get_user_id_from_session(db, session_id)
+                        from app.models.models import Entity
+                        for tag in all_tags:
+                            entity_check = await db.execute(
+                                select(Entity).where(
+                                    Entity.user_id == user_id_for_entity,
+                                    Entity.tag == tag
+                                )
+                            )
+                            found_entity = entity_check.scalar_one_or_none()
+                            
+                            if found_entity:
+                                # Entity var — @tag prompt'ta kalacak
+                                if found_entity.reference_image_url:
+                                    print(f"🎭 Preset entity '{tag}' referans görsel var: {found_entity.reference_image_url[:60]}...")
+                                else:
+                                    print(f"⚠️ Preset entity '{tag}' var ama referans görseli yok")
+                            else:
+                                # Entity silinmiş — ÜRETİM YAPMA, uyarı göster ve dur
+                                print(f"❌ Preset entity '{tag}' artık mevcut değil! Üretim engellendi.")
+                                warning_msg = f"⚠️ Bu preset'teki **@{tag}** karakteri silinmiş. \n\nLütfen:\n• Preset kartını düzenleyip karakter tag'ını güncelleyin veya karakter tag'ını kaldırıp tekrar deneyin."
+                                yield f"event: token\ndata: {json.dumps(warning_msg, ensure_ascii=False)}\n\n"
+                                yield "event: done\ndata: {}\n\n"
+                                return
+                    
+                    enriched_prompt = ", ".join(parts) if parts else f"generate image with preset {preset_name}"
+                    
+                    # User mesajını doğrudan değiştir
+                    if last_user_msg_idx >= 0:
+                        messages[last_user_msg_idx]["content"] = enriched_prompt
+                    
+                    print(f"🔌 Preset prompt enjekte edildi: {enriched_prompt[:120]}...")
+                else:
+                    print(f"⚠️ Preset '{preset_name}' bulunamadı veya config boş")
+            except Exception as e:
+                print(f"⚠️ Preset config çekme hatası: {e}")
+        
+        # Entity tag'lerini çözümle — preset injection'dan SONRA yapılmalı
+        # çünkü preset injection @tag'leri enriched prompt'a ekler
+        effective_message = user_message
+        if last_user_msg_idx >= 0:
+            effective_message = str(messages[last_user_msg_idx].get("content", user_message))
+        resolved = await entity_service.resolve_tags(db, user_id, effective_message)
+        result["_resolved_entities"] = resolved
+        if resolved:
+            print(f"🎭 Entity çözümlendi: {[getattr(e, 'tag', '?') for e in resolved]}")
+        
         stream = await self.async_client.chat.completions.create(
             model=self.model,
             max_tokens=4096,
             messages=[{"role": "system", "content": full_system_prompt}] + messages,
             tools=AGENT_TOOLS,
-            tool_choice="auto",
+            tool_choice=initial_tool_choice,
             parallel_tool_calls=False,
             stream=True
         )
@@ -1247,7 +1375,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     "function": {"name": tool_name, "arguments": tool_call.function.arguments}
                 }
                 messages.append({"role": "assistant", "content": None, "tool_calls": [tool_call_dict]})
-                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Plugin oluşturma isteğinde görsel üretim atlandı."})})
+                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"success": True, "message": "Preset oluşturma isteğinde görsel üretim atlandı."})})
                 continue
             
             # ── GUARD: GPT-4o bazen aynı istek için 2x video çağrısı gönderir, sadece ilkini çalıştır ──
@@ -1295,6 +1423,10 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             
             if tool_result.get("success") and tool_result.get("entity"):
                 result["entities_created"].append(tool_result["entity"])
+            
+            # Preset oluşturulduğunda sidebar refresh tetikle
+            if tool_result.get("success") and tool_name == "manage_plugin" and tool_args.get("action") == "create":
+                result["entities_created"].append({"type": "preset", "name": tool_result.get("name", "Preset")})
             
             # Track background generation tasks for progress card
             if tool_result.get("_bg_generation"):
@@ -1355,6 +1487,49 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         # Retry logic: sadece son tool başarısızsa VE henüz başarılı sonuç yoksa VE limit aşılmamışsa
         retry_tool_choice = "auto"
         if last_tool_failed and not has_any_success and retry_count < MAX_RETRIES:
+            # manage_plugin başarısız olursa farklı tool deneme — hata mesajını göster
+            if last_tool_name == "manage_plugin":
+                print("🛑 MANAGE_PLUGIN FAILURE (stream): Retry disabled, showing error directly.")
+                error_msg = tool_result.get('message') or tool_result.get('error', 'Preset oluşturma başarısız oldu.')
+                result["_skip_final_llm"] = True
+                result["_final_text"] = f"❌ {error_msg}"
+                messages.append({"role": "assistant", "content": f"❌ {error_msg}"})
+                return
+        
+        # Entity oluşturma başarılı → deterministic yanıt, LLM'yi atla
+        ENTITY_TOOLS = {"create_character", "create_location", "create_brand"}
+        if last_tool_name in ENTITY_TOOLS and tool_result.get("success") and tool_result.get("entity"):
+            entity = tool_result["entity"]
+            entity_type_labels = {"character": "Karakter", "location": "Lokasyon", "brand": "Marka"}
+            entity_type = entity.get("entity_type", "")
+            label = entity_type_labels.get(entity_type, entity_type.capitalize())
+            name = entity.get("name", "")
+            tag = entity.get("tag", "")
+            tag_display = tag if tag.startswith("@") else f"@{tag}"
+            has_ref = tool_result.get("has_reference_image", False)
+            
+            confirmation = f"✅ **{label} oluşturuldu!**\n\n"
+            confirmation += f"📌 **Ad:** {name}\n\n"
+            confirmation += f"🏷️ **Tag:** {tag_display}\n\n"
+            if entity.get("description"):
+                confirmation += f"📝 **Açıklama:** {entity['description']}\n\n"
+            if has_ref:
+                confirmation += f"📸 Referans görseli kaydedildi.\n\n"
+            confirmation += f"Artık mesajlarında **{tag_display}** kullanarak bu {label.lower()}a referans verebilirsin."
+            
+            print(f"✅ ENTITY CREATED (stream): {name} ({entity_type}), skipping final LLM.")
+            result["_skip_final_llm"] = True
+            result["_final_text"] = confirmation
+            messages.append({"role": "assistant", "content": confirmation})
+            return
+        
+        # manage_plugin başarılı + deterministik mesaj varsa, LLM'yi atla
+        if last_tool_name == "manage_plugin" and tool_result.get("_deterministic") and tool_result.get("success"):
+            print("✅ MANAGE_PLUGIN SUCCESS (stream): Deterministic response, skipping final LLM.")
+            result["_skip_final_llm"] = True
+            result["_final_text"] = tool_result["message"]
+            messages.append({"role": "assistant", "content": tool_result["message"]})
+            return
             messages.append({
                 "role": "user",
                 "content": "[SYSTEM: Önceki araç başarısız oldu. FARKLI bir araç dene. Örneğin: generate_image ile yeniden üret veya edit_image ile düzenle. HEMEN bir araç çağır!]"
@@ -1566,15 +1741,34 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         # 8. Plugin listesi (aktif projedeki eklentiler)
         try:
             plugin_result = await db.execute(
-                select(CreativePlugin).where(CreativePlugin.session_id == session_id)
+                select(Preset).where(Preset.session_id == session_id)
             )
             plugins = list(plugin_result.scalars().all())
             if plugins:
-                plugin_ctx = "\n\n--- 🔌 PROJEDEKİ EKLENTİLER ---\n"
-                plugin_ctx += "Bu projede yüklü yaratıcı eklentiler. Kullanıcının isteğiyle eşleşen bir eklenti varsa stilini uygula:\n"
+                plugin_ctx = "\n\n--- 🔌 PROJEDEKİ PRESET'LER ---\n"
+                plugin_ctx += "Bu projede kayıtlı preset'ler. 'Preset: X' mesajı geldiğinde ilgili preset'in TÜM config bilgilerini kullanarak generate_image çağır:\n"
                 for p in plugins[:10]:  # Max 10 plugin
-                    style = p.config.get("style", "—") if p.config else "—"
-                    plugin_ctx += f"- {p.icon} {p.name}: {p.description or '—'} (stil: {style})\n"
+                    config = p.config or {}
+                    style = config.get("style", "—")
+                    time_of_day = config.get("timeOfDay", "")
+                    camera_angles = config.get("cameraAngles", [])
+                    prompt_template = config.get("promptTemplate", "")
+                    char_tag = config.get("character_tag", "")
+                    loc_tag = config.get("location_tag", "")
+                    
+                    plugin_ctx += f"- {p.icon} **{p.name}**: {p.description or '—'}\n"
+                    plugin_ctx += f"  Stil: {style}"
+                    if time_of_day:
+                        plugin_ctx += f" | Zaman: {time_of_day}"
+                    if camera_angles:
+                        plugin_ctx += f" | Açılar: {', '.join(camera_angles)}"
+                    if char_tag:
+                        plugin_ctx += f" | Karakter: @{char_tag}"
+                    if loc_tag:
+                        plugin_ctx += f" | Lokasyon: @{loc_tag}"
+                    if prompt_template:
+                        plugin_ctx += f"\n  Prompt: {prompt_template}"
+                    plugin_ctx += "\n"
                 extra_context += plugin_ctx
                 print(f"🔌 Plugin context eklendi: {len(plugins)} plugin")
         except Exception as e:
@@ -1618,6 +1812,67 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                     print(f"🏆 Model başarı istatistikleri eklendi: {len(top_models)} model")
         except Exception as e:
             print(f"⚠️ Model stats hatası: {e}")
+        
+        # 11. Aktif AI Modelleri — agent hangi modellerin açık/kapalı olduğunu bilsin
+        try:
+            from app.models.models import AIModel
+            models_result = await db.execute(select(AIModel.name, AIModel.is_enabled, AIModel.model_type))
+            all_models = models_result.all()
+            if all_models:
+                # İnsan dostu isim mapping
+                display_names = {
+                    "nano_banana_pro": "Nano Banana Pro", "nano_banana_2": "Nano Banana 2",
+                    "flux2": "Flux 2", "flux2_max": "Flux 2 Max",
+                    "gpt_image": "GPT Image 1", "reve": "Reve",
+                    "seedream": "Seedream 4.5", "recraft": "Recraft V3",
+                    "grok_imagine": "Grok Imagine",
+                    "kling": "Kling 3.0 Pro", "sora2": "Sora 2 Pro",
+                    "veo_fast": "Veo 3.1 Fast", "veo_quality": "Veo 3.1 Quality",
+                    "seedance": "Seedance 1.5", "hailuo": "Hailuo 02",
+                    "grok_imagine_video": "Grok Imagine Video",
+                }
+                # Shortcode mapping (agent tool parametresi için)
+                shortcode_map = {
+                    "nano_banana_pro": "nano_banana", "nano_banana_2": "nano_banana_2",
+                    "flux2": "flux2", "flux2_max": "flux2_max",
+                    "gpt_image": "gpt_image", "reve": "reve",
+                    "seedream": "seedream", "recraft": "recraft",
+                    "grok_imagine": "grok_imagine",
+                    "kling": "kling", "sora2": "sora2",
+                    "veo_fast": "veo", "veo_quality": "veo_quality",
+                    "seedance": "seedance", "hailuo": "hailuo",
+                    "grok_imagine_video": "grok_imagine_video",
+                }
+                
+                image_models = []
+                video_models = []
+                for name, enabled, model_type in all_models:
+                    if name not in display_names:
+                        continue
+                    status = "✅" if enabled else "❌"
+                    sc = shortcode_map.get(name, name)
+                    label = f"{display_names[name]}({sc}) {status}"
+                    cat = (model_type or "").lower()
+                    if cat in ("image", "görsel", "image_generation"):
+                        image_models.append(label)
+                    elif cat in ("video", "video_generation"):
+                        video_models.append(label)
+                    elif name in ("nano_banana_pro", "nano_banana_2", "flux2", "flux2_max", "gpt_image", "reve", "seedream", "recraft", "grok_imagine"):
+                        image_models.append(label)
+                    elif name in ("kling", "sora2", "veo_fast", "veo_quality", "seedance", "hailuo", "grok_imagine_video"):
+                        video_models.append(label)
+                
+                if image_models or video_models:
+                    model_ctx = "\n\n--- 🎨 AKTİF AI MODELLERİ ---\n"
+                    if image_models:
+                        model_ctx += f"GÖRSEL: {', '.join(image_models)}\n"
+                    if video_models:
+                        model_ctx += f"VİDEO: {', '.join(video_models)}\n"
+                    model_ctx += "Kullanıcı kapalı (❌) model isterse → aktif alternatifleri öner.\n"
+                    extra_context += model_ctx
+                    print(f"🎨 Aktif model listesi enjekte edildi: {len(image_models)} görsel, {len(video_models)} video")
+        except Exception as e:
+            print(f"⚠️ Aktif model listesi hatası: {e}")
         
         return extra_context
     
@@ -1722,6 +1977,10 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 # Entity oluşturulduysa ekle
                 if tool_result.get("success") and tool_result.get("entity"):
                     result["entities_created"].append(tool_result["entity"])
+                
+                # Preset oluşturulduğunda sidebar refresh tetikle
+                if tool_result.get("success") and tool_name == "manage_plugin" and tool_args.get("action") == "create":
+                    result["entities_created"].append({"type": "preset", "name": tool_result.get("name", "Preset")})
 
                 media_message = self._get_deterministic_media_message(tool_result)
                 if media_message:
@@ -1771,6 +2030,18 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             
             retry_tool_choice = "auto"
             if last_tool_failed and not has_any_success and retry_count < MAX_RETRIES:
+                # manage_plugin başarısız olursa farklı tool deneme — hata mesajını göster
+                if tool_name == "manage_plugin":
+                    print("🛑 MANAGE_PLUGIN FAILURE (non-stream): Retry disabled, showing error directly.")
+                    error_msg = tool_result.get('message') or tool_result.get('error', 'Preset oluşturma başarısız oldu.')
+                    result["response"] += f"❌ {error_msg}"
+                    return
+            
+            # manage_plugin başarılı + deterministik mesaj varsa, LLM'yi atla
+            if tool_name == "manage_plugin" and tool_result.get("_deterministic") and tool_result.get("success"):
+                print("✅ MANAGE_PLUGIN SUCCESS (non-stream): Deterministic response, skipping final LLM.")
+                result["response"] += tool_result["message"]
+                return
                 messages.append({
                     "role": "user",
                     "content": "[SYSTEM: Önceki araç başarısız oldu. FARKLI bir araç dene. HEMEN bir araç çağır!]"
@@ -1865,6 +2136,29 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 print(f"   📎 AUTO-RESOLVED session video reference into {tool_name}")
         
         if tool_name == "generate_image":
+            # 🔍 KULLANICI MESAJINDAN MODEL TESPİTİ — LLM'in hatalı seçimini override et
+            if user_message:
+                msg_lower = user_message.lower()
+                # Sıralama ÖNEMLİ: daha spesifik isimler önce kontrol edilmeli
+                user_model_overrides = [
+                    (["nano banana 2", "nanobana 2", "nano-banana-2", "nb2"], "nano_banana_2"),
+                    (["flux 2 max", "flux2 max", "flux-2-max"], "flux2_max"),
+                    (["flux 2", "flux2", "flux-2"], "flux2"),
+                    (["gpt image", "gpt-image", "chatgpt"], "gpt_image"),
+                    (["recraft", "logo modeli"], "recraft"),
+                    (["reve", "rêve"], "reve"),
+                    (["seedream"], "seedream"),
+                    (["grok"], "grok_imagine"),
+                    (["nano banana pro", "nano banana", "nanobana"], "nano_banana"),
+                ]
+                for keywords, shortcode in user_model_overrides:
+                    if any(kw in msg_lower for kw in keywords):
+                        current = tool_input.get("model", "auto")
+                        if current != shortcode:
+                            print(f"   🔄 MODEL OVERRIDE: Kullanıcı mesajından '{shortcode}' tespit edildi (LLM seçimi: '{current}')")
+                            tool_input["model"] = shortcode
+                        break
+            
             return await self._generate_image(
                 db, session_id, tool_input, resolved_entities or [],
                 uploaded_reference_url=uploaded_reference_url
@@ -2287,6 +2581,27 @@ Konuşma:
             original_prompt = params.get("prompt", "")
             aspect_ratio = params.get("aspect_ratio", "1:1")
             resolution = params.get("resolution", "1K")
+            preferred_model = params.get("model", "auto")
+            
+            # 🔄 MODEL İSİM NORMALİZASYONU — Agent LLM'in hatalı shortcode seçimini düzelt
+            model_name_map = {
+                "nano_banana_pro": "nano_banana",
+                "nano-banana-pro": "nano_banana",
+                "nano-banana": "nano_banana",
+                "nano_banana_2": "nano_banana_2",
+                "nano-banana-2": "nano_banana_2",
+                "nanobana2": "nano_banana_2",
+                "flux_2": "flux2",
+                "flux-2": "flux2",
+                "flux_2_max": "flux2_max",
+                "flux-2-max": "flux2_max",
+                "gpt-image": "gpt_image",
+                "gpt_image_1": "gpt_image",
+                "grok": "grok_imagine",
+            }
+            if preferred_model and preferred_model != "auto":
+                preferred_model = model_name_map.get(preferred_model, preferred_model)
+            print(f"🎯 _generate_image: preferred_model={preferred_model}, all params keys={list(params.keys())}")
             
             # 🔄 PROMPTU İNGİLİZCE'YE ÇEVİR (Hangi dilde olursa olsun - daha iyi görsel sonuçları için)
             prompt, was_translated = await translate_to_english(original_prompt)
@@ -2364,8 +2679,8 @@ Konuşma:
             # AKILLI SİSTEM: Referans görsel VEYA ekstra webt'den bulunmuş görsel varsa
             print(f"🎯 Referans görsel durumu: Face={face_reference_url is not None}, Web={len(additional_ref_urls)} adet")
             if face_reference_url or additional_ref_urls:
-                # === HİBRİT PIPELINE: Gemini FIRST → fal.ai FALLBACK ===
-                print(f"🤖 Hibrit pipeline: Gemini ile denenecek, başarısızsa fal.ai fallback")
+                # === REFERANS PIPELINE: Nano Banana Pro Edit FIRST → Gemini FALLBACK ===
+                print(f"🤖 Referans pipeline: fal.ai (Nano Banana Pro Edit) ile denenecek, başarısızsa Gemini fallback")
                 
                 # Çoklu referans URL'leri topla (multi-image upload)
                 all_ref_urls = []
@@ -2381,34 +2696,32 @@ Konuşma:
                 
                 primary_ref = face_reference_url if face_reference_url else (all_ref_urls[0] if all_ref_urls else None)
 
-                # Adım 1: Gemini ile dene
-                gemini_result = None
-                try:
-                    from app.services.gemini_image_service import gemini_image_service
-                    gemini_result = await gemini_image_service.generate_with_reference(
-                        prompt=prompt,
-                        reference_image_url=primary_ref,
-                        reference_images_urls=all_ref_urls if len(all_ref_urls) > 1 else None,
-                        aspect_ratio=aspect_ratio
-                    )
-                except Exception as gemini_err:
-                    print(f"⚠️ Gemini import/çağrı hatası: {gemini_err}")
-                    gemini_result = {"success": False, "error": str(gemini_err)}
+                # Adım 1: fal.ai (Nano Banana Pro Edit → GPT Image 1 → FLUX Kontext) ile dene
+                result = await self.fal_plugin._smart_generate_with_face({
+                    "prompt": prompt,
+                    "face_image_url": primary_ref,
+                    "aspect_ratio": aspect_ratio,
+                    "resolution": resolution
+                })
                 
-                if gemini_result and gemini_result.get("success"):
-                    result = gemini_result
-                    print(f"✅ Gemini başarılı! URL: {result.get('image_url', '')[:60]}...")
-                else:
-                    # Adım 2: Gemini başarısız → fal.ai fallback
-                    gemini_error = gemini_result.get("error", "bilinmiyor") if gemini_result else "import hatası"
-                    print(f"⚠️ Gemini başarısız ({gemini_error}), fal.ai fallback deniyor...")
+                if not result.get("success"):
+                    # Adım 2: fal.ai başarısız → Gemini fallback
+                    fal_error = result.get("error", "bilinmiyor")
+                    print(f"⚠️ fal.ai başarısız ({fal_error}), Gemini fallback deniyor...")
                     
-                    result = await self.fal_plugin._smart_generate_with_face({
-                        "prompt": prompt,
-                        "face_image_url": face_reference_url,
-                        "aspect_ratio": aspect_ratio,
-                        "resolution": resolution
-                    })
+                    try:
+                        from app.services.gemini_image_service import gemini_image_service
+                        gemini_result = await gemini_image_service.generate_with_reference(
+                            prompt=prompt,
+                            reference_image_url=primary_ref,
+                            reference_images_urls=all_ref_urls if len(all_ref_urls) > 1 else None,
+                            aspect_ratio=aspect_ratio
+                        )
+                        if gemini_result and gemini_result.get("success"):
+                            result = gemini_result
+                            print(f"✅ Gemini fallback başarılı! URL: {result.get('image_url', '')[:60]}...")
+                    except Exception as gemini_err:
+                        print(f"⚠️ Gemini fallback hatası: {gemini_err}")
                 
                 if result.get("success"):
                     method = result.get("method_used", "unknown")
@@ -2421,13 +2734,13 @@ Konuşma:
                     # görseli hemen dönmeden önce arka planda analiz et. 
                     # Hata varsa 1 kez tekrar üret.
                     # ==========================================
-                    prompt_lower = prompt.lower()
-                    needs_text = any(kw in prompt_lower for kw in ["yaz", "text", "saying", "written", "letters", "kelime", "harf"])
+                    # Self-Reflection: SADECE kullanıcının orijinal promptunda yazı/text istenmişse tetikle
+                    original_lower = original_prompt.lower()
+                    needs_text = any(kw in original_lower for kw in ["yaz", "text", "saying", "written", "letters", "kelime", "harf"])
                     
                     if needs_text and result.get("attempts", []) == []:
                         print("🤖 🔍 SELF-REFLECTION TETIKLENDI: Görselde yazı istendi, kalite kontrol yapılıyor...")
                         try:
-                            # analyze_image arcını gizlice çağır
                             analysis_result = await self._analyze_image({
                                 "image_url": image_url,
                                 "question": "Bu görseldeki yazıları BİREBİR OKU. Eğer prompttaki istenen yazıyla eşleşmiyorsa, harf hatası (typo) varsa veya anlamsız bozuk şekiller varsa SADECE 'HATA: [hatanın detayı]' yaz. Her şey kusursuzsa SADECE 'KUSURSUZ' yaz."
@@ -2438,21 +2751,20 @@ Konuşma:
                             
                             if analysis_result.get("success") and "HATA" in analysis_text.upper() and "KUSURSUZ" not in analysis_text.upper():
                                 print("   ❌ Kalite kontrol başarısız! Otonom düzeltme (Retry 1) başlatılıyor...")
-                                # Otonom Retry - Hata bilgisini prompta ekleyerek DÜZELT
                                 correction_prompt = f"{prompt}. CRITICAL FIX: The previous generation failed because: {analysis_text}. You MUST render the text flawlessly this time. Use high contrast, clear typography, and double check spelling."
                                 
                                 retry_result = await self.fal_plugin.execute("generate_image", {
                                     "prompt": correction_prompt,
                                     "aspect_ratio": aspect_ratio,
-                                    "resolution": resolution
+                                    "resolution": resolution,
+                                    "model": preferred_model
                                 })
                                 
                                 if retry_result.success and retry_result.data.get("image_url"):
                                     print("   ✅ Otonom düzeltme başarılı! Yeni görsel kullanılıyor.")
-                                    # Eski (hatalı) görsel URL'sini ez
                                     image_url = retry_result.data.get("image_url")
-                                    method = "nano-banana-pro (Auto-Corrected)"
-                                    model_display = "Nano Banana Pro (Auto-Corrected)"
+                                    method = f"{model_display} (Auto-Corrected)"
+                                    model_display = f"{model_display} (Auto-Corrected)"
                                     quality_notes += " | 🤖 Otonom Self-Reflection çalıştı ve tespit edilen yazım hatası düzeltildi."
                         except Exception as ref_err:
                             print(f"⚠️ Self-Reflection hatası (Gözardı ediliyor): {ref_err}")
@@ -2501,25 +2813,27 @@ Konuşma:
                     }
             
             else:
-                # Referans yok - sadece generate_image (Smart Router)
+                # Referans yok - generate_image (Smart Router / kullanıcı model seçimi)
                 plugin_result = await self.fal_plugin.execute("generate_image", {
                     "prompt": prompt,
                     "aspect_ratio": aspect_ratio,
-                    "resolution": resolution
+                    "resolution": resolution,
+                    "model": preferred_model
                 })
                 result = plugin_result.data if plugin_result.success else {"success": False, "error": plugin_result.error or "Görsel üretilemedi"}
                 
                 if result.get("success"):
                     image_url = result.get("image_url")
-                    method = "nano-banana-pro"
-                    model_display = "Nano Banana Pro"
-                    quality_notes = "Referans görsel olmadan Nano Banana Pro ile üretildi."
+                    method = result.get("model_id", result.get("model", "nano-banana-pro"))
+                    model_display = result.get("model", "Nano Banana Pro")
+                    quality_notes = f"{model_display} ile üretildi."
                     
                     # ==========================================
                     # 🔍 2. SELF-REFLECTION (AUTO-CORRECTION) BAŞLANGICI
                     # ==========================================
-                    prompt_lower = prompt.lower()
-                    needs_text = any(kw in prompt_lower for kw in ["yaz", "text", "saying", "written", "letters", "kelime", "harf"])
+                    # Self-Reflection: SADECE kullanıcının orijinal promptunda yazı/text istenmişse tetikle
+                    original_lower = original_prompt.lower()
+                    needs_text = any(kw in original_lower for kw in ["yaz", "text", "saying", "written", "letters", "kelime", "harf"])
                     
                     if needs_text:
                         print("🤖 🔍 SELF-REFLECTION TETIKLENDI (NON-REF): Görselde yazı istendi, kalite kontrol yapılıyor...")
@@ -2539,14 +2853,15 @@ Konuşma:
                                 retry_result = await self.fal_plugin.execute("generate_image", {
                                     "prompt": correction_prompt,
                                     "aspect_ratio": aspect_ratio,
-                                    "resolution": resolution
+                                    "resolution": resolution,
+                                    "model": preferred_model
                                 })
                                 
                                 if retry_result.success and retry_result.data.get("image_url"):
                                     print("   ✅ Otonom düzeltme başarılı! Yeni görsel kullanılıyor.")
                                     image_url = retry_result.data.get("image_url")
-                                    method = "nano-banana-pro (Auto-Corrected)"
-                                    model_display = "Nano Banana Pro (Auto-Corrected)"
+                                    method = f"{model_display} (Auto-Corrected)"
+                                    model_display = f"{model_display} (Auto-Corrected)"
                                     quality_notes += " | 🤖 Otonom Self-Reflection çalıştı ve tespit edilen yazım hatası düzeltildi."
                         except Exception as ref_err:
                             print(f"⚠️ Self-Reflection hatası (Gözardı ediliyor): {ref_err}")
@@ -5520,7 +5835,7 @@ Konuşma:
     async def _manage_plugin(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
         """Creative Plugin yönetimi — gerçek DB kaydı."""
         try:
-            from app.models.models import CreativePlugin
+            from app.models.models import Preset
             from sqlalchemy import select
             
             action = params.get("action")
@@ -5538,30 +5853,58 @@ Konuşma:
             
             if action == "create":
                 if not name:
-                    return {"success": False, "error": "Plugin adı gerekli."}
+                    return {"success": False, "error": "Preset adı gerekli."}
+                
+                # AI'ın config'ini KULLANMA — session'daki gerçek entity'lerden oluştur
+                from app.models.models import Entity
+                entity_result = await db.execute(
+                    select(Entity).where(
+                        Entity.session_id == session_id
+                    )
+                )
+                entities = entity_result.scalars().all()
+                
+                # Gerçek config'i entity'lerden oluştur
+                config = {}
+                characters = [e for e in entities if e.entity_type == "character"]
+                locations = [e for e in entities if e.entity_type == "location"]
+                
+                if characters:
+                    config["character_tag"] = characters[0].tag  # İlk karakter
+                if locations:
+                    config["location_tag"] = locations[0].tag  # İlk lokasyon
+                
+                # Stil bilgisini AI'dan al (hallüsinasyon riski düşük)
+                ai_config = params.get("config", {})
+                if ai_config.get("style"):
+                    config["style"] = ai_config["style"]
+                if ai_config.get("timeOfDay"):
+                    config["timeOfDay"] = ai_config["timeOfDay"]
+                if ai_config.get("cameraAngles"):
+                    config["cameraAngles"] = ai_config["cameraAngles"]
                 
                 # Duplicate kontrolü — aynı session'da benzer plugin var mı?
                 existing_result = await db.execute(
-                    select(CreativePlugin).where(
-                        CreativePlugin.session_id == session_id
+                    select(Preset).where(
+                        Preset.session_id == session_id
                     )
                 )
                 existing_plugins = existing_result.scalars().all()
                 if existing_plugins:
                     existing_names = [p.name for p in existing_plugins]
-                    # Aynı isimde plugin varsa uyar
+                    # Aynı isimde preset varsa bilgilendir
                     if name in existing_names:
                         return {
                             "success": False, 
                             "already_exists": True,
-                            "message": f"Bu sohbette zaten '{name}' adlı bir plugin oluşturulmuş. Yeni bilgi ekleyip farklı bir plugin oluşturmak ister misin? Mevcut pluginler: {', '.join(existing_names)}"
+                            "message": f"Bu sohbette daha önce '{name}' adlı bir preset oluşturulmuş. 🔄 Tekrar oluşturmamı ister misiniz, yoksa mevcut preset'inizi düzenlemek mi istersiniz?\n\n📌 Mevcut preset'leriniz: {', '.join(existing_names)}\n\n💡 İpucu: Sol menüdeki ➡️ Topluluk butonuna tıklayıp ➡️ Preset'lerim sekmesinde mevcut preset'lerinizi görüntüleyebilir, toplulukta yayınlayabilir veya değişiklik yapabilirsiniz."
                         }
-                    # Farklı isimde ama yeni bilgi yoksa da uyar (max 3 plugin per session)
+                    # Farklı isimde ama max 3 preset per session
                     if len(existing_plugins) >= 3:
                         return {
                             "success": False,
                             "already_exists": True,  
-                            "message": f"Bu sohbette zaten {len(existing_plugins)} plugin oluşturulmuş ({', '.join(existing_names)}). Sohbete yeni bilgi ekleyip sonra tekrar dene."
+                            "message": f"Bu sohbette daha önce {len(existing_plugins)} preset oluşturulmuş: **{', '.join(existing_names)}**.\n\n🔄 Yine de yeni bir preset oluşturmamı ister misiniz?\n\n💡 İpucu: Sol menüdeki ➡️ Topluluk butonuna tıklayıp ➡️ Preset'lerim sekmesinde mevcut preset'lerinizi görüntüleyebilir, düzenleyebilir ve toplulukta yayınlayabilirsiniz."
                         }
                 
                 # Prompt template oluştur
@@ -5580,11 +5923,11 @@ Konuşma:
                 system_prompt = config.get("promptTemplate") or ", ".join(prompt_parts) or f"{name} tarzında görsel üret"
                 
                 # DB'ye kaydet
-                plugin = CreativePlugin(
+                plugin = Preset(
                     user_id=user_id,
                     session_id=session_id,
                     name=name,
-                    description=description or f"{name} plugin'i",
+                    description=description or f"{name} preset'i",
                     icon="🧩",
                     color="#22c55e",
                     system_prompt=system_prompt,
@@ -5595,26 +5938,27 @@ Konuşma:
                 await db.commit()
                 await db.refresh(plugin)
                 
-                # Hangi alanlar dolu, hangileri eksik
+                # Deterministik başarı mesajı
                 filled = []
                 missing = []
                 for field, label in [("character_tag", "Karakter"), ("location_tag", "Lokasyon"), ("style", "Stil"), ("timeOfDay", "Zaman"), ("cameraAngles", "Kamera Açıları")]:
                     if config.get(field):
-                        filled.append(label)
+                        filled.append(f"{label}: {config[field]}")
                     else:
                         missing.append(label)
                 
-                summary = f"'{name}' plugin'i oluşturuldu!"
+                msg = f"✅ **'{name}'** preset'i başarıyla oluşturuldu!\n\n"
                 if filled:
-                    summary += f" İçerik: {', '.join(filled)}."
+                    msg += f"📋 **İçerik:** {', '.join(filled)}\n\n"
                 if missing:
-                    summary += f" Eksik: {', '.join(missing)} (sonradan eklenebilir)."
+                    msg += f"📝 **Eksik:** {', '.join(missing)} (sonradan eklenebilir)\n\n"
+                msg += f"💡 Topluluk sekmesinden preset'inizi yayınlayabilir veya düzenleyebilirsiniz."
                 
-                return {"success": True, "plugin_id": str(plugin.id), "message": summary}
+                return {"success": True, "plugin_id": str(plugin.id), "name": name, "message": msg, "_deterministic": True}
             
             elif action == "list":
                 result = await db.execute(
-                    select(CreativePlugin).where(CreativePlugin.session_id == session_id)
+                    select(Preset).where(Preset.session_id == session_id)
                 )
                 plugins = result.scalars().all()
                 plugin_list = [{"id": str(p.id), "name": p.name, "description": p.description} for p in plugins]
@@ -5625,7 +5969,7 @@ Konuşma:
                 if not plugin_id:
                     return {"success": False, "error": "Plugin ID gerekli."}
                 result = await db.execute(
-                    select(CreativePlugin).where(CreativePlugin.id == uuid.UUID(plugin_id))
+                    select(Preset).where(Preset.id == uuid.UUID(plugin_id))
                 )
                 plugin = result.scalar_one_or_none()
                 if plugin:

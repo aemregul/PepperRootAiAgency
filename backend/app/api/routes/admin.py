@@ -7,13 +7,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case, literal
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
+from app.core.auth import get_current_user as get_current_user_optional
 from app.models.models import (
     AIModel, InstalledPlugin, UsageStats, UserSettings, 
-    CreativePlugin, TrashItem, Session, GeneratedAsset, Message
+    Preset, TrashItem, Session, GeneratedAsset, Message, User
 )
 
 
@@ -73,7 +76,7 @@ class UsageStatsResponse(BaseModel):
     images_generated: int
     videos_generated: int
 
-class CreativePluginCreate(BaseModel):
+class PresetCreate(BaseModel):
     name: str
     description: Optional[str]
     icon: str = "✨"
@@ -81,7 +84,7 @@ class CreativePluginCreate(BaseModel):
     system_prompt: Optional[str]
     is_public: bool = False
 
-class CreativePluginResponse(BaseModel):
+class PresetResponse(BaseModel):
     id: str
     name: str
     description: Optional[str]
@@ -90,6 +93,7 @@ class CreativePluginResponse(BaseModel):
     system_prompt: Optional[str]
     is_public: bool
     usage_count: int
+    config: Optional[dict] = None
 
 class TrashItemResponse(BaseModel):
     id: str
@@ -605,21 +609,28 @@ async def get_model_distribution(db: AsyncSession = Depends(get_db)):
 
 # ============== CREATIVE PLUGINS ==============
 
-@router.get("/creative-plugins", response_model=list[CreativePluginResponse])
-async def list_creative_plugins(
+@router.get("/presets", response_model=list[PresetResponse])
+async def list_presets(
     session_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user_optional)
 ):
-    """Kullanıcı tanımlı creative pluginleri listele."""
-    query = select(CreativePlugin)
+    """Kullanıcı tanımlı creative pluginleri listele.
+    session_id verilirse o session'a ait olanları, verilmezse kullanıcının tüm presetlerini döner.
+    """
+    query = select(Preset)
     if session_id:
-        query = query.where(CreativePlugin.session_id == session_id)
-    query = query.order_by(CreativePlugin.created_at.desc())
+        # Belirli session'ın presetleri
+        query = query.where(Preset.session_id == session_id)
+    elif current_user:
+        # Kullanıcının TÜM presetleri (session fark etmez)
+        query = query.where(Preset.user_id == current_user.id)
+    query = query.order_by(Preset.created_at.desc())
     
     result = await db.execute(query)
     plugins = result.scalars().all()
     
-    return [CreativePluginResponse(
+    return [PresetResponse(
         id=str(p.id),
         name=p.name,
         description=p.description,
@@ -627,18 +638,19 @@ async def list_creative_plugins(
         color=p.color,
         system_prompt=p.system_prompt,
         is_public=p.is_public,
-        usage_count=p.usage_count
+        usage_count=p.usage_count,
+        config=p.config
     ) for p in plugins]
 
 
-@router.post("/creative-plugins", response_model=CreativePluginResponse)
-async def create_creative_plugin(
-    data: CreativePluginCreate,
+@router.post("/presets", response_model=PresetResponse)
+async def create_preset(
+    data: PresetCreate,
     session_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Yeni creative plugin oluştur."""
-    plugin = CreativePlugin(
+    plugin = Preset(
         session_id=session_id,
         name=data.name,
         description=data.description,
@@ -651,7 +663,7 @@ async def create_creative_plugin(
     await db.commit()
     await db.refresh(plugin)
     
-    return CreativePluginResponse(
+    return PresetResponse(
         id=str(plugin.id),
         name=plugin.name,
         description=plugin.description,
@@ -659,23 +671,71 @@ async def create_creative_plugin(
         color=plugin.color,
         system_prompt=plugin.system_prompt,
         is_public=plugin.is_public,
-        usage_count=plugin.usage_count
+        usage_count=plugin.usage_count,
+        config=plugin.config
     )
 
 
-@router.delete("/creative-plugins/{plugin_id}")
-async def delete_creative_plugin(plugin_id: UUID, db: AsyncSession = Depends(get_db)):
-    """Creative plugin sil."""
-    result = await db.execute(select(CreativePlugin).where(CreativePlugin.id == plugin_id))
+class PresetUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    config: Optional[dict] = None
+
+@router.patch("/presets/{plugin_id}")
+async def update_preset(plugin_id: UUID, data: PresetUpdate, db: AsyncSession = Depends(get_db)):
+    """Preset güncelle — isim, açıklama, config."""
+    result = await db.execute(select(Preset).where(Preset.id == plugin_id))
     plugin = result.scalar_one_or_none()
     
     if not plugin:
-        raise HTTPException(status_code=404, detail="Plugin bulunamadı")
+        raise HTTPException(status_code=404, detail="Preset bulunamadı")
+    
+    if data.name is not None:
+        plugin.name = data.name
+    if data.description is not None:
+        plugin.description = data.description
+    if data.config is not None:
+        # Boş stringleri temizle, config'i tamamen değiştir (merge değil replace)
+        cleaned = {k: v for k, v in data.config.items() if v != "" and v != []}
+        plugin.config = cleaned
+        flag_modified(plugin, "config")
+    
+    await db.commit()
+    return {"success": True, "message": f"'{plugin.name}' güncellendi"}
+
+@router.delete("/presets/{plugin_id}")
+async def delete_preset(plugin_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Creative plugin'i çöp kutusuna taşı."""
+    result = await db.execute(select(Preset).where(Preset.id == plugin_id))
+    plugin = result.scalar_one_or_none()
+    
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Preset bulunamadı")
+    
+    # TrashItem oluştur
+    trash_item = TrashItem(
+        user_id=plugin.user_id,
+        session_id=plugin.session_id,
+        item_type="preset",
+        item_id=str(plugin.id),
+        item_name=plugin.name,
+        original_data={
+            "description": plugin.description,
+            "icon": plugin.icon,
+            "color": plugin.color,
+            "system_prompt": plugin.system_prompt,
+            "is_public": plugin.is_public,
+            "usage_count": plugin.usage_count,
+            "config": plugin.config,
+        },
+        expires_at=datetime.now() + timedelta(days=3)
+    )
+    db.add(trash_item)
     
     await db.delete(plugin)
     await db.commit()
     
-    return {"success": True, "message": "Creative plugin silindi"}
+    return {"success": True, "message": "Preset çöp kutusuna taşındı"}
 
 
 # ============== MARKETPLACE ==============
@@ -695,104 +755,8 @@ class MarketplacePluginItem(BaseModel):
     config: dict
     is_installed: bool = False
 
-# Resmi (seed) marketplace pluginleri  
-MARKETPLACE_SEED_PLUGINS = [
-    # === SANAT & YARATICI ===
-    {"id": "mp_fantasy", "name": "Digital Art Fantasy", "description": "Fantastik dijital sanat. Ejderhalar, büyücüler, efsanevi dünyalar.", "author": "PepperRoot Studio", "icon": "🐉", "color": "#8b5cf6", "style": "Fantasy Art", "rating": 4.9, "downloads": 4500, "created_at": "2025-10-15",
-     "config": {"promptTemplate": "digital fantasy art, epic, magical, detailed, {character}", "cameraAngles": ["Epic Wide", "Character Portrait", "Action Scene"], "timeOfDay": "Magical"}},
-    {"id": "mp_anime", "name": "Anime & Manga Style", "description": "Studio Ghibli, Makoto Shinkai tarzı anime karakter ve sahne üretimi.", "author": "PepperRoot Studio", "icon": "🎌", "color": "#ec4899", "style": "Anime", "rating": 4.8, "downloads": 3450, "created_at": "2025-09-20",
-     "config": {"promptTemplate": "anime style, detailed, vibrant colors, studio ghibli inspired, {character}", "cameraAngles": ["Anime", "Portrait", "Action Pose"], "timeOfDay": "Sunset"}},
-    {"id": "mp_watercolor", "name": "Watercolor Illustration", "description": "Sulu boya tarzı illüstrasyonlar. Yumuşak, organik, sanatsal.", "author": "PepperRoot Studio", "icon": "🎨", "color": "#06b6d4", "style": "Watercolor", "rating": 4.7, "downloads": 1230, "created_at": "2026-01-15",
-     "config": {"promptTemplate": "watercolor illustration, soft colors, artistic, organic texture, {character}", "cameraAngles": ["Portrait", "Landscape", "Still Life"], "timeOfDay": "Soft"}},
-    {"id": "mp_synthwave", "name": "Retro 80s Synthwave", "description": "80'ler retro synthwave estetiği. Neon, grid, güneş batımı.", "author": "PepperRoot Studio", "icon": "🌆", "color": "#f59e0b", "style": "Synthwave", "rating": 4.8, "downloads": 2340, "created_at": "2026-02-02",
-     "config": {"promptTemplate": "synthwave aesthetic, 80s retro, neon colors, grid, sunset, {character}", "cameraAngles": ["Wide Horizon", "Neon Portrait", "Car Chase"], "timeOfDay": "Sunset"}},
-    {"id": "mp_cyberpunk", "name": "Cyberpunk 2077 Style", "description": "Neon ışıklar, fütüristik şehir, cyberpunk estetiği.", "author": "PepperRoot Studio", "icon": "🌃", "color": "#a855f7", "style": "Cyberpunk", "rating": 4.7, "downloads": 1280, "created_at": "2026-02-03",
-     "config": {"promptTemplate": "cyberpunk aesthetic, neon lights, futuristic, {character}", "cameraAngles": ["Cyberpunk", "Neon Portrait", "Street Scene"], "timeOfDay": "Night"}},
-    {"id": "mp_vintage", "name": "Vintage Film Look", "description": "80'ler ve 90'lar film estetiği. Grain, fade, nostaljik renkler.", "author": "PepperRoot Studio", "icon": "📷", "color": "#78716c", "style": "Vintage", "rating": 4.6, "downloads": 890, "created_at": "2026-02-02",
-     "config": {"promptTemplate": "vintage film aesthetic, 80s style, grain, nostalgic, {character}", "cameraAngles": ["Vintage", "Film Look", "Nostalgic"], "timeOfDay": "Warm"}},
-    {"id": "mp_horror", "name": "Horror & Dark Fantasy", "description": "Korku ve karanlık fantezi temalı atmosferik görseller.", "author": "PepperRoot Studio", "icon": "👻", "color": "#1e293b", "style": "Horror", "rating": 4.6, "downloads": 1670, "created_at": "2026-01-28",
-     "config": {"promptTemplate": "horror art, dark fantasy, atmospheric, eerie, haunting, {character}", "cameraAngles": ["Atmospheric", "Creature Reveal", "Suspense"], "timeOfDay": "Night"}},
-    {"id": "mp_scifi", "name": "Sci-Fi & Space", "description": "Bilim kurgu ve uzay temalı futuristik görseller.", "author": "PepperRoot Studio", "icon": "🚀", "color": "#3b82f6", "style": "Sci-Fi", "rating": 4.9, "downloads": 2890, "created_at": "2026-02-03",
-     "config": {"promptTemplate": "science fiction art, space, futuristic, cosmic, epic scale, {character}", "cameraAngles": ["Space Vista", "Ship Design", "Planet View"], "timeOfDay": "Cosmic"}},
-
-    # === SOSYAL MEDYA ===
-    {"id": "mp_instagram", "name": "Instagram Influencer Pack", "description": "Instagram için estetik içerik. Lifestyle, selfie, flat lay.", "author": "PepperRoot Studio", "icon": "📱", "color": "#e11d48", "style": "Instagram", "rating": 4.9, "downloads": 4200, "created_at": "2025-11-01",
-     "config": {"promptTemplate": "instagram aesthetic, lifestyle, vibrant, trendy, {character}", "cameraAngles": ["Instagram", "Selfie Style", "Flat Lay"], "timeOfDay": "Golden Hour"}},
-    {"id": "mp_youtube", "name": "YouTube Thumbnail Pro", "description": "Yüksek CTR için dikkat çekici YouTube thumbnail tasarımları.", "author": "PepperRoot Studio", "icon": "▶️", "color": "#ef4444", "style": "YouTube", "rating": 4.8, "downloads": 2890, "created_at": "2025-12-15",
-     "config": {"promptTemplate": "youtube thumbnail, expressive, bold colors, eye-catching, {character}", "cameraAngles": ["YouTube", "Face Reaction", "Dramatic"], "timeOfDay": "Bright"}},
-    {"id": "mp_podcast", "name": "Podcast Cover Art", "description": "Podcast kapak görselleri ve sosyal medya tanıtımları.", "author": "PepperRoot Studio", "icon": "🎙️", "color": "#7c3aed", "style": "Podcast", "rating": 4.5, "downloads": 560, "created_at": "2026-02-03",
-     "config": {"promptTemplate": "podcast cover art, professional, engaging, personal brand, {character}", "cameraAngles": ["Portrait", "Microphone Shot", "Graphic Style"], "timeOfDay": "Moody"}},
-
-    # === İŞ & TİCARET ===
-    {"id": "mp_ecommerce", "name": "E-Commerce Product Shots", "description": "Online mağaza için ürün fotoğrafları. Beyaz arka plan, soft shadows.", "author": "PepperRoot Studio", "icon": "🛒", "color": "#22c55e", "style": "Commercial", "rating": 4.7, "downloads": 1890, "created_at": "2025-10-20",
-     "config": {"promptTemplate": "product photography, white background, professional lighting", "cameraAngles": ["E-Commerce", "Front View", "45 Degree"], "timeOfDay": "Studio Light"}},
-    {"id": "mp_video_ad", "name": "Video Reklam Paketi", "description": "Sosyal medya video reklamları için hazır şablonlar.", "author": "PepperRoot Studio", "icon": "🎬", "color": "#f97316", "style": "Commercial Video", "rating": 4.7, "downloads": 2100, "created_at": "2025-11-20",
-     "config": {"promptTemplate": "video advertisement, product showcase, engaging, {character}", "cameraAngles": ["Commercial", "Product Hero", "Lifestyle"], "timeOfDay": "Bright"}},
-    {"id": "mp_startup", "name": "Tech Startup Visuals", "description": "Teknoloji startup'ları için modern ve futuristik görseller.", "author": "PepperRoot Studio", "icon": "💡", "color": "#0ea5e9", "style": "Tech", "rating": 4.6, "downloads": 780, "created_at": "2026-02-04",
-     "config": {"promptTemplate": "technology, futuristic, innovative, clean design, startup, {character}", "cameraAngles": ["Product Feature", "In Use", "Abstract Tech"], "timeOfDay": "Blue Hour"}},
-    {"id": "mp_fintech", "name": "Fintech & Banking", "description": "Fintech ve bankacılık için modern, güvenilir görseller.", "author": "PepperRoot Studio", "icon": "💳", "color": "#14b8a6", "style": "Fintech", "rating": 4.6, "downloads": 780, "created_at": "2026-01-30",
-     "config": {"promptTemplate": "fintech design, modern, trustworthy, clean, professional, digital banking, {character}", "cameraAngles": ["Data Visualization", "App Interface", "Trust Shot"], "timeOfDay": "Professional"}},
-    {"id": "mp_crypto", "name": "Crypto & Blockchain", "description": "Kripto para ve blockchain projeleri için futuristik görseller.", "author": "PepperRoot Studio", "icon": "₿", "color": "#f59e0b", "style": "Crypto", "rating": 4.7, "downloads": 1890, "created_at": "2026-02-02",
-     "config": {"promptTemplate": "cryptocurrency design, blockchain, futuristic, neon, digital, {character}", "cameraAngles": ["Abstract", "Network Visual", "Coin Hero"], "timeOfDay": "Neon"}},
-
-    # === FOTOĞRAFÇILIK ===
-    {"id": "mp_wedding", "name": "Wedding Photography", "description": "Düğün fotoğrafçılığı için romantik ve duygusal anlar.", "author": "PepperRoot Studio", "icon": "💒", "color": "#fbbf24", "style": "Romantic", "rating": 4.9, "downloads": 2100, "created_at": "2025-08-22",
-     "config": {"promptTemplate": "wedding photography, romantic, emotional, {character}", "cameraAngles": ["Romantic", "Couple Portrait", "Candid Moment"], "timeOfDay": "Golden Hour"}},
-    {"id": "mp_portrait", "name": "AI Portrait Studio", "description": "Profesyonel portre stüdyosu. Headshot, CV fotoğrafları.", "author": "PepperRoot Studio", "icon": "🤳", "color": "#6366f1", "style": "Professional", "rating": 4.5, "downloads": 450, "created_at": "2026-02-04",
-     "config": {"promptTemplate": "professional headshot, clean background, confident, {character}", "cameraAngles": ["Headshot", "Professional", "LinkedIn"], "timeOfDay": "Studio"}},
-    {"id": "mp_sports", "name": "Sports Action Shots", "description": "Spor ve aksiyon fotoğrafçılığı. Dinamik hareketler.", "author": "PepperRoot Studio", "icon": "⚽", "color": "#ef4444", "style": "Sports", "rating": 4.7, "downloads": 890, "created_at": "2025-09-18",
-     "config": {"promptTemplate": "sports photography, action, dynamic, powerful, {character}", "cameraAngles": ["Sports", "Action Freeze", "Wide Arena"], "timeOfDay": "Day"}},
-    {"id": "mp_travel", "name": "Travel Photography", "description": "Seyahat ve turizm için etkileyici destinasyon fotoğrafları.", "author": "PepperRoot Studio", "icon": "✈️", "color": "#0284c7", "style": "Travel", "rating": 4.8, "downloads": 2100, "created_at": "2026-01-20",
-     "config": {"promptTemplate": "travel photography, wanderlust, beautiful destination, inspiring, {character}", "cameraAngles": ["Landscape Wide", "Detail Shot", "Human Element"], "timeOfDay": "Golden Hour"}},
-    {"id": "mp_pet", "name": "Pet Photography Pro", "description": "Evcil hayvan fotoğrafçılığı için eğlenceli ve sevimli kareler.", "author": "PepperRoot Studio", "icon": "🐾", "color": "#f97316", "style": "Pet", "rating": 4.9, "downloads": 2200, "created_at": "2026-02-01",
-     "config": {"promptTemplate": "pet photography, adorable, playful, expressive, {character}", "cameraAngles": ["Portrait", "Action", "Funny Moment"], "timeOfDay": "Bright"}},
-    {"id": "mp_newborn", "name": "Newborn & Baby Photos", "description": "Yeni doğan ve bebek fotoğrafçılığı için yumuşak tonlar.", "author": "PepperRoot Studio", "icon": "👶", "color": "#fda4af", "style": "Newborn", "rating": 4.9, "downloads": 1340, "created_at": "2026-01-18",
-     "config": {"promptTemplate": "newborn photography, soft, gentle, warm tones, precious moments, {character}", "cameraAngles": ["Close-up", "With Parent", "Sleeping"], "timeOfDay": "Soft Natural"}},
-    {"id": "mp_family", "name": "Family Portrait Sessions", "description": "Aile portreleri için doğal ve samimi anlar.", "author": "PepperRoot Studio", "icon": "👨‍👩‍👧‍👦", "color": "#16a34a", "style": "Family", "rating": 4.7, "downloads": 980, "created_at": "2026-01-25",
-     "config": {"promptTemplate": "family photography, warm, loving, natural, candid moments, {character}", "cameraAngles": ["Group Portrait", "Candid Moment", "Playful"], "timeOfDay": "Golden Hour"}},
-
-    # === MODA & GÜZELLİK ===
-    {"id": "mp_fashion", "name": "Fashion Lookbook", "description": "Moda markaları için lookbook ve katalog çekimleri.", "author": "PepperRoot Studio", "icon": "👗", "color": "#ec4899", "style": "Fashion Editorial", "rating": 4.8, "downloads": 1340, "created_at": "2025-12-01",
-     "config": {"promptTemplate": "fashion photography, editorial, high fashion, {character}", "cameraAngles": ["Fashion", "Full Body", "Detail Close-up"], "timeOfDay": "Soft Light"}},
-    {"id": "mp_beauty", "name": "Beauty & Cosmetics", "description": "Kozmetik ürünleri ve güzellik içerikleri için glamour çekimler.", "author": "PepperRoot Studio", "icon": "💄", "color": "#f472b6", "style": "Beauty", "rating": 4.8, "downloads": 1670, "created_at": "2026-01-30",
-     "config": {"promptTemplate": "beauty photography, glamorous, elegant, cosmetics, flawless, {character}", "cameraAngles": ["Product Close-up", "Application Shot", "Model Portrait"], "timeOfDay": "Soft Light"}},
-    {"id": "mp_jewelry", "name": "Jewelry & Accessories", "description": "Takı ve aksesuar için detaylı makro çekimler.", "author": "PepperRoot Studio", "icon": "💎", "color": "#d97706", "style": "Jewelry", "rating": 4.7, "downloads": 920, "created_at": "2026-01-25",
-     "config": {"promptTemplate": "jewelry photography, luxury, detailed, elegant, precious, {character}", "cameraAngles": ["Macro Detail", "On Model", "Artistic"], "timeOfDay": "Studio"}},
-
-    # === OYUN & ENTERTAİNMENT ===
-    {"id": "mp_game", "name": "Game Character Design", "description": "Video oyun karakterleri için konsept sanatı.", "author": "PepperRoot Studio", "icon": "🎮", "color": "#8b5cf6", "style": "Game Art", "rating": 4.9, "downloads": 3200, "created_at": "2026-01-22",
-     "config": {"promptTemplate": "game character design, detailed, dynamic, concept art, {character}", "cameraAngles": ["Character Sheet", "Action Pose", "Portrait"], "timeOfDay": "Dramatic"}},
-    {"id": "mp_gameui", "name": "Mobile Game UI", "description": "Mobil oyunlar için renkli ve eğlenceli UI elementleri.", "author": "PepperRoot Studio", "icon": "📲", "color": "#10b981", "style": "Game UI", "rating": 4.7, "downloads": 1450, "created_at": "2026-02-01",
-     "config": {"promptTemplate": "mobile game UI, colorful, playful, engaging, cartoon style, {character}", "cameraAngles": ["Button", "Icon", "Screen Layout"], "timeOfDay": "Vibrant"}},
-    {"id": "mp_nft", "name": "NFT Collection Art", "description": "NFT koleksiyonları için unique dijital sanat eserleri.", "author": "PepperRoot Studio", "icon": "🖼️", "color": "#7c3aed", "style": "NFT Art", "rating": 4.7, "downloads": 3100, "created_at": "2026-02-04",
-     "config": {"promptTemplate": "NFT art, unique, collectible, digital art, distinctive style, {character}", "cameraAngles": ["Character Portrait", "Full Body", "Trait Variations"], "timeOfDay": "Vibrant"}},
-
-    # === DİĞER ===
-    {"id": "mp_3d", "name": "3D Product Render", "description": "Ürün için fotorealistik 3D renderlar. Stüdyo kalitesinde.", "author": "PepperRoot Studio", "icon": "🎲", "color": "#0ea5e9", "style": "3D Render", "rating": 4.8, "downloads": 1120, "created_at": "2026-02-04",
-     "config": {"promptTemplate": "3d product render, photorealistic, studio lighting, professional, {character}", "cameraAngles": ["Hero Shot", "Exploded View", "Material Detail"], "timeOfDay": "Studio"}},
-    {"id": "mp_elearning", "name": "E-Learning Course Visuals", "description": "Online kurslar için eğitici görseller ve illüstrasyonlar.", "author": "PepperRoot Studio", "icon": "📚", "color": "#2563eb", "style": "Educational", "rating": 4.6, "downloads": 890, "created_at": "2026-02-03",
-     "config": {"promptTemplate": "educational illustration, clean, informative, friendly, modern design, {character}", "cameraAngles": ["Infographic", "Diagram", "Character Explain"], "timeOfDay": "Bright"}},
-    {"id": "mp_children", "name": "Children's Book Illustration", "description": "Çocuk kitapları için sevimli ve eğlenceli illüstrasyonlar.", "author": "PepperRoot Studio", "icon": "🧸", "color": "#fbbf24", "style": "Children's Book", "rating": 4.9, "downloads": 1560, "created_at": "2026-01-28",
-     "config": {"promptTemplate": "children's book illustration, cute, colorful, whimsical, friendly, {character}", "cameraAngles": ["Character Focus", "Scene Wide", "Action Moment"], "timeOfDay": "Colorful"}},
-    {"id": "mp_medical", "name": "Medical & Healthcare", "description": "Sağlık sektörü için profesyonel tıbbi görseller.", "author": "PepperRoot Studio", "icon": "🏥", "color": "#0d9488", "style": "Medical", "rating": 4.5, "downloads": 670, "created_at": "2026-01-25",
-     "config": {"promptTemplate": "medical photography, healthcare, professional, clean, trustworthy, {character}", "cameraAngles": ["Clinical", "Caring", "Professional"], "timeOfDay": "Clean Light"}},
-    {"id": "mp_yoga", "name": "Yoga & Meditation", "description": "Yoga ve meditasyon için huzurlu, zen görseller.", "author": "PepperRoot Studio", "icon": "🧘", "color": "#a78bfa", "style": "Zen", "rating": 4.8, "downloads": 1120, "created_at": "2026-02-01",
-     "config": {"promptTemplate": "yoga photography, peaceful, serene, natural light, mindfulness, {character}", "cameraAngles": ["Full Body Flow", "Close Focus", "Environment"], "timeOfDay": "Soft Morning"}},
-    {"id": "mp_fitness", "name": "Gym & Fitness Marketing", "description": "Spor salonları ve fitness markaları için enerjik görseller.", "author": "PepperRoot Studio", "icon": "💪", "color": "#dc2626", "style": "Fitness", "rating": 4.7, "downloads": 1450, "created_at": "2026-01-28",
-     "config": {"promptTemplate": "fitness photography, powerful, energetic, motivational, athletic, {character}", "cameraAngles": ["Action Shot", "Equipment Focus", "Motivation"], "timeOfDay": "Dramatic"}},
-    {"id": "mp_arch", "name": "Architectural Visualization", "description": "Mimari projeler için fotorealistik 3D görselleştirmeler.", "author": "PepperRoot Studio", "icon": "🏗️", "color": "#475569", "style": "Architectural", "rating": 4.8, "downloads": 1120, "created_at": "2026-02-03",
-     "config": {"promptTemplate": "architectural visualization, photorealistic, modern design, {character}", "cameraAngles": ["Exterior Hero", "Interior Space", "Detail"], "timeOfDay": "Blue Hour"}},
-    {"id": "mp_album", "name": "Album Cover Art", "description": "Albüm kapakları için yaratıcı ve dikkat çekici tasarımlar.", "author": "PepperRoot Studio", "icon": "💿", "color": "#be185d", "style": "Album Art", "rating": 4.8, "downloads": 2560, "created_at": "2026-01-22",
-     "config": {"promptTemplate": "album cover art, creative, eye-catching, artistic, memorable, {character}", "cameraAngles": ["Square Format", "Visual Metaphor", "Typography Ready"], "timeOfDay": "Artistic"}},
-    {"id": "mp_movie", "name": "Movie Poster Design", "description": "Film ve dizi posterleri için sinematik kompozisyonlar.", "author": "PepperRoot Studio", "icon": "🎥", "color": "#1e293b", "style": "Movie Poster", "rating": 4.9, "downloads": 1890, "created_at": "2026-02-01",
-     "config": {"promptTemplate": "movie poster design, cinematic, dramatic, compelling, theatrical, {character}", "cameraAngles": ["Hero Poster", "Character Ensemble", "Teaser"], "timeOfDay": "Dramatic"}},
-    {"id": "mp_documentary", "name": "Documentary Style", "description": "Belgesel ve gerçekçi hikaye anlatımı için görsel stil.", "author": "PepperRoot Studio", "icon": "📹", "color": "#64748b", "style": "Documentary", "rating": 4.5, "downloads": 670, "created_at": "2026-01-28",
-     "config": {"promptTemplate": "documentary photography, authentic, real, storytelling, human interest, {character}", "cameraAngles": ["Candid", "Environmental Portrait", "Detail"], "timeOfDay": "Natural"}},
-    {"id": "mp_hotel", "name": "Hotel & Resort Marketing", "description": "Otel ve resort tanıtımı için lüks konaklama görselleri.", "author": "PepperRoot Studio", "icon": "🏨", "color": "#0369a1", "style": "Hospitality", "rating": 4.6, "downloads": 760, "created_at": "2026-01-28",
-     "config": {"promptTemplate": "luxury hotel photography, elegant, inviting, high-end resort, relaxing atmosphere", "cameraAngles": ["Room Interior", "Pool View", "Dining Experience"], "timeOfDay": "Warm Afternoon"}},
-    {"id": "mp_nature", "name": "Environmental & Nature", "description": "Çevre ve doğa koruma projeleri için etkileyici görseller.", "author": "PepperRoot Studio", "icon": "🌿", "color": "#16a34a", "style": "Nature", "rating": 4.9, "downloads": 1450, "created_at": "2026-01-20",
-     "config": {"promptTemplate": "nature photography, environmental, majestic, conservation, beauty of earth, {character}", "cameraAngles": ["Landscape", "Wildlife", "Environmental Impact"], "timeOfDay": "Golden Hour"}},
-]
+# Resmi (seed) marketplace pluginleri — temizlendi
+MARKETPLACE_SEED_PLUGINS = []
 
 
 @router.get("/marketplace/plugins", response_model=list[MarketplacePluginItem])
@@ -812,21 +776,26 @@ async def get_marketplace_plugins(
     
     # 2. Topluluk (kullanıcı oluşturmuş, public)
     if category in ("all", "community"):
+        # User tablosunu JOIN ederek gerçek kullanıcı adını al
         result = await db.execute(
-            select(CreativePlugin).where(CreativePlugin.is_public == True)
+            select(Preset, User.full_name, User.email)
+            .outerjoin(User, Preset.user_id == User.id)
+            .where(Preset.is_public == True)
         )
-        user_plugins = result.scalars().all()
-        for p in user_plugins:
+        rows = result.all()
+        for p, user_full_name, user_email in rows:
             config = p.config or {}
+            # Gerçek kullanıcı adı: full_name > email username > fallback
+            real_author = user_full_name or (user_email.split('@')[0] if user_email else "Anonim")
             all_plugins.append({
                 "id": str(p.id),
                 "name": p.name,
                 "description": p.description or "",
-                "author": config.get("author", "Topluluk Üyesi"),
+                "author": real_author,
                 "icon": p.icon,
                 "color": p.color,
                 "style": config.get("style", "Custom"),
-                "rating": config.get("rating", 4.0),
+                "rating": 0,  # Gerçek rating sistemi henüz yok, sahte veri gösterme
                 "downloads": p.usage_count,
                 "created_at": p.created_at.strftime("%Y-%m-%d") if p.created_at else "2026-01-01",
                 "source": "community",
@@ -856,19 +825,22 @@ async def get_marketplace_plugins(
     return all_plugins
 
 
-@router.patch("/creative-plugins/{plugin_id}/publish")
+@router.patch("/presets/{plugin_id}/publish")
 async def publish_plugin(plugin_id: UUID, db: AsyncSession = Depends(get_db)):
     """Kullanıcı pluginini marketplace'e yayınla."""
-    result = await db.execute(select(CreativePlugin).where(CreativePlugin.id == plugin_id))
+    result = await db.execute(select(Preset).where(Preset.id == plugin_id))
     plugin = result.scalar_one_or_none()
     
     if not plugin:
         raise HTTPException(status_code=404, detail="Plugin bulunamadı")
     
-    plugin.is_public = True
+    plugin.is_public = not plugin.is_public
     await db.commit()
     
-    return {"success": True, "message": f"'{plugin.name}' marketplace'e yayınlandı!"}
+    if plugin.is_public:
+        return {"success": True, "message": f"'{plugin.name}' toplulukta yayınlandı!"}
+    else:
+        return {"success": True, "message": f"'{plugin.name}' yayından kaldırıldı."}
 
 
 class InstallPluginRequest(BaseModel):
@@ -887,8 +859,8 @@ async def install_marketplace_plugin(
     try:
         target_uuid = UUID(target_session_id)
         existing_result = await db.execute(
-            select(CreativePlugin).where(
-                CreativePlugin.session_id == target_uuid
+            select(Preset).where(
+                Preset.session_id == target_uuid
             )
         )
         existing_plugins = existing_result.scalars().all()
@@ -902,7 +874,7 @@ async def install_marketplace_plugin(
     
     try:
         uid = UUID(plugin_id)
-        result = await db.execute(select(CreativePlugin).where(CreativePlugin.id == uid))
+        result = await db.execute(select(Preset).where(Preset.id == uid))
         source_plugin = result.scalar_one_or_none()
         if source_plugin:
             source_name = source_plugin.name
@@ -928,7 +900,7 @@ async def install_marketplace_plugin(
         source_plugin.usage_count += 1
     
     # Plugin'i hedef session'a kopyala
-    installed_plugin = CreativePlugin(
+    installed_plugin = Preset(
         session_id=target_uuid,
         user_id=source_plugin.user_id if source_plugin else None,
         name=source_name,
@@ -948,10 +920,13 @@ async def install_marketplace_plugin(
 @router.get("/trash", response_model=list[TrashItemResponse])
 async def list_trash_items(db: AsyncSession = Depends(get_db)):
     """Çöp kutusundaki öğeleri listele."""
+    # Ensure fresh data from DB (prevent stale reads from session cache)
+    db.expire_all()
     result = await db.execute(
         select(TrashItem)
         .where(TrashItem.expires_at > datetime.now())
         .order_by(TrashItem.deleted_at.desc())
+        .execution_options(populate_existing=True)
     )
     items = result.scalars().all()
     
@@ -1033,6 +1008,24 @@ async def restore_trash_item(item_id: UUID, db: AsyncSession = Depends(get_db)):
             await db.flush()
             restored_item = {"type": "asset", "id": str(new_asset.id), "url": new_asset.url}
         
+        # Preset geri yükleme
+        elif item_type == "preset":
+            new_plugin = Preset(
+                user_id=item.user_id,
+                session_id=item.session_id,
+                name=item.item_name,
+                description=original_data.get("description"),
+                icon=original_data.get("icon", "🧩"),
+                color=original_data.get("color", "#22c55e"),
+                system_prompt=original_data.get("system_prompt"),
+                is_public=original_data.get("is_public", False),
+                usage_count=original_data.get("usage_count", 0),
+                config=original_data.get("config", {})
+            )
+            db.add(new_plugin)
+            await db.flush()
+            restored_item = {"type": "preset", "id": str(new_plugin.id), "name": new_plugin.name}
+        
         else:
             # Bilinmeyen tip - sadece çöpten sil
             restored_item = {"type": item_type, "data": original_data}
@@ -1051,8 +1044,16 @@ async def restore_trash_item(item_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.delete("/trash/{item_id}")
 async def permanent_delete_trash_item(item_id: UUID, db: AsyncSession = Depends(get_db)):
     """Öğeyi kalıcı olarak sil."""
+    # Önce TrashItem.id ile ara
     result = await db.execute(select(TrashItem).where(TrashItem.id == item_id))
     item = result.scalar_one_or_none()
+    
+    # Bulunamadıysa, item_id alanında ara (frontend eski item ID'sini gönderebilir)
+    if not item:
+        result2 = await db.execute(
+            select(TrashItem).where(TrashItem.item_id == str(item_id))
+        )
+        item = result2.scalar_one_or_none()
     
     if not item:
         raise HTTPException(status_code=404, detail="Öğe bulunamadı")

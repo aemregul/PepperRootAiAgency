@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
-import { Send, Paperclip, Loader2, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, ZoomIn, Palette, Download, ThumbsUp, ThumbsDown } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+
+import { Send, Paperclip, Loader2, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, ZoomIn, Download, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useToast } from "./ToastProvider";
 import { sendMessage, sendMessageStream, checkHealth, getSessionHistory, sendFeedback, type MessageResponse as ApiMessageResponse } from "@/lib/api";
 import { GenerationProgressCard } from "./GenerationProgressCard";
@@ -80,19 +81,127 @@ function mapApiMessageToChatMessage(msg: ApiMessageResponse): Message {
     };
 }
 
-// Hızlı Stil Şablonları
-const STYLE_TEMPLATES = [
-    { id: 'cinematic', name: 'Sinematik', emoji: '🎬', prompt: 'cinematic film still, dramatic lighting, wide angle, moody atmosphere' },
-    { id: 'instagram', name: 'Instagram', emoji: '📸', prompt: 'instagram aesthetic, lifestyle photography, vibrant colors, trendy composition' },
-    { id: 'portrait', name: 'Portre', emoji: '🖼️', prompt: 'professional portrait, studio lighting, sharp focus, clean background' },
-    { id: 'popart', name: 'Pop Art', emoji: '🎨', prompt: 'Andy Warhol pop art style, bold colors, screen print effect, graphic design' },
-    { id: 'sketch', name: 'Eskiz', emoji: '✏️', prompt: 'pencil sketch, hand drawn, detailed linework, artistic illustration' },
-    { id: 'neon', name: 'Neon', emoji: '💜', prompt: 'neon glow, cyberpunk aesthetic, dark background, vivid purple and blue lights' },
-    { id: 'golden', name: 'Golden Hour', emoji: '🌅', prompt: 'golden hour photography, warm tones, backlit, natural sunlight, romantic mood' },
-    { id: 'retro', name: 'Retro', emoji: '📺', prompt: '80s retro style, vintage film grain, nostalgic color palette, analog feel' },
-    { id: 'cartoon', name: 'Karikatür', emoji: '😄', prompt: 'cartoon style, caricature, exaggerated features, fun and colorful illustration' },
-    { id: 'minimal', name: 'Minimalist', emoji: '⬜', prompt: 'minimalist composition, clean background, simple, high contrast, elegant' },
-];
+
+
+// Markdown renderer for assistant messages — renders bold, italic, headings, lists, code, etc.
+function MarkdownContent({ content, onImageClick }: { content: string; onImageClick?: (url: string) => void }) {
+    // Memoize components to avoid re-renders
+    const components = useMemo(() => ({
+        // Headings
+        h1: ({ children, ...props }: React.ComponentPropsWithRef<'h1'>) => (
+            <h3 className="text-base font-bold mt-3 mb-1.5" {...props}>{children}</h3>
+        ),
+        h2: ({ children, ...props }: React.ComponentPropsWithRef<'h2'>) => (
+            <h4 className="text-[15px] font-bold mt-2.5 mb-1" {...props}>{children}</h4>
+        ),
+        h3: ({ children, ...props }: React.ComponentPropsWithRef<'h3'>) => (
+            <h5 className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h5>
+        ),
+        // Paragraphs
+        p: ({ children, ...props }: React.ComponentPropsWithRef<'p'>) => (
+            <p className="mb-1.5 last:mb-0 leading-relaxed" {...props}>{children}</p>
+        ),
+        // Bold
+        strong: ({ children, ...props }: React.ComponentPropsWithRef<'strong'>) => (
+            <strong className="font-semibold" {...props}>{children}</strong>
+        ),
+        // Lists
+        ul: ({ children, ...props }: React.ComponentPropsWithRef<'ul'>) => (
+            <ul className="list-disc list-outside ml-4 mb-1.5 space-y-0.5" {...props}>{children}</ul>
+        ),
+        ol: ({ children, ...props }: React.ComponentPropsWithRef<'ol'>) => (
+            <ol className="list-decimal list-outside ml-4 mb-1.5 space-y-0.5" {...props}>{children}</ol>
+        ),
+        li: ({ children, ...props }: React.ComponentPropsWithRef<'li'>) => (
+            <li className="leading-relaxed" {...props}>{children}</li>
+        ),
+        // Code
+        code: ({ children, className, ...props }: React.ComponentPropsWithRef<'code'> & { className?: string }) => {
+            const isInline = !className;
+            return isInline ? (
+                <code className="bg-white/10 px-1.5 py-0.5 rounded text-[13px] font-mono" {...props}>{children}</code>
+            ) : (
+                <code className={`block bg-white/5 rounded-lg p-3 text-[13px] font-mono overflow-x-auto my-1.5 ${className || ''}`} {...props}>{children}</code>
+            );
+        },
+        pre: ({ children, ...props }: React.ComponentPropsWithRef<'pre'>) => (
+            <pre className="bg-white/5 rounded-lg p-3 overflow-x-auto my-1.5" {...props}>{children}</pre>
+        ),
+        // Links
+        a: ({ href, children, ...props }: React.ComponentPropsWithRef<'a'>) => {
+            if (!href) return <span {...props}>{children}</span>;
+            // @mention link (from pre-processing)
+            if (href === '#mention') {
+                return <span className="mention">{children}</span>;
+            }
+            // Video link
+            if (href.match(/\.(mp4|mov|webm)(\?.*)?$/i)) {
+                return (
+                    <div className="mt-2 mb-2">
+                        <video src={`${href}#t=0.1`} controls playsInline muted preload="metadata"
+                            className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10" />
+                    </div>
+                );
+            }
+            // Audio link
+            if (href.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i)) {
+                return (
+                    <div className="mt-2 mb-2 rounded-2xl overflow-hidden" style={{ maxWidth: '360px' }}>
+                        <div className="bg-gradient-to-br from-emerald-900/60 via-[#1a1a2e] to-purple-900/50 p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                                <span className="text-xl">🎵</span>
+                                <span className="text-sm font-medium text-white">{children || 'Müzik'}</span>
+                            </div>
+                            <audio src={href} controls preload="none" className="w-full rounded-lg" style={{ height: '36px' }} />
+                        </div>
+                    </div>
+                );
+            }
+            // Image link
+            if (href.match(/\.(png|jpg|jpeg|webp|gif|bmp|svg)(\?.*)?$/i)) {
+                return (
+                    <img src={href} alt={String(children) || 'Görsel'}
+                        className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 transition-all border border-white/10"
+                        onClick={() => onImageClick ? onImageClick(href) : window.open(href, '_blank')}
+                        loading="lazy" />
+                );
+            }
+            // Normal link
+            return (
+                <a href={href} target="_blank" rel="noopener noreferrer"
+                    className="text-[var(--accent)] underline hover:opacity-80" {...props}>{children}</a>
+            );
+        },
+        // Images
+        img: ({ src, alt, ...props }: React.ComponentPropsWithRef<'img'>) => (
+            <img src={src as string} alt={alt || 'Görsel'}
+                className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 transition-all border border-white/10"
+                onClick={() => src && (onImageClick ? onImageClick(src as string) : window.open(src as string, '_blank'))}
+                loading="lazy" {...props} />
+        ),
+        // Blockquote
+        blockquote: ({ children, ...props }: React.ComponentPropsWithRef<'blockquote'>) => (
+            <blockquote className="border-l-2 border-[var(--accent)] pl-3 my-1.5 opacity-80" {...props}>{children}</blockquote>
+        ),
+        // Horizontal rule
+        hr: (props: React.ComponentPropsWithRef<'hr'>) => (
+            <hr className="border-white/10 my-2" {...props} />
+        ),
+    }), [onImageClick]);
+
+    // Pre-process content: convert @mentions to markdown links for green mention styling
+    const processedContent = useMemo(() => {
+        if (!content) return '';
+        // Convert @tag_name to [@tag_name](#mention) — the 'a' component renders #mention links with .mention class
+        return content.replace(/@([\w_]+)/g, '[@$1](#mention)');
+    }, [content]);
+
+    return (
+        <div className="markdown-content">
+            <ReactMarkdown components={components}>{processedContent}</ReactMarkdown>
+        </div>
+    );
+}
 
 // Helper to render @mentions, markdown images, links, and VIDEOS
 function renderContent(content: string | undefined | null, onImageClick?: (url: string) => void) {
@@ -386,11 +495,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
-    const styleDropdownRef = useRef<HTMLDivElement>(null);
-    const styleBtnRef = useRef<HTMLButtonElement>(null);
     const toast = useToast();
-    const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
-    const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
     const [feedbackState, setFeedbackState] = useState<Record<string, 'up' | 'down' | null>>({});
 
     // === PROJE BAZLI CHAT STATE SAKLA/GERİ YÜKLE ===
@@ -899,32 +1004,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         void applyPendingAsset();
     }, [attachImageFromUrl, pendingAssetUrl, sessionId, onAssetUrlConsumed]);
 
-    // Stil dropdown dışına tıklayınca kapat
-    useEffect(() => {
-        function handleClickOutside(e: MouseEvent) {
-            if (
-                styleDropdownRef.current && !styleDropdownRef.current.contains(e.target as Node) &&
-                styleBtnRef.current && !styleBtnRef.current.contains(e.target as Node)
-            ) {
-                setStyleDropdownOpen(false);
-            }
-        }
-        if (styleDropdownOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }
-    }, [styleDropdownOpen]);
 
-    // Dropdown konumunu hesapla
-    useEffect(() => {
-        if (styleDropdownOpen && styleBtnRef.current) {
-            const rect = styleBtnRef.current.getBoundingClientRect();
-            setDropdownPos({
-                bottom: window.innerHeight - rect.top + 8,
-                right: window.innerWidth - rect.right,
-            });
-        }
-    }, [styleDropdownOpen]);
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const hasInitialScrolled = useRef(false);
@@ -1576,8 +1656,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             });
                                             return displayContent ? (
                                                 <div className="message-bubble message-ai">
-                                                    <div className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
-                                                        {renderContent(displayContent, setLightboxImage)}
+                                                    <div className="text-sm lg:text-[15px] leading-relaxed">
+                                                        <MarkdownContent content={displayContent} onImageClick={setLightboxImage} />
                                                     </div>
                                                 </div>
                                             ) : null;
@@ -1958,32 +2038,13 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                             />
 
                             <div className="flex items-center gap-1 shrink-0">
-                                {/* Stil Şablonları Button */}
-                                <div style={{ position: 'relative' }}>
-                                    <button
-                                        ref={styleBtnRef}
-                                        type="button"
-                                        onClick={() => setStyleDropdownOpen(!styleDropdownOpen)}
-                                        className="p-2 rounded-lg transition-all hover:shadow-md"
-                                        style={{
-                                            background: styleDropdownOpen
-                                                ? 'linear-gradient(135deg, rgba(74, 222, 128, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%)'
-                                                : 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(34, 197, 94, 0.08) 100%)',
-                                            border: styleDropdownOpen
-                                                ? '1px solid rgba(74, 222, 128, 0.4)'
-                                                : '1px solid rgba(74, 222, 128, 0.2)',
-                                        }}
-                                        title="Hızlı stil şablonu seç"
-                                    >
-                                        <Palette size={18} style={{ color: 'var(--accent)' }} />
-                                    </button>
-                                </div>
+
 
                                 {/* Plugin Yap Button */}
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const pluginMessage = "Bu sohbetteki bilgilerden bir plugin oluştur.";
+                                        const pluginMessage = "Bu sohbetteki bilgilerden bir preset oluştur.";
                                         setInput(pluginMessage);
                                         // Auto-send after a tick so React state updates first
                                         setTimeout(() => {
@@ -1996,7 +2057,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         background: "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%)",
                                         border: "1px solid rgba(139, 92, 246, 0.3)"
                                     }}
-                                    title="Bu sohbetten otomatik plugin oluştur"
+                                    title="Preset Oluştur"
                                     disabled={isLoading || !isConnected}
                                 >
                                     <Sparkles size={18} className="text-purple-400" />
@@ -2113,106 +2174,7 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                 </div>
             )}
 
-            {/* Stil Şablonları Dropdown — Portal ile overflow-hidden dışında render */}
-            {styleDropdownOpen && dropdownPos && createPortal(
-                <div
-                    ref={styleDropdownRef}
-                    style={{
-                        position: 'fixed',
-                        bottom: dropdownPos.bottom,
-                        right: dropdownPos.right,
-                        width: 240,
-                        maxHeight: 400,
-                        overflowY: 'auto',
-                        background: 'var(--background-secondary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 14,
-                        boxShadow: '0 -12px 48px rgba(0,0,0,0.5)',
-                        zIndex: 9999,
-                        padding: 6,
-                        scrollbarWidth: 'thin' as const,
-                    }}
-                >
-                    {/* Installed Plugins Section */}
-                    {installedPlugins.length > 0 && (
-                        <>
-                            <div style={{ padding: '6px 10px 4px', fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ fontSize: 13 }}>🧩</span> Eklentilerim
-                            </div>
-                            {installedPlugins.map((plugin) => (
-                                <button
-                                    key={plugin.id}
-                                    type="button"
-                                    onClick={() => {
-                                        setInput(plugin.promptText);
-                                        setStyleDropdownOpen(false);
-                                        inputRef.current?.focus();
-                                    }}
-                                    className="w-full text-left"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 10,
-                                        padding: '8px 10px',
-                                        borderRadius: 8,
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: 'var(--foreground)',
-                                        fontSize: 13,
-                                        cursor: 'pointer',
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(74, 222, 128, 0.08)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                >
-                                    <span style={{ fontSize: 16, width: 24, textAlign: 'center' }}>{plugin.emoji || '🧩'}</span>
-                                    <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plugin.name}</div>
-                                </button>
-                            ))}
-                            <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-                        </>
-                    )}
 
-                    {/* Built-in Styles Section */}
-                    <div style={{ padding: '6px 10px 4px', fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Hazır Stiller
-                    </div>
-                    {STYLE_TEMPLATES.map((style) => (
-                        <button
-                            key={style.id}
-                            type="button"
-                            onClick={() => {
-                                setInput(`[${style.name}] ${style.prompt}`);
-                                setStyleDropdownOpen(false);
-                                inputRef.current?.focus();
-                            }}
-                            className="w-full text-left"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                                padding: '8px 10px',
-                                borderRadius: 8,
-                                border: 'none',
-                                background: 'transparent',
-                                color: 'var(--foreground)',
-                                fontSize: 13,
-                                cursor: 'pointer',
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(74, 222, 128, 0.08)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                            <span style={{ fontSize: 16, width: 24, textAlign: 'center' }}>{style.emoji}</span>
-                            <div>
-                                <div style={{ fontWeight: 500 }}>{style.name}</div>
-                                <div style={{ fontSize: 10, color: 'var(--foreground-muted)', marginTop: 1, lineHeight: '1.3' }}>
-                                    {style.prompt.slice(0, 40)}...
-                                </div>
-                            </div>
-                        </button>
-                    ))}
-                </div>,
-                document.body
-            )}
         </div>
     );
 }

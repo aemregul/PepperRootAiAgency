@@ -1,9 +1,12 @@
 # Pepper Root AI Agency — Proje Dokümantasyonu
 
-> **Son Güncelleme:** 11 Mart 2026
+> **Son Güncelleme:** 16 Mart 2026
 > **Repo:** [github.com/aemregul/PepperRootAiAgency](https://github.com/aemregul/PepperRootAiAgency)
 
 Bu dosya projenin tüm özelliklerini, mimarisini ve nasıl çalıştığını açıklar. Yeni bir AI oturumu veya ekip üyesi bu dosyayı okuyarak projeyi tamamen anlayabilir.
+
+cd /Users/emre/PepperRootAiAgency/backend && uvicorn app.main:app --reload --port 8000
+cd /Users/emre/PepperRootAiAgency/frontend && npm run dev
 
 ---
 
@@ -56,9 +59,47 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 
 ---
 
-## 🚀 Aktif Özellikler (11 Mart 2026)
+## 🚀 Aktif Özellikler (16 Mart 2026)
+
+### Markdown Mesaj Render (react-markdown) _(16 Mart 2026)_
+
+- Asistan mesajları `react-markdown` ile render ediliyor — **bold**, *italic*, başlıklar, listeler, kod blokları düzgün görünüyor
+- `MarkdownContent` component'ı: özel styled heading, paragraph, list, code, blockquote, link, image, video, audio component'ları
+- @mention desteği: `@tag` → `[@tag](#mention)` pre-processing + yeşil `.mention` CSS class ile render
+- Kullanıcı mesajları hâlâ basit `renderContent` fonksiyonu ile render ediliyor
+- Dosya: `frontend/src/components/ChatPanel.tsx`
+
+### Entity Oluşturma Deterministic Yanıtları _(14-16 Mart 2026)_
+
+- Karakter/lokasyon/marka oluşturulduğunda generic LLM yanıtı yerine deterministic onay mesajı
+- Her bilgi ayrı satırda (markdown `\n\n`), emoji ile formatlanmış
+- Tag'de çift `@` sorunu çözüldü (`tag_display` kontrol mekanizması)
+- Preset oluşturma mesajı da aynı formatta düzeltildi
+- Dosya: `backend/app/services/agent/orchestrator.py`
+
+### AI Yanıt Formatlama & Emoji Kullanımı _(16 Mart 2026)_
+
+- System prompt'a `YANIT FORMATLAMA` bölümü eklendi
+- Bölüm başlıklarında emoji, madde işaretlerinde konuya uygun emoji
+- ChatGPT tarzı profesyonel, temiz, okunaklı format
+- Saf metin duvarları yasaklandı
+
+### Ünlü Kişi Fotoğraf Kaydetme Bypass'ı _(16 Mart 2026)_
+
+- Kullanıcı fotoğraf + isim verdiğinde AI kişiyi tanımaya çalışmıyor
+- Verilen isimle `create_character` çağrılıp fotoğraf referans görseli olarak kaydediliyor
+- "tanıyamıyorum" yanıtları yasaklandı (system prompt kural 9)
+- Dosya: `backend/app/services/agent/orchestrator.py`
+
+### Çöp Kutusu Cache Fix _(14 Mart 2026)_
+
+- Silinen öğelerin ilk sayfa yenilemede geri gelme sorunu düzeltildi
+- Cache invalidation stratejisi iyileştirildi
+- Kalıcı silme ID uyumsuzluğu düzeltildi
+- Dosya: `backend/app/api/routes/sessions.py`, `frontend/src/components/TrashModal.tsx`
 
 ### Production Progress Card
+
 - Video/görsel/ses üretimi sırasında chat'te gerçek zamanlı ilerleme kartı
 - İki sütunlu tasarım: sol tarafta mini chat log, sağ tarafta dairesel progress
 - Uzun videolarda sahne göstergeleri (✓ S1, ⏳ S2, ○ S3...)
@@ -66,6 +107,7 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 - Bilinçli asistan mesajları card mini-log'unda görünür
 
 ### Task Cancellation (İptal Mekanizması)
+
 - Production card'ın sağ üstünde kırmızı ✕ iptal butonu
 - Frontend: `AbortController.abort()` ile SSE stream kesilir
 - Backend: `POST /chat/cancel-task` → `cancel_session_task()` → `asyncio.Task.cancel()`
@@ -73,9 +115,9 @@ Bu kurallar her şeyden önce gelir. Bu kurallara uyulmadığı takdirde proje b
 - İptal sonrası chat'e "🛑 İşlem iptal edildi" mesajı eklenir
 
 ### Duplicate Video Guard
+
 - GPT-4o recursive retry'larda tekrar `generate_long_video` çağırsa bile sadece ilk video çalışır
 - `_video_already_called` flag'i `result` dict'inde saklanır, recursive çağrılarda korunur
-
 
 ---
 
@@ -227,7 +269,7 @@ Agent, GPT-4o tabanlıdır. Kullanıcının mesajını alır, hangi araçları k
 
 ## 🖥️ Frontend Özellikleri
 
-- **Chat Paneli**: SSE streaming, çoklu görsel yükleme (10'a kadar), ChatGPT tarzı medya düzeni
+- **Chat Paneli**: SSE streaming, çoklu görsel yükleme (10'a kadar), ChatGPT tarzı medya düzeni, `react-markdown` ile zengin mesaj formatı
 - **Assets Panel**: 6 kategori filtresi, çoklu seçim & indirme, video hover preview, çöp kutusu
 - **Sidebar**: Proje yönetimi, entity listesi, plugin listesi, daraltılabilir
 - **Auth**: Google OAuth 2.0, "Hesabımı hatırla" toggle
@@ -307,6 +349,8 @@ npm run dev
 | 32    | 4 Mart     | Grok Imagine Entegrasyonu (33 model)                    |
 | 33    | 5 Mart     | Autonomous Agency Features                              |
 | 34    | 5 Mart     | Production Deploy (Railway + Vercel)                    |
+| 35    | 14 Mart    | Trash Cache Fix, Entity Response Fix                    |
+| 36    | 16 Mart    | Markdown Render, Emoji Format, Celebrity Photo Bypass   |
 
 ---
 
@@ -316,7 +360,7 @@ npm run dev
 | -------------- | ------- |
 | Agent Araç     | 36      |
 | AI Model       | 33      |
-| Toplam Faz     | 34      |
+| Toplam Faz     | 36      |
 | Canlı Backend  | Railway |
 | Canlı Frontend | Vercel  |
 
@@ -341,15 +385,24 @@ Bu maddeler çözülmeden yeni özelliğe geçilmez.
   - Düzeltilen: `main.py` trash cleanup'ta `AsyncSessionLocal` import hatası (`async_session_maker` ile değiştirildi)
   - Etki alanı: `backend/app/services/agent/orchestrator.py`, `backend/app/api/routes/chat.py`, `frontend/src/components/ChatPanel.tsx`, `backend/app/main.py`
 
-- [ ] **1.2 — "Beni Hatırla" Çalışmıyor**
-  - Sorun: Login'de "Hesabımı hatırla" toggle'ı aktif olsa bile oturum kayboluyor
-  - Araştırılacak: JWT token persist mantığı, localStorage/cookie süresi, token refresh akışı
+- [x] **1.2 — "Beni Hatırla" Çalışmıyor** _(12 Mart 2026 — Test edildi, sorun bulunamadı)_
+  - ~~Sorun: Login'de "Hesabımı hatırla" toggle'ı aktif olsa bile oturum kayboluyor~~
+  - Kontrol edildi: JWT token persist mantığı çalışıyor, canlıda geçici bir sorun olmuş olabilir
   - Etki alanı: `frontend/src/contexts/AuthContext.tsx`, `backend/app/api/routes/auth.py`
 
-- [ ] **1.3 — Görsel Silindiğinde Çöp Kutusuna Gitmiyor**
-  - Sorun: Kaydedilen görseller silindiğinde soft-delete (trash) çalışmıyor, direkt kayboluyor
-  - Araştırılacak: `trash_items` tablosuna kayıt yazılıp yazılmadığı, frontend delete handler'ı
-  - Etki alanı: `backend/app/api/routes/admin.py`, `frontend/src/components/AssetsPanel.tsx`, `backend/app/models/models.py`
+- [x] **1.3 — Görsel Silindiğinde Çöp Kutusuna Gitmiyor** _(12 Mart 2026 — Düzeltildi)_
+  - ~~Sorun: Kaydedilen görseller silindiğinde soft-delete (trash) çalışmıyor, direkt kayboluyor~~
+  - Düzeltilen: Backend `delete_asset` endpoint'inde `user_id` TrashItem'a set edilmiyordu — eklendi
+  - Düzeltilen: Frontend çöp kutusu etiketleri yanlıştı (Kıyafet → Kaydedilen Görsel, Asset → Medya)
+  - Etki alanı: `backend/app/api/routes/sessions.py`, `frontend/src/components/TrashModal.tsx`
+
+- [ ] **1.4 — Videodan Entity Kaydederken Referans Görsel Sorunu** _(12 Mart 2026 — Tespit edildi)_
+  - Sorun: Kullanıcı bir videodan lokasyon/karakter kaydettiğinde `reference_image_url` olarak video URL'i (.mp4) kaydediliyor
+  - Etki: Görsel üretim modelleri (Nano Banana, GPT Image, FLUX) video dosyasını referans görsel olarak yükleyemiyor → 400 INVALID_ARGUMENT hatası
+  - Sadece Gemini video'dan kare çıkarabildiği için fallback'te çalışıyor, diğer modeller başarısız
+  - Çözüm önerisi: Entity kaydederken video URL tespit edilmeli → FFmpeg/backend ile ilk kareden thumbnail çıkartılıp `reference_image_url` olarak kullanılmalı
+  - Video tarama: Kullanıcı "bu sahnedeki arka planı kaydet" dediğinde AI videonun ilgili sahnesini gerçekten analiz edip kare çıkarmalı
+  - Etki alanı: `backend/app/services/entity_service.py`, `backend/app/services/agent/orchestrator.py`
 
 ---
 
@@ -528,4 +581,3 @@ Bu maddeler çözülmeden yeni özelliğe geçilmez.
 - ✅ **Hosting:** Frontend Vercel, Backend Railway — mevcut deployment yapısı korunacak
 
 ---
-

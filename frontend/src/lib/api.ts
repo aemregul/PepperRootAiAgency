@@ -576,7 +576,7 @@ export async function getMarketplacePlugins(
 }
 
 export async function publishPlugin(pluginId: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/creative-plugins/${pluginId}/publish`, {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/presets/${pluginId}/publish`, {
         method: 'PATCH',
     });
     if (!response.ok) throw new Error('Failed to publish plugin');
@@ -662,48 +662,65 @@ export async function getModelDistribution(): Promise<ModelDistributionItem[]> {
 }
 
 // Creative Plugins
-export interface CreativePluginData {
+export interface PresetData {
     id: string;
     name: string;
     description?: string;
     icon: string;
     color: string;
+    style?: string;
     system_prompt?: string;
     is_public: boolean;
     usage_count: number;
+    created_at: string;
+    downloads?: number;
+    author?: string;
+    config?: Record<string, unknown>;
 }
 
-export async function getCreativePlugins(sessionId?: string): Promise<CreativePluginData[]> {
+export async function getPresets(sessionId?: string): Promise<PresetData[]> {
     const url = sessionId
-        ? `${API_BASE_URL}${API_PREFIX}/admin/creative-plugins?session_id=${sessionId}`
-        : `${API_BASE_URL}${API_PREFIX}/admin/creative-plugins`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch creative plugins');
+        ? `${API_BASE_URL}${API_PREFIX}/admin/presets?session_id=${sessionId}`
+        : `${API_BASE_URL}${API_PREFIX}/admin/presets`;
+    const response = await fetch(url, {
+        headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch presets');
     return response.json();
 }
 
-export async function createCreativePlugin(plugin: {
+export async function createPreset(plugin: {
     name: string;
     description?: string;
     icon?: string;
     color?: string;
     system_prompt?: string;
     is_public?: boolean;
-}, sessionId?: string): Promise<CreativePluginData> {
+}, sessionId?: string): Promise<PresetData> {
     const url = sessionId
-        ? `${API_BASE_URL}${API_PREFIX}/admin/creative-plugins?session_id=${sessionId}`
-        : `${API_BASE_URL}${API_PREFIX}/admin/creative-plugins`;
+        ? `${API_BASE_URL}${API_PREFIX}/admin/presets?session_id=${sessionId}`
+        : `${API_BASE_URL}${API_PREFIX}/admin/presets`;
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(plugin),
     });
-    if (!response.ok) throw new Error('Failed to create creative plugin');
+    if (!response.ok) throw new Error('Failed to create preset');
     return response.json();
 }
 
-export async function deleteCreativePlugin(pluginId: string): Promise<boolean> {
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/creative-plugins/${pluginId}`, {
+export async function updatePreset(pluginId: string, data: { name?: string; description?: string; config?: Record<string, unknown> }): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/presets/${pluginId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update preset');
+    return response.json();
+}
+
+export async function deletePreset(pluginId: string): Promise<boolean> {
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/presets/${pluginId}`, {
         method: 'DELETE',
     });
     return response.ok;
@@ -721,8 +738,13 @@ export interface TrashItemData {
 }
 
 export async function getTrashItems(): Promise<TrashItemData[]> {
-    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/trash`, {
-        headers: getAuthHeaders(),
+    const response = await fetch(`${API_BASE_URL}${API_PREFIX}/admin/trash?_t=${Date.now()}`, {
+        headers: {
+            ...getAuthHeaders(),
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+        },
+        cache: 'no-store',
     });
     if (!response.ok) throw new Error('Failed to fetch trash items');
     return response.json();
