@@ -1485,6 +1485,32 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 messages.append({"role": "assistant", "content": f"❌ {error_msg}"})
                 return
         
+        # Entity oluşturma başarılı → deterministic yanıt, LLM'yi atla
+        ENTITY_TOOLS = {"create_character", "create_location", "create_brand"}
+        if last_tool_name in ENTITY_TOOLS and tool_result.get("success") and tool_result.get("entity"):
+            entity = tool_result["entity"]
+            entity_type_labels = {"character": "Karakter", "location": "Lokasyon", "brand": "Marka"}
+            entity_type = entity.get("entity_type", "")
+            label = entity_type_labels.get(entity_type, entity_type.capitalize())
+            name = entity.get("name", "")
+            tag = entity.get("tag", "")
+            has_ref = tool_result.get("has_reference_image", False)
+            
+            confirmation = f"✅ **{label} oluşturuldu!**\n\n"
+            confirmation += f"📌 **Ad:** {name}\n"
+            confirmation += f"🏷️ **Tag:** @{tag}\n"
+            if entity.get("description"):
+                confirmation += f"📝 **Açıklama:** {entity['description']}\n"
+            if has_ref:
+                confirmation += f"📸 Referans görseli kaydedildi.\n"
+            confirmation += f"\nArtık mesajlarında **@{tag}** kullanarak bu {label.lower()}a referans verebilirsin."
+            
+            print(f"✅ ENTITY CREATED (stream): {name} ({entity_type}), skipping final LLM.")
+            result["_skip_final_llm"] = True
+            result["_final_text"] = confirmation
+            messages.append({"role": "assistant", "content": confirmation})
+            return
+        
         # manage_plugin başarılı + deterministik mesaj varsa, LLM'yi atla
         if last_tool_name == "manage_plugin" and tool_result.get("_deterministic") and tool_result.get("success"):
             print("✅ MANAGE_PLUGIN SUCCESS (stream): Deterministic response, skipping final LLM.")

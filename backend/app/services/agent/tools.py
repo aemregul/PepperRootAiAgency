@@ -62,7 +62,7 @@ AGENT_TOOLS_ANTHROPIC = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Karakterin adı"},
-                "description": {"type": "string", "description": "Karakterin detaylı görsel açıklaması (İngilizce)"},
+                "description": {"type": "string", "description": "Karakterin detaylı görsel açıklaması (kullanıcının dilinde yaz)"},
                 "reference_image_url": {"type": "string", "description": "Referans görsel URL'si"},
                 "use_current_reference": {"type": "boolean", "description": "Mevcut referans görseli kullan"},
                 "attributes": {"type": "object", "description": "Fiziksel ve kişilik özellikleri"}
@@ -77,7 +77,7 @@ AGENT_TOOLS_ANTHROPIC = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Mekanın adı"},
-                "description": {"type": "string", "description": "Mekanın detaylı görsel açıklaması (İngilizce)"},
+                "description": {"type": "string", "description": "Mekanın detaylı görsel açıklaması (kullanıcının dilinde yaz)"},
                 "attributes": {"type": "object", "description": "Ek özellikler"}
             },
             "required": ["name", "description"]
