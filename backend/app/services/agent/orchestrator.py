@@ -2559,6 +2559,25 @@ Konuşma:
             aspect_ratio = params.get("aspect_ratio", "1:1")
             resolution = params.get("resolution", "1K")
             preferred_model = params.get("model", "auto")
+            
+            # 🔄 MODEL İSİM NORMALİZASYONU — Agent LLM'in hatalı shortcode seçimini düzelt
+            model_name_map = {
+                "nano_banana_pro": "nano_banana",
+                "nano-banana-pro": "nano_banana",
+                "nano-banana": "nano_banana",
+                "nano_banana_2": "nano_banana_2",
+                "nano-banana-2": "nano_banana_2",
+                "nanobana2": "nano_banana_2",
+                "flux_2": "flux2",
+                "flux-2": "flux2",
+                "flux_2_max": "flux2_max",
+                "flux-2-max": "flux2_max",
+                "gpt-image": "gpt_image",
+                "gpt_image_1": "gpt_image",
+                "grok": "grok_imagine",
+            }
+            if preferred_model and preferred_model != "auto":
+                preferred_model = model_name_map.get(preferred_model, preferred_model)
             print(f"🎯 _generate_image: preferred_model={preferred_model}, all params keys={list(params.keys())}")
             
             # 🔄 PROMPTU İNGİLİZCE'YE ÇEVİR (Hangi dilde olursa olsun - daha iyi görsel sonuçları için)
@@ -2637,8 +2656,8 @@ Konuşma:
             # AKILLI SİSTEM: Referans görsel VEYA ekstra webt'den bulunmuş görsel varsa
             print(f"🎯 Referans görsel durumu: Face={face_reference_url is not None}, Web={len(additional_ref_urls)} adet")
             if face_reference_url or additional_ref_urls:
-                # === HİBRİT PIPELINE: Gemini FIRST → fal.ai FALLBACK ===
-                print(f"🤖 Hibrit pipeline: Gemini ile denenecek, başarısızsa fal.ai fallback")
+                # === REFERANS PIPELINE: Nano Banana Pro Edit FIRST → Gemini FALLBACK ===
+                print(f"🤖 Referans pipeline: fal.ai (Nano Banana Pro Edit) ile denenecek, başarısızsa Gemini fallback")
                 
                 # Çoklu referans URL'leri topla (multi-image upload)
                 all_ref_urls = []
@@ -2654,34 +2673,32 @@ Konuşma:
                 
                 primary_ref = face_reference_url if face_reference_url else (all_ref_urls[0] if all_ref_urls else None)
 
-                # Adım 1: Gemini ile dene
-                gemini_result = None
-                try:
-                    from app.services.gemini_image_service import gemini_image_service
-                    gemini_result = await gemini_image_service.generate_with_reference(
-                        prompt=prompt,
-                        reference_image_url=primary_ref,
-                        reference_images_urls=all_ref_urls if len(all_ref_urls) > 1 else None,
-                        aspect_ratio=aspect_ratio
-                    )
-                except Exception as gemini_err:
-                    print(f"⚠️ Gemini import/çağrı hatası: {gemini_err}")
-                    gemini_result = {"success": False, "error": str(gemini_err)}
+                # Adım 1: fal.ai (Nano Banana Pro Edit → GPT Image 1 → FLUX Kontext) ile dene
+                result = await self.fal_plugin._smart_generate_with_face({
+                    "prompt": prompt,
+                    "face_image_url": primary_ref,
+                    "aspect_ratio": aspect_ratio,
+                    "resolution": resolution
+                })
                 
-                if gemini_result and gemini_result.get("success"):
-                    result = gemini_result
-                    print(f"✅ Gemini başarılı! URL: {result.get('image_url', '')[:60]}...")
-                else:
-                    # Adım 2: Gemini başarısız → fal.ai fallback
-                    gemini_error = gemini_result.get("error", "bilinmiyor") if gemini_result else "import hatası"
-                    print(f"⚠️ Gemini başarısız ({gemini_error}), fal.ai fallback deniyor...")
+                if not result.get("success"):
+                    # Adım 2: fal.ai başarısız → Gemini fallback
+                    fal_error = result.get("error", "bilinmiyor")
+                    print(f"⚠️ fal.ai başarısız ({fal_error}), Gemini fallback deniyor...")
                     
-                    result = await self.fal_plugin._smart_generate_with_face({
-                        "prompt": prompt,
-                        "face_image_url": face_reference_url,
-                        "aspect_ratio": aspect_ratio,
-                        "resolution": resolution
-                    })
+                    try:
+                        from app.services.gemini_image_service import gemini_image_service
+                        gemini_result = await gemini_image_service.generate_with_reference(
+                            prompt=prompt,
+                            reference_image_url=primary_ref,
+                            reference_images_urls=all_ref_urls if len(all_ref_urls) > 1 else None,
+                            aspect_ratio=aspect_ratio
+                        )
+                        if gemini_result and gemini_result.get("success"):
+                            result = gemini_result
+                            print(f"✅ Gemini fallback başarılı! URL: {result.get('image_url', '')[:60]}...")
+                    except Exception as gemini_err:
+                        print(f"⚠️ Gemini fallback hatası: {gemini_err}")
                 
                 if result.get("success"):
                     method = result.get("method_used", "unknown")
