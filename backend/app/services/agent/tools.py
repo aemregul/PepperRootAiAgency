@@ -218,6 +218,19 @@ AGENT_TOOLS_ANTHROPIC = [
         }
     },
     {
+        "name": "update_entity",
+        "description": "Kayıtlı bir karakterin, mekanın veya markanın adını veya açıklamasını günceller. Kullanıcı 'ismini değiştir', 'yeniden adlandır', 'rename' dediğinde kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_tag": {"type": "string", "description": "Güncellenecek entity'nin mevcut tag'i (örn: @emre, @paris)"},
+                "new_name": {"type": "string", "description": "Yeni isim (opsiyonel). Tag otomatik güncellenir."},
+                "new_description": {"type": "string", "description": "Yeni açıklama (opsiyonel)"}
+            },
+            "required": ["entity_tag"]
+        }
+    },
+    {
         "name": "manage_wardrobe",
         "description": "Wardrobe (kıyafet) yönetimi.",
         "input_schema": {

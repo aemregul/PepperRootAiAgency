@@ -128,7 +128,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 | Düzenleme | edit_image, outpaint_image, upscale_image, remove_background |
 | Video düzenleme | edit_video (görsel), advanced_edit_video (trim/efekt/yazı) |
 | Ses | generate_music, add_audio_to_video (FFmpeg birleştirme), audio_visual_sync |
-| Entity | create_character, create_location, create_brand, get_entity, list_entities, delete_entity |
+| Entity | create_character, create_location, create_brand, get_entity, list_entities, delete_entity, update_entity |
 | Araştırma | search_web, search_images, browse_url, research_brand |
 | Otonom | plan_and_execute (çoklu çıktılı kampanya) |
 | Preset | manage_plugin |
@@ -1551,6 +1551,15 @@ Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
             messages.append({"role": "assistant", "content": confirmation})
             return
         
+        # Entity güncelleme başarılı → deterministic yanıt, LLM'yi atla
+        if last_tool_name == "update_entity" and tool_result.get("success"):
+            msg = tool_result.get("message", "Entity güncellendi!")
+            print(f"✅ ENTITY UPDATED (stream): skipping final LLM.")
+            result["_skip_final_llm"] = True
+            result["_final_text"] = f"✅ **{msg}**"
+            messages.append({"role": "assistant", "content": f"✅ **{msg}**"})
+            return
+        
         # manage_plugin başarılı + deterministik mesaj varsa, LLM'yi atla
         if last_tool_name == "manage_plugin" and tool_result.get("_deterministic") and tool_result.get("success"):
             print("✅ MANAGE_PLUGIN SUCCESS (stream): Deterministic response, skipping final LLM.")
@@ -2006,6 +2015,10 @@ Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
                 if tool_result.get("success") and tool_result.get("entity"):
                     result["entities_created"].append(tool_result["entity"])
                 
+                # Entity güncellendiyse sidebar refresh
+                if tool_result.get("success") and tool_name == "update_entity" and tool_result.get("entity"):
+                    result["entities_created"].append(tool_result["entity"])
+                
                 # Preset oluşturulduğunda sidebar refresh tetikle
                 if tool_result.get("success") and tool_name == "manage_plugin" and tool_args.get("action") == "create":
                     result["entities_created"].append({"type": "preset", "name": tool_result.get("name", "Preset")})
@@ -2457,6 +2470,9 @@ Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
         
         elif tool_name == "delete_entity":
             return await self._delete_entity(db, session_id, tool_input)
+        
+        elif tool_name == "update_entity":
+            return await self._update_entity(db, session_id, tool_input)
         
         elif tool_name == "manage_trash":
             return await self._manage_trash(db, session_id, tool_input)
@@ -5862,6 +5878,77 @@ Konuşma:
             entity.is_deleted = True
             await db.commit()
             return {"success": True, "message": f"{entity.name} çöp kutusuna taşındı."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _update_entity(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Entity adını veya açıklamasını güncelle."""
+        try:
+            from app.services.entity_service import entity_service, slugify
+            
+            entity_tag = params.get("entity_tag", "").strip()
+            new_name = params.get("new_name", "").strip()
+            new_description = params.get("new_description", "").strip()
+            
+            if not entity_tag:
+                return {"success": False, "error": "Entity tag gerekli."}
+            
+            if not new_name and not new_description:
+                return {"success": False, "error": "Yeni isim veya açıklama gerekli."}
+            
+            # Session'dan user_id al
+            user_id = await get_user_id_from_session(db, session_id)
+            if not user_id:
+                return {"success": False, "error": "Kullanıcı bulunamadı."}
+            
+            # Mevcut entity'yi bul
+            entity = await entity_service.get_by_tag(db, user_id, entity_tag)
+            if not entity:
+                return {"success": False, "error": f"'{entity_tag}' bulunamadı."}
+            
+            old_name = entity.name
+            old_tag = entity.tag
+            updates = {}
+            
+            # İsim değişikliği → tag de güncellenir
+            if new_name:
+                new_tag = f"@{slugify(new_name)}"
+                
+                # Aynı tag zaten var mı kontrol et
+                if new_tag != old_tag:
+                    existing = await entity_service.get_by_tag(db, user_id, new_tag)
+                    if existing:
+                        return {"success": False, "error": f"'{new_tag}' tag'i zaten kullanılıyor."}
+                
+                updates["name"] = new_name
+                updates["tag"] = new_tag
+            
+            if new_description:
+                updates["description"] = new_description
+            
+            # Güncelle
+            updated = await entity_service.update_entity(db, entity.id, **updates)
+            if not updated:
+                return {"success": False, "error": "Güncelleme başarısız."}
+            
+            # Deterministic yanıt
+            result_parts = []
+            if new_name:
+                result_parts.append(f"✏️ İsim: {old_name} → {updated.name}")
+                result_parts.append(f"🏷️ Tag: {old_tag} → {updated.tag}")
+            if new_description:
+                result_parts.append(f"📝 Açıklama güncellendi")
+            
+            return {
+                "success": True,
+                "message": f"{updated.entity_type.title()} güncellendi!\n\n" + "\n\n".join(result_parts),
+                "entity": {
+                    "name": updated.name,
+                    "tag": updated.tag,
+                    "type": updated.entity_type,
+                    "description": updated.description
+                }
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
     
