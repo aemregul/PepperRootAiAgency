@@ -599,6 +599,7 @@ class FalPluginV2(PluginBase):
                         "num_images": 1,
                         "output_format": "png",
                     }
+                    logger.info(f"   📋 NB2 Arguments: {arguments}")
                 # FLUX 2 Flex farklı parametre yapısı kullanır
                 elif "flux-2" in model_id:
                     arguments = {
@@ -625,6 +626,8 @@ class FalPluginV2(PluginBase):
                     with_logs=True,
                 )
                 
+                logger.info(f"   📦 Sonuç keys: {list(result.keys()) if result else 'None'}")
+                
                 if result and "images" in result and len(result["images"]) > 0:
                     logger.info(f"✅ Görsel üretildi: {model_id}")
                     response = {
@@ -636,10 +639,12 @@ class FalPluginV2(PluginBase):
                     if disabled_warning:
                         response["disabled_model_warning"] = disabled_warning
                     return response
+                else:
+                    logger.warning(f"⚠️ {model_id} sonuç döndü ama images yok: {str(result)[:200]}")
                     
             except Exception as e:
                 last_error = str(e)
-                logger.warning(f"⚠️ {model_id} başarısız: {e}. Sonraki model deneniyor...")
+                logger.warning(f"⚠️ {model_id} başarısız: {type(e).__name__}: {e}. Sonraki model deneniyor...")
                 continue
         
         return {"success": False, "error": f"Tüm modeller başarısız. Son hata: {last_error}"}
