@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
 
 import { Send, Paperclip, Loader2, MoreHorizontal, ChevronDown, AlertCircle, Sparkles, X, ZoomIn, Download, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useToast } from "./ToastProvider";
@@ -81,6 +82,121 @@ function mapApiMessageToChatMessage(msg: ApiMessageResponse): Message {
 }
 
 
+
+// Markdown renderer for assistant messages — renders bold, italic, headings, lists, code, etc.
+function MarkdownContent({ content, onImageClick }: { content: string; onImageClick?: (url: string) => void }) {
+    // Memoize components to avoid re-renders
+    const components = useMemo(() => ({
+        // Headings
+        h1: ({ children, ...props }: React.ComponentPropsWithRef<'h1'>) => (
+            <h3 className="text-base font-bold mt-3 mb-1.5" {...props}>{children}</h3>
+        ),
+        h2: ({ children, ...props }: React.ComponentPropsWithRef<'h2'>) => (
+            <h4 className="text-[15px] font-bold mt-2.5 mb-1" {...props}>{children}</h4>
+        ),
+        h3: ({ children, ...props }: React.ComponentPropsWithRef<'h3'>) => (
+            <h5 className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h5>
+        ),
+        // Paragraphs
+        p: ({ children, ...props }: React.ComponentPropsWithRef<'p'>) => (
+            <p className="mb-1.5 last:mb-0 leading-relaxed" {...props}>{children}</p>
+        ),
+        // Bold
+        strong: ({ children, ...props }: React.ComponentPropsWithRef<'strong'>) => (
+            <strong className="font-semibold" {...props}>{children}</strong>
+        ),
+        // Lists
+        ul: ({ children, ...props }: React.ComponentPropsWithRef<'ul'>) => (
+            <ul className="list-disc list-outside ml-4 mb-1.5 space-y-0.5" {...props}>{children}</ul>
+        ),
+        ol: ({ children, ...props }: React.ComponentPropsWithRef<'ol'>) => (
+            <ol className="list-decimal list-outside ml-4 mb-1.5 space-y-0.5" {...props}>{children}</ol>
+        ),
+        li: ({ children, ...props }: React.ComponentPropsWithRef<'li'>) => (
+            <li className="leading-relaxed" {...props}>{children}</li>
+        ),
+        // Code
+        code: ({ children, className, ...props }: React.ComponentPropsWithRef<'code'> & { className?: string }) => {
+            const isInline = !className;
+            return isInline ? (
+                <code className="bg-white/10 px-1.5 py-0.5 rounded text-[13px] font-mono" {...props}>{children}</code>
+            ) : (
+                <code className={`block bg-white/5 rounded-lg p-3 text-[13px] font-mono overflow-x-auto my-1.5 ${className || ''}`} {...props}>{children}</code>
+            );
+        },
+        pre: ({ children, ...props }: React.ComponentPropsWithRef<'pre'>) => (
+            <pre className="bg-white/5 rounded-lg p-3 overflow-x-auto my-1.5" {...props}>{children}</pre>
+        ),
+        // Links
+        a: ({ href, children, ...props }: React.ComponentPropsWithRef<'a'>) => {
+            if (!href) return <span {...props}>{children}</span>;
+            // Video link
+            if (href.match(/\.(mp4|mov|webm)(\?.*)?$/i)) {
+                return (
+                    <div className="mt-2 mb-2">
+                        <video src={`${href}#t=0.1`} controls playsInline muted preload="metadata"
+                            className="rounded-lg max-w-full max-h-80 border border-[var(--border)] bg-black/10" />
+                    </div>
+                );
+            }
+            // Audio link
+            if (href.match(/\.(wav|mp3|ogg|aac|flac)(\?.*)?$/i)) {
+                return (
+                    <div className="mt-2 mb-2 rounded-2xl overflow-hidden" style={{ maxWidth: '360px' }}>
+                        <div className="bg-gradient-to-br from-emerald-900/60 via-[#1a1a2e] to-purple-900/50 p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                                <span className="text-xl">🎵</span>
+                                <span className="text-sm font-medium text-white">{children || 'Müzik'}</span>
+                            </div>
+                            <audio src={href} controls preload="none" className="w-full rounded-lg" style={{ height: '36px' }} />
+                        </div>
+                    </div>
+                );
+            }
+            // Image link
+            if (href.match(/\.(png|jpg|jpeg|webp|gif|bmp|svg)(\?.*)?$/i)) {
+                return (
+                    <img src={href} alt={String(children) || 'Görsel'}
+                        className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 transition-all border border-white/10"
+                        onClick={() => onImageClick ? onImageClick(href) : window.open(href, '_blank')}
+                        loading="lazy" />
+                );
+            }
+            // Normal link
+            return (
+                <a href={href} target="_blank" rel="noopener noreferrer"
+                    className="text-[var(--accent)] underline hover:opacity-80" {...props}>{children}</a>
+            );
+        },
+        // Images
+        img: ({ src, alt, ...props }: React.ComponentPropsWithRef<'img'>) => (
+            <img src={src as string} alt={alt || 'Görsel'}
+                className="mt-2 mb-2 rounded-xl max-w-[280px] max-h-[280px] object-cover cursor-pointer hover:opacity-90 transition-all border border-white/10"
+                onClick={() => src && (onImageClick ? onImageClick(src as string) : window.open(src as string, '_blank'))}
+                loading="lazy" {...props} />
+        ),
+        // Blockquote
+        blockquote: ({ children, ...props }: React.ComponentPropsWithRef<'blockquote'>) => (
+            <blockquote className="border-l-2 border-[var(--accent)] pl-3 my-1.5 opacity-80" {...props}>{children}</blockquote>
+        ),
+        // Horizontal rule
+        hr: (props: React.ComponentPropsWithRef<'hr'>) => (
+            <hr className="border-white/10 my-2" {...props} />
+        ),
+    }), [onImageClick]);
+
+    // Pre-process content: convert @mentions to styled spans (react-markdown won't handle custom @tag syntax)
+    const processedContent = useMemo(() => {
+        if (!content) return '';
+        return content;
+    }, [content]);
+
+    return (
+        <div className="markdown-content">
+            <ReactMarkdown components={components}>{processedContent}</ReactMarkdown>
+        </div>
+    );
+}
 
 // Helper to render @mentions, markdown images, links, and VIDEOS
 function renderContent(content: string | undefined | null, onImageClick?: (url: string) => void) {
@@ -1535,8 +1651,8 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                             });
                                             return displayContent ? (
                                                 <div className="message-bubble message-ai">
-                                                    <div className="text-sm lg:text-[15px] leading-relaxed whitespace-pre-wrap">
-                                                        {renderContent(displayContent, setLightboxImage)}
+                                                    <div className="text-sm lg:text-[15px] leading-relaxed">
+                                                        <MarkdownContent content={displayContent} onImageClick={setLightboxImage} />
                                                     </div>
                                                 </div>
                                             ) : null;
