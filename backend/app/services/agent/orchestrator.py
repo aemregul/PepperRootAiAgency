@@ -2136,6 +2136,29 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 print(f"   📎 AUTO-RESOLVED session video reference into {tool_name}")
         
         if tool_name == "generate_image":
+            # 🔍 KULLANICI MESAJINDAN MODEL TESPİTİ — LLM'in hatalı seçimini override et
+            if user_message:
+                msg_lower = user_message.lower()
+                # Sıralama ÖNEMLİ: daha spesifik isimler önce kontrol edilmeli
+                user_model_overrides = [
+                    (["nano banana 2", "nanobana 2", "nano-banana-2", "nb2"], "nano_banana_2"),
+                    (["flux 2 max", "flux2 max", "flux-2-max"], "flux2_max"),
+                    (["flux 2", "flux2", "flux-2"], "flux2"),
+                    (["gpt image", "gpt-image", "chatgpt"], "gpt_image"),
+                    (["recraft", "logo modeli"], "recraft"),
+                    (["reve", "rêve"], "reve"),
+                    (["seedream"], "seedream"),
+                    (["grok"], "grok_imagine"),
+                    (["nano banana pro", "nano banana", "nanobana"], "nano_banana"),
+                ]
+                for keywords, shortcode in user_model_overrides:
+                    if any(kw in msg_lower for kw in keywords):
+                        current = tool_input.get("model", "auto")
+                        if current != shortcode:
+                            print(f"   🔄 MODEL OVERRIDE: Kullanıcı mesajından '{shortcode}' tespit edildi (LLM seçimi: '{current}')")
+                            tool_input["model"] = shortcode
+                        break
+            
             return await self._generate_image(
                 db, session_id, tool_input, resolved_entities or [],
                 uploaded_reference_url=uploaded_reference_url
