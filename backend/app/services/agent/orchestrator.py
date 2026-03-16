@@ -1556,8 +1556,8 @@ Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
             msg = tool_result.get("message", "Entity güncellendi!")
             print(f"✅ ENTITY UPDATED (stream): skipping final LLM.")
             result["_skip_final_llm"] = True
-            result["_final_text"] = f"✅ **{msg}**"
-            messages.append({"role": "assistant", "content": f"✅ **{msg}**"})
+            result["_final_text"] = f"✅ {msg}"
+            messages.append({"role": "assistant", "content": f"✅ {msg}"})
             return
         
         # manage_plugin başarılı + deterministik mesaj varsa, LLM'yi atla
