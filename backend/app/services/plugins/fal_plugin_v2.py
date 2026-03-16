@@ -579,10 +579,10 @@ class FalPluginV2(PluginBase):
         # Smart Model Router: Agent seçimi veya prompt analizi
         selected_model, disabled_warning = await self._select_image_model(prompt, agent_model=preferred_model)
         
-        # Auto-Retry Fallback zinciri oluştur
+        # Auto-Retry Fallback zinciri oluştur — SADECE enabled modeller
         models_to_try = [selected_model]
         for m in self.IMAGE_MODEL_CHAIN:
-            if m not in models_to_try:
+            if m not in models_to_try and await self.is_model_enabled(m):
                 models_to_try.append(m)
         
         last_error = None
@@ -590,8 +590,17 @@ class FalPluginV2(PluginBase):
             try:
                 logger.info(f"🖼️ Görsel üretim deneniyor: {model_id}")
                 
+                # Nano Banana 2 (Gemini tabanlı) — farklı parametre yapısı
+                if "nano-banana-2" in model_id:
+                    arguments = {
+                        "prompt": prompt,
+                        "aspect_ratio": aspect_ratio,
+                        "resolution": resolution or "1K",
+                        "num_images": 1,
+                        "output_format": "png",
+                    }
                 # FLUX 2 Flex farklı parametre yapısı kullanır
-                if "flux-2" in model_id:
+                elif "flux-2" in model_id:
                     arguments = {
                         "prompt": prompt,
                         "image_size": image_size,
