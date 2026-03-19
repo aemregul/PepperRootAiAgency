@@ -14,12 +14,14 @@ import {
     Sparkles,
     PenLine,
     ArrowRight,
+    MessageSquarePlus,
 } from "lucide-react";
 import { generateGrid as apiGenerateGrid } from "@/lib/api";
 
 interface GridGeneratorModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSendToChat?: (imageUrl: string) => void;
 }
 
 type ModeTop = "angles" | "storyboard";
@@ -27,7 +29,7 @@ type Aspect = "16:9" | "9:16" | "1:1";
 type PromptMode = "auto" | "custom";
 type Scale = 1 | 2 | 4;
 
-export function GridGeneratorModal({ isOpen, onClose }: GridGeneratorModalProps) {
+export function GridGeneratorModal({ isOpen, onClose, onSendToChat }: GridGeneratorModalProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Core states
@@ -187,6 +189,17 @@ Cinematic storyboard quality, consistent character.`;
 
             if (data.success && data.gridImage) {
                 if (progressInterval) clearInterval(progressInterval);
+                setLoadingProgress(90);
+                setLoadingStatus("GÖRSEL YÜKLENİYOR...");
+
+                // Görseli tarayıcıda preload et — yüklenene kadar loading devam eder
+                await new Promise<void>((resolve) => {
+                    const img = new window.Image();
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve(); // Hata olsa da devam et
+                    img.src = data.gridImage!;
+                });
+
                 setLoadingProgress(100);
                 setLoadingStatus("TAMAMLANDI!");
                 setGridImage(data.gridImage);
@@ -212,68 +225,87 @@ Cinematic storyboard quality, consistent character.`;
             throw new Error("No grid image");
         }
 
-        let imageToUse = gridImage;
+        const loadImage = (src: string, useCors: boolean): Promise<HTMLImageElement> => {
+            return new Promise((resolve, reject) => {
+                const img = new window.Image();
+                if (useCors) img.crossOrigin = "anonymous";
 
-        if (!gridImage.startsWith("data:")) {
-            try {
-                const response = await fetch(gridImage);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    imageToUse = await new Promise<string>((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result as string);
-                        reader.readAsDataURL(blob);
-                    });
-                }
-            } catch (error) {
-                console.error("Failed to fetch image:", error);
-                throw new Error("Image load failed");
-            }
+                const timeout = setTimeout(() => reject(new Error("Timeout")), 10000);
+                img.onload = () => { clearTimeout(timeout); resolve(img); };
+                img.onerror = () => { clearTimeout(timeout); reject(new Error("Load failed")); };
+                img.src = src;
+            });
+        };
+
+        const cropFromImage = (img: HTMLImageElement): string => {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("Canvas context error");
+
+            const cellWidth = img.width / 3;
+            const cellHeight = img.height / 3;
+            const col = cellIndex % 3;
+            const row = Math.floor(cellIndex / 3);
+
+            canvas.width = cellWidth * scale;
+            canvas.height = cellHeight * scale;
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(img, col * cellWidth, row * cellHeight, cellWidth, cellHeight, 0, 0, cellWidth * scale, cellHeight * scale);
+            return canvas.toDataURL("image/png");
+        };
+
+        // Data URL ise direkt kullan (en hızlı)
+        if (gridImage.startsWith("data:")) {
+            const img = await loadImage(gridImage, false);
+            return cropFromImage(img);
         }
 
-        return new Promise((resolve, reject) => {
-            const img = new window.Image();
-            img.crossOrigin = "anonymous";
+        // Strateji 1: Browser cache'ten Image + CORS (en hızlı — görsel zaten yüklü)
+        try {
+            const img = await loadImage(gridImage, true);
+            return cropFromImage(img);
+        } catch {
+            console.warn("Direct CORS load failed, trying fetch...");
+        }
 
-            img.onload = () => {
-                const canvas = document.createElement("canvas");
-                const ctx = canvas.getContext("2d");
+        // Strateji 2: fetch → blob → data URL (CORS sorununu aşar)
+        try {
+            const response = await fetch(gridImage);
+            if (response.ok) {
+                const blob = await response.blob();
+                const dataUrl = await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(blob);
+                });
+                const img = await loadImage(dataUrl, false);
+                return cropFromImage(img);
+            }
+        } catch {
+            console.warn("Fetch strategy failed, trying no-CORS...");
+        }
 
-                if (!ctx) {
-                    reject(new Error("Canvas context error"));
-                    return;
-                }
-
-                const cellWidth = img.width / 3;
-                const cellHeight = img.height / 3;
-
-                const col = cellIndex % 3;
-                const row = Math.floor(cellIndex / 3);
-
-                canvas.width = cellWidth * scale;
-                canvas.height = cellHeight * scale;
-
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = "high";
-
-                ctx.drawImage(
-                    img,
-                    col * cellWidth,
-                    row * cellHeight,
-                    cellWidth,
-                    cellHeight,
-                    0,
-                    0,
-                    cellWidth * scale,
-                    cellHeight * scale
-                );
-
-                resolve(canvas.toDataURL("image/png"));
-            };
-
-            img.onerror = () => reject(new Error("Image load failed"));
-            img.src = imageToUse;
-        });
+        // Strateji 3: CORS olmadan + backend proxy fallback
+        try {
+            const img = await loadImage(gridImage, false);
+            return cropFromImage(img);
+        } catch {
+            // Son çare: Backend proxy
+            const proxyUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/proxy-image?url=${encodeURIComponent(gridImage)}`;
+            const proxyResponse = await fetch(proxyUrl);
+            if (proxyResponse.ok) {
+                const blob = await proxyResponse.blob();
+                const dataUrl = await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(blob);
+                });
+                const img = await loadImage(dataUrl, false);
+                return cropFromImage(img);
+            }
+            throw new Error("Görsel çıkarma başarısız — lütfen tekrar deneyin");
+        }
     };
 
     // ============================================
@@ -285,7 +317,8 @@ Cinematic storyboard quality, consistent character.`;
         setExtracting(true);
         setError(null);
 
-        const initialImages = selected.map((index) => ({
+        const cellsToExtract = [...selected];
+        const initialImages = cellsToExtract.map((index) => ({
             index,
             url: "",
             status: "extracting" as const,
@@ -293,8 +326,8 @@ Cinematic storyboard quality, consistent character.`;
         setExtractedImages((prev) => [...prev, ...initialImages]);
 
         try {
-            for (let i = 0; i < selected.length; i++) {
-                const cellIndex = selected[i];
+            for (let i = 0; i < cellsToExtract.length; i++) {
+                const cellIndex = cellsToExtract[i];
                 const croppedImage = await cropGridCell(cellIndex);
 
                 if (scale > 1) {
@@ -313,6 +346,10 @@ Cinematic storyboard quality, consistent character.`;
         } catch (err) {
             console.error("Extract error:", err);
             setError(err instanceof Error ? err.message : "Çıkarma başarısız oldu");
+            // Hata durumunda stuck "extracting" öğeleri temizle
+            setExtractedImages((prev) =>
+                prev.filter((img) => img.status !== "extracting")
+            );
         } finally {
             setExtracting(false);
         }
@@ -810,6 +847,18 @@ Cinematic storyboard quality, consistent character.`;
 
                                         {img.status === "ready" && (
                                             <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                                {onSendToChat && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onSendToChat(img.url);
+                                                        }}
+                                                        className="w-10 h-10 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center transition-all hover:scale-110"
+                                                        title="Chat'e Gönder"
+                                                    >
+                                                        <MessageSquarePlus size={16} className="text-black" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();

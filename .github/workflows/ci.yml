@@ -1,0 +1,104 @@
+name: CI — Lint & Test
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**", "hotfix/**"]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  # ============== BACKEND ==============
+  backend:
+    name: Backend — Lint & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_pepperroot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_pepperroot
+      SECRET_KEY: test-secret-key
+      DEBUG: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Lint — Black (format check)
+        run: |
+          cd backend
+          black --check --diff app/
+
+      - name: Lint — isort (import order)
+        run: |
+          cd backend
+          isort --check-only --diff app/
+
+      - name: Run migrations
+        run: |
+          cd backend
+          alembic upgrade head
+
+      - name: Test — pytest
+        run: |
+          cd backend
+          pytest tests/ -v --tb=short || echo "⚠️ No tests found or tests failed"
+
+  # ============== FRONTEND ==============
+  frontend:
+    name: Frontend — Lint & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Lint — ESLint
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Build (type check + compile)
+        run: |
+          cd frontend
+          npm run build

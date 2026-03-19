@@ -1,0 +1,145 @@
+# ============================================================
+# Pepper Root AI Agency — Proje Konfigürasyonu
+# ============================================================
+# Bu dosya yapısal ayarları tutar.
+# Hassas bilgiler (API key, secret) buraya KONMAZ → .env dosyalarında
+# ============================================================
+
+app:
+  name: "Pepper Root AI Agency"
+  version: "1.0.0"
+  description: "Agent-first AI yaratıcı stüdyo"
+  debug: false
+
+# ============== BACKEND ==============
+backend:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+  reload: true  # development'ta true, production'da false
+  cors:
+    allowed_origins:
+      - "http://localhost:3000"
+      - "https://pepper-root-ai-agency.vercel.app"
+    allow_credentials: true
+    allow_methods: ["*"]
+    allow_headers: ["*"]
+
+# ============== FRONTEND ==============
+frontend:
+  port: 3000
+  api_url: "http://localhost:8000"  # .env.local override eder
+
+# ============== DATABASE ==============
+database:
+  local:
+    driver: "postgresql+asyncpg"
+    host: "localhost"
+    port: 5432
+    name: "pepper_root"
+    user: "pepper_root"
+    # password → .env dosyasından
+  docker:
+    container: "pepper_root_db"
+    image: "postgres:15-alpine"
+  migration:
+    tool: "alembic"
+    auto_upgrade: true  # Railway startup'ta otomatik çalışır
+
+# ============== REDIS ==============
+redis:
+  enabled: true
+  host: "localhost"
+  port: 6379
+  db: 0
+  max_memory: "256mb"
+  eviction_policy: "allkeys-lru"
+  docker:
+    container: "pepper_root_redis"
+    image: "redis:7-alpine"
+
+# ============== AI MODELLER ==============
+ai_models:
+  primary_llm: "gpt-4o"
+
+  image_generation:
+    default: "nano-banana-pro"
+    available:
+      - "nano-banana-pro"
+      - "nano-banana-2"
+      - "flux-2"
+      - "flux-2-max"
+      - "gpt-image-1"
+      - "reve"
+      - "seedream-4-5"
+      - "recraft-v3"
+      - "grok-imagine-1"
+
+  image_editing:
+    default: "flux-kontext"
+    available:
+      - "flux-kontext"
+      - "flux-kontext-pro"
+      - "omnigen-v1"
+      - "flux-inpainting"
+      - "object-removal"
+      - "outpainting"
+      - "nano-banana-2-edit"
+
+  video:
+    default: "kling-3-0-pro"
+    available:
+      - "kling-3-0-pro"
+      - "sora-2-pro"
+      - "veo-3-1-fast"
+      - "veo-3-1-quality"
+      - "veo-3-1-google-sdk"
+      - "seedance-1-5"
+      - "hailuo-02"
+      - "grok-imagine-video"
+
+  audio:
+    available:
+      - "elevenlabs-tts"
+      - "elevenlabs-sfx"
+      - "whisper-stt"
+      - "stable-audio"
+
+  tools:
+    available:
+      - "face-swap"
+      - "topaz-upscale"
+      - "background-removal"
+      - "style-transfer"
+
+# ============== DEPLOYMENT ==============
+deployment:
+  backend:
+    platform: "railway"
+    builder: "nixpacks"
+    start_command: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+    health_endpoint: "/api/health"
+    url: "https://pepperrootaiagency-production.up.railway.app"
+
+  frontend:
+    platform: "vercel"
+    framework: "nextjs"
+    url: "https://pepper-root-ai-agency.vercel.app"
+
+# ============== LİMİTLER ==============
+limits:
+  max_upload_size_mb: 50
+  max_images_per_message: 10
+  max_video_duration_short_sec: 10
+  max_video_duration_long_sec: 180
+  max_batch_generation: 9
+  max_grid_size: "4x4"
+  agent_max_iterations: 3  # agentic loop guard
+
+# ============== AUTH ==============
+auth:
+  provider: "google-oauth-2.0"
+  jwt:
+    algorithm: "HS256"
+    expire_minutes: 10080  # 7 gün
+  # client_id, client_secret → .env dosyasından

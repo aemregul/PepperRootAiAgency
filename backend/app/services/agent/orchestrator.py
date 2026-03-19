@@ -128,7 +128,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 | Düzenleme | edit_image, outpaint_image, upscale_image, remove_background |
 | Video düzenleme | edit_video (görsel), advanced_edit_video (trim/efekt/yazı) |
 | Ses | generate_music, add_audio_to_video (FFmpeg birleştirme), audio_visual_sync |
-| Entity | create_character, create_location, create_brand, get_entity, list_entities, delete_entity |
+| Entity | create_character, create_location, create_brand, get_entity, list_entities, delete_entity, update_entity |
 | Araştırma | search_web, search_images, browse_url, research_brand |
 | Otonom | plan_and_execute (çoklu çıktılı kampanya) |
 | Preset | manage_plugin |
@@ -164,6 +164,34 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 - HİÇ AÇIKLAMA YAPMA, doğrudan generate_image tool'unu çağır
 - Preset'teki stil, sahne detayları ve karakter/lokasyon bilgilerini prompt'a dahil et
 - Kısaca "Preset uygulanıyor..." gibi kısa bir mesaj yaz, uzun açıklama YAPMA
+
+## 📐 SOSYAL MEDYA FORMAT KURALLARI
+Kullanıcı sosyal medya formatı belirttiğinde DOĞRU aspect_ratio kullan:
+| Format | aspect_ratio | Kullanım |
+|---|---|---|
+| Instagram Story / Reel | 9:16 | "hikaye", "story", "reel", "dikey" |
+| Instagram Post (Kare) | 1:1 | "post", "paylaşım", "kare" |
+| Instagram Post (Dikey) | 4:5 | "instagram dikey", "portre post" |
+| Facebook/YouTube Kapak | 16:9 | "kapak", "cover", "banner", "thumbnail" |
+| Twitter/X Header | 21:9 | "twitter header", "x banner" |
+| LinkedIn Banner | 21:9 | "linkedin banner" |
+| TikTok | 9:16 | "tiktok" |
+⚠️ Format belirtilmezse varsayılan 1:1 kullan.
+
+## 🎨 REKLAM & KUTLAMA GÖRSELİ REHBERİ
+Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
+1. **Metin tespit:** Görselde yazı/mesaj/slogan olacaksa TEXT-CAPABLE model seç: `flux2`, `grok_imagine`, `nano_banana_2`. DİĞER modeller metin render edemez!
+2. **Prompt zenginleştir:** Profesyonel grafik tasarım kalitesinde prompt yaz:
+   - Tipografi vurgusu (elegant font, bold typography, centered text layout)
+   - Mevsimsel/kültürel elementler (bayram için hilal/cami/koyun, yılbaşı için kar/çam/ışıklar)
+   - Renk uyumu (gold+green İslami bayramlar, red+green Noel, pastel tonlar bahar)
+   - Layout (üstte metin alanı, altta görsel, veya overlay text on background)
+3. **Bayram/Kutlama anahtar kelimeleri:** kurban, ramazan, bayram, kandil, yılbaşı, noel, christmas, easter, nevruz, 23 nisan, 29 ekim, anneler günü, babalar günü, sevgililer günü, doğum günü
+4. **Marka entity aktifse:** Marka renklerini, tonunu ve logosunu görsele entegre et.
+5. **Metin dili:** Görselde yazacak metni KULLANICININ DİLİNDE bırak! Türkçe istek → Türkçe metin. ASLA çevirme!
+   - ✅ DOĞRU: text saying "Kurban Bayramınız Kutlu Olsun"
+   - ❌ YANLIŞ: text saying "Eid al-Adha Mubarak" (kullanıcı Türkçe istedi!)
+6. **Örnek prompt yapısı:** "Professional holiday greeting card design with elegant gold typography saying 'Kurban Bayramınız Kutlu Olsun' centered on a warm toned background featuring subtle Islamic geometric patterns, crescent moon, and mosque silhouette. Premium graphic design quality, clean layout with balanced composition."
 
 ## YANITLAR
 - Doğal, kısa ve bağlamsal konuş. Hangi model kullandığını belirt.
@@ -1523,6 +1551,15 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
             messages.append({"role": "assistant", "content": confirmation})
             return
         
+        # Entity güncelleme başarılı → deterministic yanıt, LLM'yi atla
+        if last_tool_name == "update_entity" and tool_result.get("success"):
+            msg = tool_result.get("message", "Entity güncellendi!")
+            print(f"✅ ENTITY UPDATED (stream): skipping final LLM.")
+            result["_skip_final_llm"] = True
+            result["_final_text"] = f"✅ {msg}"
+            messages.append({"role": "assistant", "content": f"✅ {msg}"})
+            return
+        
         # manage_plugin başarılı + deterministik mesaj varsa, LLM'yi atla
         if last_tool_name == "manage_plugin" and tool_result.get("_deterministic") and tool_result.get("success"):
             print("✅ MANAGE_PLUGIN SUCCESS (stream): Deterministic response, skipping final LLM.")
@@ -1978,6 +2015,10 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
                 if tool_result.get("success") and tool_result.get("entity"):
                     result["entities_created"].append(tool_result["entity"])
                 
+                # Entity güncellendiyse sidebar refresh
+                if tool_result.get("success") and tool_name == "update_entity" and tool_result.get("entity"):
+                    result["entities_created"].append(tool_result["entity"])
+                
                 # Preset oluşturulduğunda sidebar refresh tetikle
                 if tool_result.get("success") and tool_name == "manage_plugin" and tool_args.get("action") == "create":
                     result["entities_created"].append({"type": "preset", "name": tool_result.get("name", "Preset")})
@@ -2429,6 +2470,9 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
         
         elif tool_name == "delete_entity":
             return await self._delete_entity(db, session_id, tool_input)
+        
+        elif tool_name == "update_entity":
+            return await self._update_entity(db, session_id, tool_input)
         
         elif tool_name == "manage_trash":
             return await self._manage_trash(db, session_id, tool_input)
@@ -5065,9 +5109,32 @@ Konuşma:
     # GÖRSEL MUHAKEME METODLARI
     # ===============================
     
+    # Sosyal medya / reklam / kutlama tespit kelimeleri
+    _SOCIAL_MEDIA_KEYWORDS = {
+        "instagram", "story", "hikaye", "reel", "post", "paylaşım", "tiktok",
+        "facebook", "kapak", "cover", "banner", "thumbnail", "afiş", "poster",
+        "reklam", "kampanya", "sosyal medya", "social media",
+    }
+    _HOLIDAY_KEYWORDS = {
+        "bayram", "kurban", "ramazan", "kandil", "yılbaşı", "noel", "christmas",
+        "easter", "nevruz", "23 nisan", "29 ekim", "19 mayıs", "30 ağustos",
+        "anneler günü", "babalar günü", "sevgililer günü", "doğum günü",
+        "kutlama", "tebrik", "mesaj", "greeting", "holiday", "celebration",
+    }
+
+    def _is_social_media_or_ad_prompt(self, prompt: str) -> bool:
+        """Prompt'un sosyal medya / reklam / kutlama görseli olup olmadığını tespit et."""
+        lower = prompt.lower()
+        return (
+            any(kw in lower for kw in self._SOCIAL_MEDIA_KEYWORDS)
+            or any(kw in lower for kw in self._HOLIDAY_KEYWORDS)
+        )
+
     async def _enrich_prompt(self, prompt: str, media_type: str = "image") -> str:
         """
-        Kısa/belirsiz promptları sinematik detaylı hale getir.
+        Kısa/belirsiz promptları detaylı hale getir.
+        Sosyal medya / reklam / kutlama promptları → grafik tasarım enrichment.
+        Diğer promptlar → sinematik enrichment.
         Sadece 100 karakterden kısa promptlarda tetiklenir.
         """
         if not prompt or len(prompt) > 100:
@@ -5076,16 +5143,34 @@ Konuşma:
         try:
             type_context = "görsel" if media_type == "image" else "video"
             
+            # Sosyal medya / reklam / kutlama bağlamı
+            if self._is_social_media_or_ad_prompt(prompt):
+                system_msg = (
+                    "Sen bir profesyonel grafik tasarımcısın. Verilen kısa prompt'u "
+                    "sosyal medya / reklam / kutlama görseli için zenginleştir. "
+                    "Ekle: profesyonel tipografi (elegant font, bold text, centered layout), "
+                    "renk uyumu, mevsimsel/kültürel dekoratif elementler, "
+                    "clean composition, premium grafik tasarım kalitesi. "
+                    "KRİTİK KURAL: Görselde yazılması gereken metin varsa 'text saying \"...\"' formatında belirt "
+                    "ve metni KULLANICININ ORİJİNAL DİLİNDE bırak! Türkçe istek → Türkçe metin. ASLA İngilizceye çevirme! "
+                    "Örnek: 'Kurban Bayramı' → text saying \"Kurban Bayramınız Kutlu Olsun\" (İngilizce DEĞİL). "
+                    "Sahne açıklamasını İngilizce yaz ama görseldeki metin orijinal dilde kalsın. Max 3 cümle."
+                )
+            else:
+                system_msg = (
+                    f"Sen bir sinematik prompt mühendisisin. Verilen kısa {type_context} "
+                    "promptunu zenginleştir: ışık, atmosfer, kamera açısı, renk paleti, "
+                    "detaylar ekle. Orijinal anlamı koru, sadece detay ekle. "
+                    "Cevabın SADECE zenginleştirilmiş İngilizce prompt olsun, başka açıklama yazma. Max 2 cümle."
+                )
+            
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": f"Sen bir sinematik prompt mühendisisin. Verilen kısa {type_context} promptunu zenginleştir: ışık, atmosfer, kamera açısı, renk paleti, detaylar ekle. Orijinal anlamı koru, sadece detay ekle. Cevabın SADECE zenginleştirilmiş İngilizce prompt olsun, başka açıklama yazma. Max 2 cümle."
-                    },
+                    {"role": "system", "content": system_msg},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=150
+                max_tokens=200
             )
             
             enriched = response.choices[0].message.content.strip()
@@ -5793,6 +5878,77 @@ Konuşma:
             entity.is_deleted = True
             await db.commit()
             return {"success": True, "message": f"{entity.name} çöp kutusuna taşındı."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _update_entity(self, db: AsyncSession, session_id: uuid.UUID, params: dict) -> dict:
+        """Entity adını veya açıklamasını güncelle."""
+        try:
+            from app.services.entity_service import entity_service, slugify
+            
+            entity_tag = params.get("entity_tag", "").strip()
+            new_name = params.get("new_name", "").strip()
+            new_description = params.get("new_description", "").strip()
+            
+            if not entity_tag:
+                return {"success": False, "error": "Entity tag gerekli."}
+            
+            if not new_name and not new_description:
+                return {"success": False, "error": "Yeni isim veya açıklama gerekli."}
+            
+            # Session'dan user_id al
+            user_id = await get_user_id_from_session(db, session_id)
+            if not user_id:
+                return {"success": False, "error": "Kullanıcı bulunamadı."}
+            
+            # Mevcut entity'yi bul
+            entity = await entity_service.get_by_tag(db, user_id, entity_tag)
+            if not entity:
+                return {"success": False, "error": f"'{entity_tag}' bulunamadı."}
+            
+            old_name = entity.name
+            old_tag = entity.tag
+            updates = {}
+            
+            # İsim değişikliği → tag de güncellenir
+            if new_name:
+                new_tag = f"@{slugify(new_name)}"
+                
+                # Aynı tag zaten var mı kontrol et
+                if new_tag != old_tag:
+                    existing = await entity_service.get_by_tag(db, user_id, new_tag)
+                    if existing:
+                        return {"success": False, "error": f"'{new_tag}' tag'i zaten kullanılıyor."}
+                
+                updates["name"] = new_name
+                updates["tag"] = new_tag
+            
+            if new_description:
+                updates["description"] = new_description
+            
+            # Güncelle
+            updated = await entity_service.update_entity(db, entity.id, **updates)
+            if not updated:
+                return {"success": False, "error": "Güncelleme başarısız."}
+            
+            # Deterministic yanıt
+            result_parts = []
+            if new_name:
+                result_parts.append(f"✏️ İsim: {old_name} → {updated.name}")
+                result_parts.append(f"🏷️ Tag: {old_tag} → {updated.tag}")
+            if new_description:
+                result_parts.append(f"📝 Açıklama güncellendi")
+            
+            return {
+                "success": True,
+                "message": f"{updated.entity_type.title()} güncellendi!\n\n" + "\n\n".join(result_parts),
+                "entity": {
+                    "name": updated.name,
+                    "tag": updated.tag,
+                    "type": updated.entity_type,
+                    "description": updated.description
+                }
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
     
