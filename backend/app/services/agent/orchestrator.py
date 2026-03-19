@@ -2,6 +2,7 @@
 Agent Orchestrator - Agent'ın beyni.
 Kullanıcı mesajını alır, LLM'e gönderir, araç çağrılarını yönetir.
 """
+import asyncio
 import json
 import re
 import uuid
@@ -1689,19 +1690,12 @@ Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
         current_reference_video_url: str = None,
     ) -> str:
         """
-        Tüm bağlam bileşenlerini tek seferde oluştur.
-        Hem process_message hem process_message_stream tarafından çağrılır.
-        
-        Bileşenler:
-        1. Entity @tag çözümleme (mesajdaki @tag'ler)
-        2. Proje bağlamı (aktif proje adı, kategori)
-        3. Working Memory (son 5 asset)
-        4. Kullanıcı tercihleri (aspect ratio, model, stil)
-        5. Episodic memory (önemli olaylar)
-        6. Core memory (projeler arası hafıza)
-        7. Tüm entity listesi (karakter, lokasyon, marka)
-        8. Plugin listesi (projede yüklü eklentiler)
+        Tüm bağlam bileşenlerini PARALEL olarak oluştur.
+        Bağımsız servisler asyncio.gather ile eşzamanlı çalışır.
         """
+        import time as _time
+        _start = _time.monotonic()
+        
         extra_context = ""
 
         if current_reference_video_url:
@@ -1712,248 +1706,315 @@ Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
                 "Kullanıcı açıkça önceki bir asset'i istemedikçe aktif referans bu videodur.\n"
             )
         
-        # 0. Kullanıcı adı — agent kullanıcıyı ismiyle tanısın
-        try:
-            from app.models.models import User as UserModel
-            user_result = await db.execute(
-                select(UserModel).where(UserModel.id == user_id)
-            )
-            current_user = user_result.scalar_one_or_none()
-            if current_user and current_user.full_name:
-                from datetime import datetime
-                now = datetime.now()
-                extra_context += f"\n\n--- 👤 KULLANICI ---\n"
-                extra_context += f"Kullanıcının adı: {current_user.full_name}\n"
-                extra_context += f"Email: {current_user.email}\n"
-                extra_context += f"📅 Bugünün tarihi: {now.strftime('%d %B %Y, %A')} (saat {now.strftime('%H:%M')})\n"
-                extra_context += f"ÖNEMLİ DAVRANIŞ KURALI: Kullanıcıya ismiyle hitap et, samimi ol. "
-                extra_context += f"Ama 'seni tanıyor musun' gibi sorularda DÜRÜST ol — "
-                extra_context += f"ismini ve hesabını biliyorsun ama kişisel tercihlerini/tarzını ancak birlikte çalıştıkça öğreneceksin. "
-                extra_context += f"Eğer aşağıda episodic memory veya user preferences varsa O BİLGİLERİ de kullan — "
-                extra_context += f"o zaman gerçekten tanıyorsun demektir."
-        except Exception as e:
-            print(f"⚠️ Kullanıcı adı hatası: {e}")
+        # ══════════════════════════════════════════════════════════
+        # PARALEL BATCH: Bağımsız async bileşenleri eşzamanlı çalıştır
+        # ══════════════════════════════════════════════════════════
         
-        # 1. @tag çözümleme (mevcut _build_entity_context)
-        entity_context = await self._build_entity_context(db, session_id, user_message)
-        if entity_context:
-            extra_context += f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
+        async def _fetch_user_info():
+            """0. Kullanıcı adı"""
+            try:
+                from app.models.models import User as UserModel
+                user_result = await db.execute(
+                    select(UserModel).where(UserModel.id == user_id)
+                )
+                current_user = user_result.scalar_one_or_none()
+                if current_user and current_user.full_name:
+                    from datetime import datetime
+                    now = datetime.now()
+                    ctx = f"\n\n--- 👤 KULLANICI ---\n"
+                    ctx += f"Kullanıcının adı: {current_user.full_name}\n"
+                    ctx += f"Email: {current_user.email}\n"
+                    ctx += f"📅 Bugünün tarihi: {now.strftime('%d %B %Y, %A')} (saat {now.strftime('%H:%M')})\n"
+                    ctx += f"ÖNEMLİ DAVRANIŞ KURALI: Kullanıcıya ismiyle hitap et, samimi ol. "
+                    ctx += f"Ama 'seni tanıyor musun' gibi sorularda DÜRÜST ol — "
+                    ctx += f"ismini ve hesabını biliyorsun ama kişisel tercihlerini/tarzını ancak birlikte çalıştıkça öğreneceksin. "
+                    ctx += f"Eğer aşağıda episodic memory veya user preferences varsa O BİLGİLERİ de kullan — "
+                    ctx += f"o zaman gerçekten tanıyorsun demektir."
+                    return ctx
+            except Exception as e:
+                print(f"⚠️ Kullanıcı adı hatası: {e}")
+            return ""
         
-        # 2. Proje bağlamı
-        try:
-            session_result = await db.execute(
-                select(SessionModel).where(SessionModel.id == session_id)
-            )
-            active_session = session_result.scalar_one_or_none()
-            if active_session:
-                project_context = f"\n\n--- 📂 AKTİF PROJE ---\nProje Adı: {active_session.title}"
-                if active_session.description:
-                    project_context += f"\nAçıklama: {active_session.description}"
-                if active_session.category:
-                    project_context += f"\nKategori: {active_session.category}"
-                if active_session.project_data:
-                    project_context += f"\nProje Verileri: {active_session.project_data}"
-                extra_context += project_context
-        except Exception as e:
-            print(f"⚠️ Proje context hatası: {e}")
+        async def _fetch_entity_context():
+            """1. @tag çözümleme"""
+            try:
+                entity_context = await self._build_entity_context(db, session_id, user_message)
+                if entity_context:
+                    return f"\n\n--- Mevcut Entity Bilgileri ---\n{entity_context}"
+            except Exception as e:
+                print(f"⚠️ Entity context hatası: {e}")
+            return ""
         
-        # 3. Working Memory (son üretilen asset'ler)
-        if not suppress_working_memory:
+        async def _fetch_project_context():
+            """2. Proje bağlamı"""
+            try:
+                session_result = await db.execute(
+                    select(SessionModel).where(SessionModel.id == session_id)
+                )
+                active_session = session_result.scalar_one_or_none()
+                if active_session:
+                    ctx = f"\n\n--- 📂 AKTİF PROJE ---\nProje Adı: {active_session.title}"
+                    if active_session.description:
+                        ctx += f"\nAçıklama: {active_session.description}"
+                    if active_session.category:
+                        ctx += f"\nKategori: {active_session.category}"
+                    if active_session.project_data:
+                        ctx += f"\nProje Verileri: {active_session.project_data}"
+                    return ctx
+            except Exception as e:
+                print(f"⚠️ Proje context hatası: {e}")
+            return ""
+        
+        async def _fetch_working_memory():
+            """3. Working Memory (son 5 asset)"""
+            if suppress_working_memory:
+                return ""
             try:
                 recent_assets = await asset_service.get_recent_assets(db, session_id, limit=5)
                 if recent_assets:
-                    memory_ctx = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
-                    memory_ctx += "Kullanıcı 'bunu düzenle', 'son görseli değiştir' gibi AÇIKÇA bir asset'e atıf yapıyorsa BURADAKİ URL'leri kullan.\n"
-                    memory_ctx += "⚠️ UYARI: 'tekrar dene', 'beğenmedim', 'yeniden yap' gibi mesajlarda bu URL'leri image_url olarak VERME! Bu durumda sıfırdan üret (text-to-image/video).\n"
+                    ctx = "\n\n--- 🕒 SON ÜRETİLENLER (Working Memory) ---\n"
+                    ctx += "Kullanıcı 'bunu düzenle', 'son görseli değiştir' gibi AÇIKÇA bir asset'e atıf yapıyorsa BURADAKİ URL'leri kullan.\n"
+                    ctx += "⚠️ UYARI: 'tekrar dene', 'beğenmedim', 'yeniden yap' gibi mesajlarda bu URL'leri image_url olarak VERME! Bu durumda sıfırdan üret (text-to-image/video).\n"
                     for idx, asset in enumerate(recent_assets, 1):
                         icon = "🎬" if asset.asset_type == "video" else "🖼️"
                         thumb = f" (Thumbnail: {asset.thumbnail_url})" if asset.thumbnail_url else ""
                         prompt_text = f"'{asset.prompt[:50]}...'" if asset.prompt else "'—'"
-                        memory_ctx += f"{idx}. [{asset.asset_type.upper()}] {icon} {prompt_text}\n   👉 URL: {asset.url}{thumb}\n"
-                    extra_context += memory_ctx
+                        ctx += f"{idx}. [{asset.asset_type.upper()}] {icon} {prompt_text}\n   👉 URL: {asset.url}{thumb}\n"
                     print(f"🧠 Working Memory eklendi: {len(recent_assets)} asset")
+                    return ctx
             except Exception as e:
                 print(f"⚠️ Working memory hatası: {e}")
-        else:
-            print("🧠 Working Memory bu istekte baskı kurmaması için atlandı")
+            return ""
         
-        # 4. Kullanıcı tercihleri
-        try:
-            prefs_prompt = await preferences_service.get_preferences_for_prompt(db, user_id)
-            if prefs_prompt:
-                extra_context += prefs_prompt
-                print(f"📋 Kullanıcı tercihleri eklendi")
-        except Exception as e:
-            print(f"⚠️ Tercih yükleme hatası: {e}")
+        async def _fetch_preferences():
+            """4. Kullanıcı tercihleri"""
+            try:
+                prefs = await preferences_service.get_preferences_for_prompt(db, user_id)
+                if prefs:
+                    print(f"📋 Kullanıcı tercihleri eklendi")
+                    return prefs
+            except Exception as e:
+                print(f"⚠️ Tercih yükleme hatası: {e}")
+            return ""
         
-        # 5. Episodic memory
-        try:
-            memory_prompt = await episodic_memory.get_context_for_prompt(str(user_id))
-            if memory_prompt:
-                extra_context += memory_prompt
-                print(f"🧠 Episodic memory eklendi")
-        except Exception as e:
-            print(f"⚠️ Episodic memory hatası: {e}")
+        async def _fetch_episodic_memory():
+            """5. Episodic memory"""
+            try:
+                memory_prompt = await episodic_memory.get_context_for_prompt(str(user_id))
+                if memory_prompt:
+                    print(f"🧠 Episodic memory eklendi")
+                    return memory_prompt
+            except Exception as e:
+                print(f"⚠️ Episodic memory hatası: {e}")
+            return ""
         
-        # 6. Core memory (projeler arası hafıza)
-        try:
-            from app.services.conversation_memory_service import conversation_memory
-            core_memory = await conversation_memory.build_memory_context(user_id)
-            if core_memory:
-                extra_context += f"\n\n--- 🧠 KULLANICI HAFIZASI (Projeler Arası) ---\nBu kullanıcıyı tanıyorsun. Geçmiş projelerden bildiklerin:\n{core_memory}"
-                print(f"🧠 Cross-project memory eklendi")
-        except Exception as e:
-            print(f"⚠️ Conversation memory hatası: {e}")
+        async def _fetch_core_memory():
+            """6. Core memory (projeler arası)"""
+            try:
+                from app.services.conversation_memory_service import conversation_memory
+                core_memory = await conversation_memory.build_memory_context(user_id)
+                if core_memory:
+                    print(f"🧠 Cross-project memory eklendi")
+                    return f"\n\n--- 🧠 KULLANICI HAFIZASI (Projeler Arası) ---\nBu kullanıcıyı tanıyorsun. Geçmiş projelerden bildiklerin:\n{core_memory}"
+            except Exception as e:
+                print(f"⚠️ Conversation memory hatası: {e}")
+            return ""
         
-        # 7. Tüm entity listesi (projeler arası — kullanıcının tüm entity'leri)
-        try:
-            all_entities = await entity_service.list_entities(db, user_id)
-            if all_entities:
-                entity_list_ctx = "\n\n--- 🎭 KULLANICININ ENTITY'LERİ ---\n"
-                entity_list_ctx += "Bu kullanıcının kayıtlı karakterleri, lokasyonları ve markaları. @tag kullanmadan da isimle eşleştir:\n"
-                for e in all_entities[:15]:  # Max 15 entity
-                    ref_info = " 📸" if e.reference_image_url else ""
-                    entity_list_ctx += f"- @{e.tag}: {e.name} ({e.entity_type}){ref_info}\n"
-                extra_context += entity_list_ctx
-                print(f"🎭 Entity context eklendi: {len(all_entities)} entity")
-        except Exception as e:
-            print(f"⚠️ Entity list hatası: {e}")
+        async def _fetch_entity_list():
+            """7. Tüm entity listesi"""
+            try:
+                all_entities = await entity_service.list_entities(db, user_id)
+                if all_entities:
+                    ctx = "\n\n--- 🎭 KULLANICININ ENTITY'LERİ ---\n"
+                    ctx += "Bu kullanıcının kayıtlı karakterleri, lokasyonları ve markaları. @tag kullanmadan da isimle eşleştir:\n"
+                    for e in all_entities[:15]:
+                        ref_info = " 📸" if e.reference_image_url else ""
+                        ctx += f"- @{e.tag}: {e.name} ({e.entity_type}){ref_info}\n"
+                    print(f"🎭 Entity context eklendi: {len(all_entities)} entity")
+                    return ctx
+            except Exception as e:
+                print(f"⚠️ Entity list hatası: {e}")
+            return ""
         
-        # 8. Plugin listesi (aktif projedeki eklentiler)
-        try:
-            plugin_result = await db.execute(
-                select(Preset).where(Preset.session_id == session_id)
-            )
-            plugins = list(plugin_result.scalars().all())
-            if plugins:
-                plugin_ctx = "\n\n--- 🔌 PROJEDEKİ PRESET'LER ---\n"
-                plugin_ctx += "Bu projede kayıtlı preset'ler. 'Preset: X' mesajı geldiğinde ilgili preset'in TÜM config bilgilerini kullanarak generate_image çağır:\n"
-                for p in plugins[:10]:  # Max 10 plugin
-                    config = p.config or {}
-                    style = config.get("style", "—")
-                    time_of_day = config.get("timeOfDay", "")
-                    camera_angles = config.get("cameraAngles", [])
-                    prompt_template = config.get("promptTemplate", "")
-                    char_tag = config.get("character_tag", "")
-                    loc_tag = config.get("location_tag", "")
+        async def _fetch_plugins():
+            """8. Plugin listesi"""
+            try:
+                plugin_result = await db.execute(
+                    select(Preset).where(Preset.session_id == session_id)
+                )
+                plugins = list(plugin_result.scalars().all())
+                if plugins:
+                    ctx = "\n\n--- 🔌 PROJEDEKİ PRESET'LER ---\n"
+                    ctx += "Bu projede kayıtlı preset'ler. 'Preset: X' mesajı geldiğinde ilgili preset'in TÜM config bilgilerini kullanarak generate_image çağır:\n"
+                    for p in plugins[:10]:
+                        config = p.config or {}
+                        style = config.get("style", "—")
+                        time_of_day = config.get("timeOfDay", "")
+                        camera_angles = config.get("cameraAngles", [])
+                        prompt_template = config.get("promptTemplate", "")
+                        char_tag = config.get("character_tag", "")
+                        loc_tag = config.get("location_tag", "")
+                        
+                        ctx += f"- {p.icon} **{p.name}**: {p.description or '—'}\n"
+                        ctx += f"  Stil: {style}"
+                        if time_of_day:
+                            ctx += f" | Zaman: {time_of_day}"
+                        if camera_angles:
+                            ctx += f" | Açılar: {', '.join(camera_angles)}"
+                        if char_tag:
+                            ctx += f" | Karakter: @{char_tag}"
+                        if loc_tag:
+                            ctx += f" | Lokasyon: @{loc_tag}"
+                        if prompt_template:
+                            ctx += f"\n  Prompt: {prompt_template}"
+                        ctx += "\n"
+                    print(f"🔌 Plugin context eklendi: {len(plugins)} plugin")
+                    return ctx
+            except Exception as e:
+                print(f"⚠️ Plugin context hatası: {e}")
+            return ""
+        
+        async def _fetch_prompt_learning():
+            """9. Prompt öğrenme"""
+            try:
+                from app.services.conversation_memory_service import conversation_memory
+                similar = await conversation_memory.find_similar_prompts(user_id, user_message, limit=3)
+                if similar:
+                    ctx = "\n\n--- 💡 GEÇMİŞ BAŞARILI PROMPT'LAR ---\n"
+                    ctx += "Bu örnekleri sadece stil/ton ilhamı için kullan. Süre, adet, model ve referans seçimlerinde mevcut kullanıcı mesajı her zaman baskındır:\n"
+                    for idx, p in enumerate(similar, 1):
+                        memory_prompt = p.get("memory_prompt") or p.get("prompt", "")
+                        ctx += f"{idx}. \"{memory_prompt[:100]}\" (skor: {p.get('score', '?')}, tip: {p.get('asset_type', '?')})\n"
+                    print(f"💡 Prompt learning eklendi: {len(similar)} referans")
+                    return ctx
+            except Exception as e:
+                print(f"⚠️ Prompt learning hatası: {e}")
+            return ""
+        
+        async def _fetch_model_stats():
+            """10. Model başarı istatistikleri"""
+            try:
+                model_events = await episodic_memory.recall(str(user_id), event_type="model_success", limit=50)
+                if model_events:
+                    model_counts = {}
+                    for event in model_events:
+                        meta = event.metadata or {}
+                        model = meta.get("model", "unknown")
+                        if model != "unknown":
+                            model_counts[model] = model_counts.get(model, 0) + 1
                     
-                    plugin_ctx += f"- {p.icon} **{p.name}**: {p.description or '—'}\n"
-                    plugin_ctx += f"  Stil: {style}"
-                    if time_of_day:
-                        plugin_ctx += f" | Zaman: {time_of_day}"
-                    if camera_angles:
-                        plugin_ctx += f" | Açılar: {', '.join(camera_angles)}"
-                    if char_tag:
-                        plugin_ctx += f" | Karakter: @{char_tag}"
-                    if loc_tag:
-                        plugin_ctx += f" | Lokasyon: @{loc_tag}"
-                    if prompt_template:
-                        plugin_ctx += f"\n  Prompt: {prompt_template}"
-                    plugin_ctx += "\n"
-                extra_context += plugin_ctx
-                print(f"🔌 Plugin context eklendi: {len(plugins)} plugin")
-        except Exception as e:
-            print(f"⚠️ Plugin context hatası: {e}")
+                    if model_counts:
+                        top_models = sorted(model_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                        ctx = "\n\n--- 🏆 MODEL BAŞARI GEÇMİŞİ ---\n"
+                        ctx += "Bu kullanıcı bu modellerle en iyi sonuçları aldı (👍 sayısına göre):\n"
+                        for model, count in top_models:
+                            ctx += f"- {model}: {count} başarılı üretim\n"
+                        print(f"🏆 Model başarı istatistikleri eklendi: {len(top_models)} model")
+                        return ctx
+            except Exception as e:
+                print(f"⚠️ Model stats hatası: {e}")
+            return ""
         
-        # 9. Prompt öğrenme (geçmiş başarılı prompt'lar)
-        try:
-            from app.services.conversation_memory_service import conversation_memory
-            similar = await conversation_memory.find_similar_prompts(user_id, user_message, limit=3)
-            if similar:
-                prompt_ctx = "\n\n--- 💡 GEÇMİŞ BAŞARILI PROMPT'LAR ---\n"
-                prompt_ctx += "Bu örnekleri sadece stil/ton ilhamı için kullan. Süre, adet, model ve referans seçimlerinde mevcut kullanıcı mesajı her zaman baskındır:\n"
-                for idx, p in enumerate(similar, 1):
-                    memory_prompt = p.get("memory_prompt") or p.get("prompt", "")
-                    prompt_ctx += f"{idx}. \"{memory_prompt[:100]}\" (skor: {p.get('score', '?')}, tip: {p.get('asset_type', '?')})\n"
-                extra_context += prompt_ctx
-                print(f"💡 Prompt learning eklendi: {len(similar)} referans")
-        except Exception as e:
-            print(f"⚠️ Prompt learning hatası: {e}")
+        async def _fetch_active_models():
+            """11. Aktif AI Modelleri"""
+            try:
+                from app.models.models import AIModel
+                models_result = await db.execute(select(AIModel.name, AIModel.is_enabled, AIModel.model_type))
+                all_models = models_result.all()
+                if all_models:
+                    display_names = {
+                        "nano_banana_pro": "Nano Banana Pro", "nano_banana_2": "Nano Banana 2",
+                        "flux2": "Flux 2", "flux2_max": "Flux 2 Max",
+                        "gpt_image": "GPT Image 1", "reve": "Reve",
+                        "seedream": "Seedream 4.5", "recraft": "Recraft V3",
+                        "grok_imagine": "Grok Imagine",
+                        "kling": "Kling 3.0 Pro", "sora2": "Sora 2 Pro",
+                        "veo_fast": "Veo 3.1 Fast", "veo_quality": "Veo 3.1 Quality",
+                        "seedance": "Seedance 1.5", "hailuo": "Hailuo 02",
+                        "grok_imagine_video": "Grok Imagine Video",
+                    }
+                    shortcode_map = {
+                        "nano_banana_pro": "nano_banana", "nano_banana_2": "nano_banana_2",
+                        "flux2": "flux2", "flux2_max": "flux2_max",
+                        "gpt_image": "gpt_image", "reve": "reve",
+                        "seedream": "seedream", "recraft": "recraft",
+                        "grok_imagine": "grok_imagine",
+                        "kling": "kling", "sora2": "sora2",
+                        "veo_fast": "veo", "veo_quality": "veo_quality",
+                        "seedance": "seedance", "hailuo": "hailuo",
+                        "grok_imagine_video": "grok_imagine_video",
+                    }
+                    
+                    image_models = []
+                    video_models = []
+                    for name, enabled, model_type in all_models:
+                        if name not in display_names:
+                            continue
+                        status = "✅" if enabled else "❌"
+                        sc = shortcode_map.get(name, name)
+                        label = f"{display_names[name]}({sc}) {status}"
+                        cat = (model_type or "").lower()
+                        if cat in ("image", "görsel", "image_generation"):
+                            image_models.append(label)
+                        elif cat in ("video", "video_generation"):
+                            video_models.append(label)
+                        elif name in ("nano_banana_pro", "nano_banana_2", "flux2", "flux2_max", "gpt_image", "reve", "seedream", "recraft", "grok_imagine"):
+                            image_models.append(label)
+                        elif name in ("kling", "sora2", "veo_fast", "veo_quality", "seedance", "hailuo", "grok_imagine_video"):
+                            video_models.append(label)
+                    
+                    if image_models or video_models:
+                        ctx = "\n\n--- 🎨 AKTİF AI MODELLERİ ---\n"
+                        if image_models:
+                            ctx += f"GÖRSEL: {', '.join(image_models)}\n"
+                        if video_models:
+                            ctx += f"VİDEO: {', '.join(video_models)}\n"
+                        ctx += "Kullanıcı kapalı (❌) model isterse → aktif alternatifleri öner.\n"
+                        print(f"🎨 Aktif model listesi enjekte edildi: {len(image_models)} görsel, {len(video_models)} video")
+                        return ctx
+            except Exception as e:
+                print(f"⚠️ Aktif model listesi hatası: {e}")
+            return ""
         
-        # 10. Model başarı istatistikleri (hangi model en iyi sonuç veriyor)
-        try:
-            model_events = await episodic_memory.recall(str(user_id), event_type="model_success", limit=50)
-            if model_events:
-                # Model başarı sayılarını hesapla
-                model_counts = {}
-                for event in model_events:
-                    meta = event.metadata or {}
-                    model = meta.get("model", "unknown")
-                    if model != "unknown":
-                        model_counts[model] = model_counts.get(model, 0) + 1
-                
-                if model_counts:
-                    # En başarılı 5 model
-                    top_models = sorted(model_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-                    model_ctx = "\n\n--- 🏆 MODEL BAŞARI GEÇMİŞİ ---\n"
-                    model_ctx += "Bu kullanıcı bu modellerle en iyi sonuçları aldı (👍 sayısına göre):\n"
-                    for model, count in top_models:
-                        model_ctx += f"- {model}: {count} başarılı üretim\n"
-                    extra_context += model_ctx
-                    print(f"🏆 Model başarı istatistikleri eklendi: {len(top_models)} model")
-        except Exception as e:
-            print(f"⚠️ Model stats hatası: {e}")
+        # ══════════════════════════════════════════════════════════
+        # DB-bağımlı sorgular sıralı çalışmalı (aynı session)
+        # Bağımsız servisler (episodic, conversation memory) paralel
+        # ══════════════════════════════════════════════════════════
         
-        # 11. Aktif AI Modelleri — agent hangi modellerin açık/kapalı olduğunu bilsin
-        try:
-            from app.models.models import AIModel
-            models_result = await db.execute(select(AIModel.name, AIModel.is_enabled, AIModel.model_type))
-            all_models = models_result.all()
-            if all_models:
-                # İnsan dostu isim mapping
-                display_names = {
-                    "nano_banana_pro": "Nano Banana Pro", "nano_banana_2": "Nano Banana 2",
-                    "flux2": "Flux 2", "flux2_max": "Flux 2 Max",
-                    "gpt_image": "GPT Image 1", "reve": "Reve",
-                    "seedream": "Seedream 4.5", "recraft": "Recraft V3",
-                    "grok_imagine": "Grok Imagine",
-                    "kling": "Kling 3.0 Pro", "sora2": "Sora 2 Pro",
-                    "veo_fast": "Veo 3.1 Fast", "veo_quality": "Veo 3.1 Quality",
-                    "seedance": "Seedance 1.5", "hailuo": "Hailuo 02",
-                    "grok_imagine_video": "Grok Imagine Video",
-                }
-                # Shortcode mapping (agent tool parametresi için)
-                shortcode_map = {
-                    "nano_banana_pro": "nano_banana", "nano_banana_2": "nano_banana_2",
-                    "flux2": "flux2", "flux2_max": "flux2_max",
-                    "gpt_image": "gpt_image", "reve": "reve",
-                    "seedream": "seedream", "recraft": "recraft",
-                    "grok_imagine": "grok_imagine",
-                    "kling": "kling", "sora2": "sora2",
-                    "veo_fast": "veo", "veo_quality": "veo_quality",
-                    "seedance": "seedance", "hailuo": "hailuo",
-                    "grok_imagine_video": "grok_imagine_video",
-                }
-                
-                image_models = []
-                video_models = []
-                for name, enabled, model_type in all_models:
-                    if name not in display_names:
-                        continue
-                    status = "✅" if enabled else "❌"
-                    sc = shortcode_map.get(name, name)
-                    label = f"{display_names[name]}({sc}) {status}"
-                    cat = (model_type or "").lower()
-                    if cat in ("image", "görsel", "image_generation"):
-                        image_models.append(label)
-                    elif cat in ("video", "video_generation"):
-                        video_models.append(label)
-                    elif name in ("nano_banana_pro", "nano_banana_2", "flux2", "flux2_max", "gpt_image", "reve", "seedream", "recraft", "grok_imagine"):
-                        image_models.append(label)
-                    elif name in ("kling", "sora2", "veo_fast", "veo_quality", "seedance", "hailuo", "grok_imagine_video"):
-                        video_models.append(label)
-                
-                if image_models or video_models:
-                    model_ctx = "\n\n--- 🎨 AKTİF AI MODELLERİ ---\n"
-                    if image_models:
-                        model_ctx += f"GÖRSEL: {', '.join(image_models)}\n"
-                    if video_models:
-                        model_ctx += f"VİDEO: {', '.join(video_models)}\n"
-                    model_ctx += "Kullanıcı kapalı (❌) model isterse → aktif alternatifleri öner.\n"
-                    extra_context += model_ctx
-                    print(f"🎨 Aktif model listesi enjekte edildi: {len(image_models)} görsel, {len(video_models)} video")
-        except Exception as e:
-            print(f"⚠️ Aktif model listesi hatası: {e}")
+        # Grup 1: DB sorgularını sıralı çalıştır (SQLAlchemy async session kısıtı)
+        user_ctx = await _fetch_user_info()
+        entity_ctx = await _fetch_entity_context()
+        project_ctx = await _fetch_project_context()
+        working_ctx = await _fetch_working_memory()
+        entity_list_ctx = await _fetch_entity_list()
+        plugin_ctx = await _fetch_plugins()
+        model_ctx = await _fetch_active_models()
+        
+        # Grup 2: Bağımsız servisleri PARALEL çalıştır (DB session kullanmaz)
+        prefs_ctx, episodic_ctx, core_ctx, prompt_ctx, stats_ctx = await asyncio.gather(
+            _fetch_preferences(),
+            _fetch_episodic_memory(),
+            _fetch_core_memory(),
+            _fetch_prompt_learning(),
+            _fetch_model_stats(),
+        )
+        
+        # Tüm bileşenleri sırayla birleştir
+        extra_context += user_ctx
+        extra_context += entity_ctx
+        extra_context += project_ctx
+        extra_context += working_ctx
+        extra_context += prefs_ctx
+        extra_context += episodic_ctx
+        extra_context += core_ctx
+        extra_context += entity_list_ctx
+        extra_context += plugin_ctx
+        extra_context += prompt_ctx
+        extra_context += stats_ctx
+        extra_context += model_ctx
+        
+        _elapsed = (_time.monotonic() - _start) * 1000
+        print(f"⚡ _build_enriched_context tamamlandı: {_elapsed:.0f}ms")
         
         return extra_context
     

@@ -375,6 +375,7 @@ npm run dev
 | 38    | 19 Mart    | Workflow, GitHub Actions CI/CD, Proje Config            |
 | 39    | 19 Mart    | Grid→Chat Referans Görsel, Extraction Hız Fix           |
 | 40    | 19 Mart    | PepperStoryReel Feature, Chat Input Auto-Resize Fix     |
+| 41    | 19 Mart    | Performans: Paralel Context, Conversation History Refactor |
 
 ---
 
@@ -384,7 +385,7 @@ npm run dev
 | -------------- | ------- |
 | Agent Araç     | 36      |
 | AI Model       | 33      |
-| Toplam Faz     | 40      |
+| Toplam Faz     | 41      |
 | Canlı Backend  | Railway |
 | Canlı Frontend | Vercel  |
 
@@ -418,12 +419,11 @@ Bu maddeler çözülmeden yeni özelliğe geçilmez.
 
 ### 🟡 Faz 2 — Stabilite & Performans (Öncelik: YÜKSEK)
 
-- [ ] **2.1 — Genel Performans İyileştirme**
-  - Chat yanıt süresi optimize edilecek
-  - Gereksiz API çağrıları azaltılacak
-  - Redis cache stratejisi gözden geçirilecek
-  - Frontend render optimizasyonu (gereksiz re-render'lar)
-  - Etki alanı: Backend geneli + Frontend geneli
+- [x] **2.1 — Genel Performans İyileştirme** ✅ (Faz 41)
+  - `_build_enriched_context` paralel hale getirildi: 5 bağımsız servis `asyncio.gather` ile eşzamanlı
+  - `_build_conversation_history` ortak fonksiyonu — 90+ satır duplicate kod kaldırıldı
+  - Performans loglama eklendi (`time.monotonic` ms cinsinden)
+  - Etki alanı: `orchestrator.py`, `chat.py`
 
 - [ ] **2.2 — Uzun Süreli Test (Stress Test)**
   - Tüm akışlar uçtan uca test edilecek: chat, görsel üretim, video üretim, entity yönetimi

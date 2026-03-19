@@ -45,6 +45,81 @@ def _chat_json_response(payload: ChatResponse) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(payload))
 
 
+# Hata pattern'leri - bunları içeren asistan mesajlarını geçmişe ekleme
+_ERROR_PATTERNS = [
+    "kredi", "credit", "yetersiz", "insufficient",
+    "hata", "error", "başarısız", "failed",
+    "oluşturulamadı", "üretilemedi", "yapılamadı"
+]
+
+
+async def _build_conversation_history(
+    db: AsyncSession,
+    session_id,
+    exclude_message_id=None,
+    max_messages: int = 20,
+) -> tuple[list, list]:
+    """
+    Session'daki önceki mesajları OpenAI formatına çevir.
+    
+    Returns:
+        (conversation_history, last_reference_urls_from_history)
+    """
+    from sqlalchemy import asc
+
+    query = (
+        select(Message)
+        .where(Message.session_id == session_id)
+        .order_by(asc(Message.created_at))
+    )
+    if exclude_message_id is not None:
+        query = query.where(Message.id != exclude_message_id)
+
+    previous_messages = (await db.execute(query)).scalars().all()
+
+    conversation_history: list[dict] = []
+    last_reference_urls: list[str] = []
+
+    for msg in previous_messages:
+        content_lower = msg.content.lower() if msg.content else ""
+
+        # Asistan mesajlarında hata pattern'i varsa atla
+        if msg.role == "assistant" and any(p in content_lower for p in _ERROR_PATTERNS):
+            continue
+
+        msg_content = msg.content or ""
+
+        # Assistant metadata'dan image/video URL'lerini ekle
+        if msg.role == "assistant" and msg.metadata_:
+            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            images = meta.get("images", [])
+            videos = meta.get("videos", [])
+            if images:
+                urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
+                if urls:
+                    msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
+            if videos:
+                urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
+                if urls:
+                    msg_content += "\n\n[Bu mesajda üretilen videolar: " + ", ".join(urls) + "]"
+
+        # User mesajlarında referans görsel URL'si
+        if msg.role == "user" and msg.metadata_:
+            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            if meta.get("has_reference_image") and meta.get("reference_url"):
+                last_reference_urls = [meta["reference_url"]]
+            elif meta.get("reference_urls") and isinstance(meta.get("reference_urls"), list):
+                last_reference_urls = meta["reference_urls"]
+
+        conversation_history.append({"role": msg.role, "content": msg_content})
+
+    # Max mesaj limiti
+    if len(conversation_history) > max_messages:
+        conversation_history = conversation_history[-max_messages:]
+
+    return conversation_history, last_reference_urls
+
+
 @router.get("/main-session")
 async def get_main_chat_session(
     db: AsyncSession = Depends(get_db),
@@ -133,75 +208,10 @@ async def _process_chat(
     await db.flush()
     await db.refresh(user_message)
     
-    # ÖNCEKİ MESAJLARI ÇEK - conversation_history oluştur
-    # ChatGPT gibi tüm sohbet geçmişini hatırlaması için gerekli!
-    from sqlalchemy import asc
-    previous_messages_result = await db.execute(
-        select(Message)
-        .where(Message.session_id == session.id)
-        .where(Message.id != user_message.id)  # Yeni mesaj hariç
-        .order_by(asc(Message.created_at))  # Kronolojik sıra
+    # Ortak conversation_history oluşturma
+    conversation_history, last_reference_urls_from_history = await _build_conversation_history(
+        db, session.id, exclude_message_id=user_message.id
     )
-    previous_messages = previous_messages_result.scalars().all()
-    
-    # Hata pattern'leri - bunları içeren asistan mesajlarını atla
-    ERROR_PATTERNS = [
-        "kredi", "credit", "yetersiz", "insufficient", 
-        "hata", "error", "başarısız", "failed",
-        "oluşturulamadı", "üretilemedi", "yapılamadı"
-    ]
-    
-    # OpenAI formatına çevir - HATA MESAJLARINI FİLTRELE
-    conversation_history = []
-    # Yalnızca kullanıcı tarafından yüklenen referansları taşı.
-    # Asistanın ürettiği asset'leri "yüz referansı" gibi geri besleme.
-    last_reference_urls_from_history = []
-    
-    for msg in previous_messages:
-        content = msg.content.lower() if msg.content else ""
-        
-        # Asistan mesajlarında hata pattern'i varsa atla
-        if msg.role == "assistant":
-            has_error = any(pattern in content for pattern in ERROR_PATTERNS)
-            if has_error:
-                continue  # Bu mesajı geçmişe ekleme
-        
-        # Mesaj içeriğini hazırla
-        msg_content = msg.content or ""
-        
-        # Assistant mesajlarında metadata'dan image/video URL'lerini ekle
-        # (content'ten kaldırıldı ama GPT-4o'nun bunları bilmesi gerekiyor)
-        if msg.role == "assistant" and msg.metadata_:
-            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
-            images = meta.get("images", [])
-            videos = meta.get("videos", [])
-            if images:
-                urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
-                if urls:
-                    msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
-            if videos:
-                urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
-                if urls:
-                    msg_content += "\n\n[Bu mesajda üretilen videolar: " + ", ".join(urls) + "]"
-        
-        # User mesajlarında referans görsel URL'si varsa çıkar
-        if msg.role == "user" and msg.metadata_:
-            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
-            # Eski tekil yapı
-            if meta.get("has_reference_image") and meta.get("reference_url"):
-                last_reference_urls_from_history = [meta["reference_url"]]
-            # Yeni çoklu yapı
-            elif meta.get("reference_urls") and isinstance(meta.get("reference_urls"), list):
-                last_reference_urls_from_history = meta["reference_urls"]
-        
-        conversation_history.append({
-            "role": msg.role,
-            "content": msg_content
-        })
-    
-    # Max 20 mesaj (son mesajlar)
-    if len(conversation_history) > 20:
-        conversation_history = conversation_history[-20:]
     
     print(f"📜 Conversation history: {len(conversation_history)} mesaj yüklendi (session: {session.id})")
     
@@ -489,7 +499,6 @@ async def chat_stream(
 ):
     """Kullanıcı mesajını işle ve SSE ile stream et (ChatGPT tarzı)."""
     print(f"🔴 STREAM ENDPOINT HIT! message={request.message[:50]} user={current_user.id}")
-    from sqlalchemy import asc
     import json
     
     actual_session_id = str(request.session_id) if request.session_id else None
@@ -528,51 +537,10 @@ async def chat_stream(
     await db.commit()
     await db.refresh(user_msg)
     
-    # Geçmiş mesajları çek
-    prev_result = await db.execute(
-        select(Message)
-        .where(Message.session_id == session.id)
-        .where(Message.id != user_msg.id)
-        .order_by(asc(Message.created_at))
+    # Ortak conversation_history oluşturma
+    conversation_history, last_reference_urls_from_history = await _build_conversation_history(
+        db, session.id, exclude_message_id=user_msg.id
     )
-    previous_messages = prev_result.scalars().all()
-    
-    ERROR_PATTERNS = ["kredi", "credit", "yetersiz", "insufficient", "hata", "error", "başarısız", "failed"]
-    conversation_history = []
-    last_reference_urls_from_history = []
-    
-    for msg in previous_messages:
-        content = msg.content.lower() if msg.content else ""
-        if msg.role == "assistant" and any(p in content for p in ERROR_PATTERNS):
-            continue
-        
-        msg_content = msg.content or ""
-        
-        # Assistant mesajlarında metadata'dan image/video URL'lerini ekle
-        if msg.role == "assistant" and msg.metadata_:
-            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
-            images = meta.get("images", [])
-            videos = meta.get("videos", [])
-            if images:
-                urls = [img.get("url", "") for img in images if isinstance(img, dict) and img.get("url")]
-                if urls:
-                    msg_content += "\n\n[Bu mesajda üretilen görseller: " + ", ".join(urls) + "]"
-            if videos:
-                urls = [vid.get("url", "") for vid in videos if isinstance(vid, dict) and vid.get("url")]
-                if urls:
-                    msg_content += "\n\n[Bu mesajda üretilen videolar: " + ", ".join(urls) + "]"
-        
-        if msg.role == "user" and msg.metadata_:
-            meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
-            if meta.get("has_reference_image") and meta.get("reference_url"):
-                last_reference_urls_from_history = [meta["reference_url"]]
-            elif meta.get("reference_urls") and isinstance(meta.get("reference_urls"), list):
-                last_reference_urls_from_history = meta["reference_urls"]
-        
-        conversation_history.append({"role": msg.role, "content": msg_content})
-    
-    if len(conversation_history) > 20:
-        conversation_history = conversation_history[-20:]
 
     # Stream kesilse bile chat mesajı tamamen kaybolmasın diye
     # assistant mesajını baştan placeholder olarak oluştur.
