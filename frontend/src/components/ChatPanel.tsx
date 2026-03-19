@@ -976,6 +976,14 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
         }
     }, [pendingInputText, sessionId, onInputTextConsumed]);
 
+    // Auto-resize textarea when input changes (e.g. from QuickAction cards)
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
+        }
+    }, [input]);
+
     // Asset URL ekleme (Medya Panelinden gelen)
     useEffect(() => {
         if (!pendingAssetUrl || !sessionId) {
@@ -1553,6 +1561,17 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                         Tüm özellikleri keşfet
                                     </p>
                                 </button>
+                                <button
+                                    onClick={() => setInput("PepperStoryReel özelliğini kullanarak birden fazla görselden geçişli montaj video oluşturmak istiyorum. Bu özellik nasıl çalışıyor?")}
+                                    className="p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                                >
+                                    <span className="text-lg mb-2 block">🎬</span>
+                                    <span className="text-sm font-medium">PepperStoryReel</span>
+                                    <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                        Çoklu görselden hikaye videosu
+                                    </p>
+                                </button>
                             </div>
                         </div>
                     )}
@@ -1995,11 +2014,11 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
 
 
                         {/* Text Input Row */}
-                        <div className="flex items-center gap-2 p-2">
+                        <div className="flex items-end gap-2 p-2">
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`p-2 rounded-lg transition-colors shrink-0 ${attachedFiles.length > 0 ? 'bg-[var(--accent)]/20' : 'hover:bg-[var(--background-secondary)]'}`}
+                                className={`p-2 rounded-lg transition-colors shrink-0 mb-0.5 ${attachedFiles.length > 0 ? 'bg-[var(--accent)]/20' : 'hover:bg-[var(--background-secondary)]'}`}
                                 title="Referans görsel ekle (maks. 10)"
                             >
                                 <Paperclip size={20} style={{ color: attachedFiles.length > 0 ? 'var(--accent)' : 'var(--foreground-muted)' }} />
@@ -2032,12 +2051,12 @@ export function ChatPanel({ sessionId: initialSessionId, onNewAsset, onEntityCha
                                 }}
                                 placeholder={isDragOver ? "Buraya bırak..." : isConnected ? "Herhangi bir şey sor" : "Backend bağlantısı bekleniyor..."}
                                 className={`flex-1 bg-transparent outline-none text-sm lg:text-[15px] px-1 resize-none ${isDragOver ? 'text-[var(--accent)]' : ''}`}
-                                style={{ color: "var(--foreground)", height: '24px', maxHeight: '200px', overflowY: 'auto' }}
+                                style={{ color: "var(--foreground)", minHeight: '24px', maxHeight: '200px', overflowY: 'auto', lineHeight: '1.5' }}
                                 disabled={isLoading || !isConnected}
                                 rows={1}
                             />
 
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-end gap-1 shrink-0 mb-0.5">
 
 
                                 {/* Plugin Yap Button */}
