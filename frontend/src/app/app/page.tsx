@@ -149,6 +149,7 @@ export default function Home() {
         onSetInputText={setPendingInputText}
         onPluginsLoaded={setInstalledPlugins}
         onAssetRestore={handleAssetRestore}
+        onAttachAssetUrl={(url, type) => setPendingAssetUrl({ url, type })}
       />
 
       {/* Chat — proje seçili değilse hoşgeldin ekranı */}

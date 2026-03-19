@@ -14,12 +14,14 @@ import {
     Sparkles,
     PenLine,
     ArrowRight,
+    MessageSquarePlus,
 } from "lucide-react";
 import { generateGrid as apiGenerateGrid } from "@/lib/api";
 
 interface GridGeneratorModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSendToChat?: (imageUrl: string) => void;
 }
 
 type ModeTop = "angles" | "storyboard";
@@ -27,7 +29,7 @@ type Aspect = "16:9" | "9:16" | "1:1";
 type PromptMode = "auto" | "custom";
 type Scale = 1 | 2 | 4;
 
-export function GridGeneratorModal({ isOpen, onClose }: GridGeneratorModalProps) {
+export function GridGeneratorModal({ isOpen, onClose, onSendToChat }: GridGeneratorModalProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Core states
@@ -810,6 +812,18 @@ Cinematic storyboard quality, consistent character.`;
 
                                         {img.status === "ready" && (
                                             <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                                {onSendToChat && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onSendToChat(img.url);
+                                                        }}
+                                                        className="w-10 h-10 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center transition-all hover:scale-110"
+                                                        title="Chat'e Gönder"
+                                                    >
+                                                        <MessageSquarePlus size={16} className="text-black" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();

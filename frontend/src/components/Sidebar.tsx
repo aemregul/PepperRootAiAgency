@@ -311,9 +311,10 @@ interface SidebarProps {
     onSetInputText?: (text: string) => void;  // Chat input'a yazar ama göndermez
     onPluginsLoaded?: (plugins: Array<{ id: string; name: string; promptText: string }>) => void;
     onAssetRestore?: () => void;  // Çöp kutusundan asset geri yüklenince media panel'ı güncelle
+    onAttachAssetUrl?: (url: string, type: "image" | "video" | "audio" | "uploaded") => void;  // Grid'den chat'e görsel gönderme
 }
 
-export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt, onSetInputText, onPluginsLoaded, onAssetRestore }: SidebarProps) {
+export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, sessionId, refreshKey, onSendPrompt, onSetInputText, onPluginsLoaded, onAssetRestore, onAttachAssetUrl }: SidebarProps) {
     const { theme } = useTheme();
     const { user, logout } = useAuth();
     const toast = useToast();
@@ -1531,6 +1532,10 @@ export function Sidebar({ activeProjectId, onProjectChange, onProjectDelete, ses
             <GridGeneratorModal
                 isOpen={gridGeneratorOpen}
                 onClose={() => setGridGeneratorOpen(false)}
+                onSendToChat={(url) => {
+                    onAttachAssetUrl?.(url, "image");
+                    setGridGeneratorOpen(false);
+                }}
             />
 
             <CommunityHubModal
