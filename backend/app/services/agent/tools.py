@@ -110,7 +110,7 @@ AGENT_TOOLS_ANTHROPIC = [
     },
     {
         "name": "generate_video",
-        "description": "SADECE 5-10 saniyelik KISA video üretir (ARKA PLAN GÖREVİ). ⚠️ KRİTİK KURAL: Kullanıcı 15 saniye, 20 saniye, 30 saniye, 1 dakika, 2 dakika veya daha UZUN video isterse BU ARACI KULLANMA! Bunun yerine generate_long_video kullan. Bu araç MAKSİMUM 10 saniye üretir. BU ARACI TEK SEFERDE SADECE 1 KERE ÇAĞIR!",
+        "description": "SADECE 5-10 saniyelik KISA video üretir (ARKA PLAN GÖREVİ). ⚠️ KRİTİK KURAL: Kullanıcı 15 saniye, 20 saniye, 30 saniye, 1 dakika, 2 dakika veya daha UZUN video isterse BU ARACI KULLANMA! Bunun yerine generate_long_video kullan. Bu araç MAKSİMUM 10 saniye üretir. BU ARACI TEK SEFERDE SADECE 1 KERE ÇAĞIR! ⚠️ ÇOKLU GÖRSEL: Kullanıcı 2+ referans görsel ile video isterse PepperStoryReel özelliğini öner → kabul ederse generate_long_video kullan, her görseli ayrı sahnenin reference_image_url'sine ekle.",
         "input_schema": {
             "type": "object",
             "properties": {

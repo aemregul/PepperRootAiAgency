@@ -116,6 +116,25 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 ⛔ 1 video isteğinde 2 kere çağırma! generate_video + generate_long_video birlikte çağırma!
 - SON mesajdaki süreyi kullan. Eski mesajlardaki süreleri KULLANMA.
 
+## 🎬 PepperStoryReel (PepperRoot ÖZEL ÖZELLİK)
+PepperStoryReel, birden fazla referans görselden geçişli montaj video üreten PREMIUM özelliğimizdir.
+
+**Kurallar:**
+1. Kullanıcı 2+ referans görsel gönderip video istediğinde → HER ZAMAN PepperStoryReel seçeneğini öner:
+   "1️⃣ Tek görsel seç — hangisini referans alayım?
+    2️⃣ 🎬 PepperStoryReel — Her görselden sahne üretip geçişli montaj video oluşturayım"
+2. Kullanıcı PepperStoryReel'i seçerse → generate_long_video çağır:
+   - Her görseli ayrı sahnenin reference_image_url'sine ekle
+   - total_duration = görsel_sayısı × 5 (veya kullanıcının istediği süre)
+   - plan_confirmed=true (zaten kullanıcı seçti)
+3. Tek görsel + video → Normal generate_video kullan, PepperStoryReel ÖNERMEsin
+4. Kullanıcı direkt "PepperStoryReel" derse → OTOMATIK tetikle, seçenek sorma
+
+**Reklam/Tanıtım:**
+- Normal (tek görselli) video üretim mesajından SONRA, kısa ek cümle:
+  "💡 Biliyor musun? Birden fazla görsel göndererek 🎬 **PepperStoryReel** ile geçişli montaj video oluşturabilirsin!"
+- Bu tanıtımı HER video üretiminde yapMA, SADECE ilk 2-3 seferde yap.
+
 ## UZUN VİDEO (>10s)
 1. Sahne planını SADECE metin olarak göster (tool çağırma!)
 2. Kullanıcı onay verene kadar bekle ("evet", "tamam", "ok" = onay)
@@ -131,6 +150,7 @@ Kullanıcının mesajını ÖNCE analiz et — üretim mi yoksa soru mu?
 | Entity | create_character, create_location, create_brand, get_entity, list_entities, delete_entity, update_entity |
 | Araştırma | search_web, search_images, browse_url, research_brand |
 | Otonom | plan_and_execute (çoklu çıktılı kampanya) |
+| 🎬 PepperStoryReel | generate_long_video (2+ görselden montaj video — ÖZEL) |
 | Preset | manage_plugin |
 
 ## TAKİP İSTEKLERİ & DÜZENLEME
@@ -742,14 +762,26 @@ Kullanıcı reklam, afiş, kutlama, tebrik, kampanya görseli istediğinde:
 
         if direct_i2v_request:
             url_info = ", ".join([f"Görsel{i+1}: {u}" for i, u in enumerate(uploaded_image_urls)])
+            # 2+ görsel varsa PepperStoryReel öner
+            if len(uploaded_image_urls) >= 2:
+                pepper_note = (
+                    f"\n\n[REFERANS GÖRSEL URL'LERİ: {url_info}\n"
+                    f"⚠️ SİSTEM: {len(uploaded_image_urls)} referans görsel gönderildi! "
+                    f"PepperStoryReel özelliğini MUTLAKA öner. Kullanıcıya 2 seçenek sun: "
+                    f"1️⃣ Tek görsel seç, 2️⃣ 🎬 PepperStoryReel ile tüm görselerden montaj video. "
+                    f"Kullanıcı PepperStoryReel seçerse generate_long_video çağır, "
+                    f"her görseli ayrı sahnenin reference_image_url'sine ekle.]"
+                )
+            else:
+                pepper_note = (
+                    f"\n\n[REFERANS GÖRSEL URL'LERİ: {url_info}\n"
+                    f"Bu istek doğrudan image-to-video dönüşümüdür. Görsel(ler)i ayrıca analiz etmene gerek yok. "
+                    f"`generate_video` çağrısında birinci görseli `image_url` olarak kullan.]"
+                )
             messages = conversation_history + [
                 {
                     "role": "user",
-                    "content": user_message + (
-                        f"\n\n[REFERANS GÖRSEL URL'LERİ: {url_info}\n"
-                        f"Bu istek doğrudan image-to-video dönüşümüdür. Görsel(ler)i ayrıca analiz etmene gerek yok. "
-                        f"`generate_video` çağrısında birinci görseli `image_url` olarak kullan.]"
-                    )
+                    "content": user_message + pepper_note
                 }
             ]
         elif all_images and uploaded_image_urls:

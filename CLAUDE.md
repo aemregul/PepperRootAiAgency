@@ -374,6 +374,7 @@ npm run dev
 | 37    | 18 Mart    | Sosyal Medya Görseli, Model Seçimi Fix, Entity Rename   |
 | 38    | 19 Mart    | Workflow, GitHub Actions CI/CD, Proje Config            |
 | 39    | 19 Mart    | Grid→Chat Referans Görsel, Extraction Hız Fix           |
+| 40    | 19 Mart    | PepperStoryReel Feature, Chat Input Auto-Resize Fix     |
 
 ---
 
@@ -383,7 +384,7 @@ npm run dev
 | -------------- | ------- |
 | Agent Araç     | 36      |
 | AI Model       | 33      |
-| Toplam Faz     | 39      |
+| Toplam Faz     | 40      |
 | Canlı Backend  | Railway |
 | Canlı Frontend | Vercel  |
 
@@ -472,6 +473,14 @@ Bu maddeler çözülmeden yeni özelliğe geçilmez.
   - pendingAssetUrl mekanizması üzerinden ChatPanel'e referans görsel gönderilir
   - Extraction CORS sorunu düzeltildi + hız optimizasyonu yapıldı
   - Etki alanı: `GridGeneratorModal.tsx`, `Sidebar.tsx`, `page.tsx`
+
+- [x] **4.0 — PepperStoryReel (Çoklu Görselden Montaj Video)** ✅ (Faz 40)
+  - 2+ referans görselden geçişli montaj video üreten premium özellik
+  - System prompt'a PepperStoryReel kuralları + reklam/tanıtım mekanizması eklendi
+  - generate_video tool description güncellendi (çoklu görsel yönlendirmesi)
+  - 4 keşif mekanizması: QuickAction kartı, otomatik öneri, video sonrası tanıtım, isimle direkt kullanım
+  - Chat input auto-resize fix: items-end, minHeight, lineHeight, useEffect([input])
+  - Etki alanı: `orchestrator.py`, `tools.py`, `ChatPanel.tsx`
 
 - [ ] **3.6 — Asistan İçi Grid Üretimi & Panel İşlemleri (Grid Generator'dan Bağımsız)**
   - Grid Generator UI'sından bağımsız, **tamamen chat üzerinden** çalışan grid üretim yeteneği
