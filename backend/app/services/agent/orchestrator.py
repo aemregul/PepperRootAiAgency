@@ -2883,9 +2883,18 @@ Konuşma:
                     # görseli hemen dönmeden önce arka planda analiz et. 
                     # Hata varsa 1 kez tekrar üret.
                     # ==========================================
-                    # Self-Reflection: SADECE kullanıcının orijinal promptunda yazı/text istenmişse tetikle
+                    # Self-Reflection: SADECE kullanıcının orijinal promptunda AÇIKÇA yazı/text istenmişse tetikle
                     original_lower = original_prompt.lower()
-                    needs_text = any(kw in original_lower for kw in ["yaz", "text", "saying", "written", "letters", "kelime", "harf"])
+                    import re as _re
+                    # Tam kelime eşleşmesi kullan — "oluştur", "yazılım" gibi false positive'leri önle
+                    _text_keywords = [
+                        r'\byazı\b', r'\byazısı\b', r'\byazsın\b', r'\bmetin\b', r'\bslogan\b',
+                        r'\btext\b', r'\bsaying\b', r'\bwritten\b', r'\bletters\b',
+                        r'\bkelime\b', r'\bharf\b', r'\btypography\b', r'\blogo\b',
+                        r'"[^"]+"',  # Çift tırnak içinde spesifik metin istenmişse
+                        r"'[^']+'",  # Tek tırnak içinde spesifik metin istenmişse
+                    ]
+                    needs_text = any(_re.search(kw, original_lower) for kw in _text_keywords)
                     
                     if needs_text and result.get("attempts", []) == []:
                         print("🤖 🔍 SELF-REFLECTION TETIKLENDI: Görselde yazı istendi, kalite kontrol yapılıyor...")
@@ -2900,7 +2909,9 @@ Konuşma:
                             
                             if analysis_result.get("success") and "HATA" in analysis_text.upper() and "KUSURSUZ" not in analysis_text.upper():
                                 print("   ❌ Kalite kontrol başarısız! Otonom düzeltme (Retry 1) başlatılıyor...")
-                                correction_prompt = f"{prompt}. CRITICAL FIX: The previous generation failed because: {analysis_text}. You MUST render the text flawlessly this time. Use high contrast, clear typography, and double check spelling."
+                                # ÖNEMLİ: Hata metnini prompt'a ekleme — model bunu görsele basar!
+                                # Sadece orijinal prompt'u güçlendirerek tekrar üret
+                                correction_prompt = f"{prompt}. Ensure all text in the image is spelled correctly with perfect typography. Use high contrast, clear readable font, and double check every letter."
                                 
                                 retry_result = await self.fal_plugin.execute("generate_image", {
                                     "prompt": correction_prompt,
@@ -2980,9 +2991,17 @@ Konuşma:
                     # ==========================================
                     # 🔍 2. SELF-REFLECTION (AUTO-CORRECTION) BAŞLANGICI
                     # ==========================================
-                    # Self-Reflection: SADECE kullanıcının orijinal promptunda yazı/text istenmişse tetikle
+                    # Self-Reflection: SADECE kullanıcının orijinal promptunda AÇIKÇA yazı/text istenmişse tetikle
                     original_lower = original_prompt.lower()
-                    needs_text = any(kw in original_lower for kw in ["yaz", "text", "saying", "written", "letters", "kelime", "harf"])
+                    import re as _re
+                    _text_keywords = [
+                        r'\byazı\b', r'\byazısı\b', r'\byazsın\b', r'\bmetin\b', r'\bslogan\b',
+                        r'\btext\b', r'\bsaying\b', r'\bwritten\b', r'\bletters\b',
+                        r'\bkelime\b', r'\bharf\b', r'\btypography\b', r'\blogo\b',
+                        r'"[^"]+"',  # Çift tırnak içinde spesifik metin istenmişse
+                        r"'[^']+'",  # Tek tırnak içinde spesifik metin istenmişse
+                    ]
+                    needs_text = any(_re.search(kw, original_lower) for kw in _text_keywords)
                     
                     if needs_text:
                         print("🤖 🔍 SELF-REFLECTION TETIKLENDI (NON-REF): Görselde yazı istendi, kalite kontrol yapılıyor...")
@@ -2997,7 +3016,8 @@ Konuşma:
                             
                             if analysis_result.get("success") and "HATA" in analysis_text.upper() and "KUSURSUZ" not in analysis_text.upper():
                                 print("   ❌ Kalite kontrol başarısız! Otonom düzeltme (Retry 1) başlatılıyor...")
-                                correction_prompt = f"{prompt}. CRITICAL FIX: The previous generation failed because: {analysis_text}. You MUST render the text flawlessly this time. Use high contrast, clear typography, and double check spelling."
+                                # ÖNEMLİ: Hata metnini prompt'a ekleme — model bunu görsele basar!
+                                correction_prompt = f"{prompt}. Ensure all text in the image is spelled correctly with perfect typography. Use high contrast, clear readable font, and double check every letter."
                                 
                                 retry_result = await self.fal_plugin.execute("generate_image", {
                                     "prompt": correction_prompt,
